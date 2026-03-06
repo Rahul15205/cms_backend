@@ -148,7 +148,7 @@ export class RightsRequestsController {
   }
 
   // ==========================================
-  // PHASE 5: Metrics (1 endpoint)
+  // PHASE 5: Metrics & Analytics (2 endpoints)
   // ==========================================
 
   @Get('metrics')
@@ -156,5 +156,12 @@ export class RightsRequestsController {
   @ApiOperation({ summary: 'Get aggregate metrics (total, by status, SLA breaches, avg resolution)' })
   getMetrics() {
     return this.rightsRequestsService.getMetrics();
+  }
+
+  @Get('analytics')
+  @Permissions({ module: ModuleName.RIGHTS_MANAGEMENT, action: 'view' })
+  @ApiOperation({ summary: 'Get analytics trends (monthly trend, by regulation, by channel, verification methods, top data categories)' })
+  getAnalytics() {
+    return this.rightsRequestsService.getAnalytics();
   }
 }

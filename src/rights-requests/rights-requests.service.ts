@@ -449,6 +449,79 @@ export class RightsRequestsService {
     };
   }
 
+  async getAnalytics() {
+    const now = new Date();
+    const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+
+    const [
+      byRegulation,
+      byChannel,
+      byVerification,
+      monthlyRequests,
+      topDataCategories,
+    ] = await Promise.all([
+      // Requests by regulation
+      this.prisma.rightsRequest.groupBy({ by: ['regulation'], _count: true }),
+
+      // Requests by submission channel
+      this.prisma.rightsRequest.groupBy({ by: ['submissionChannel'], _count: true }),
+
+      // Verification method distribution
+      this.prisma.rightsRequest.groupBy({
+        by: ['verificationMethod'],
+        _count: true,
+        where: { verificationMethod: { not: null } },
+      }),
+
+      // Monthly trend (last 12 months)
+      this.prisma.rightsRequest.findMany({
+        where: { submittedAt: { gte: twelveMonthsAgo } },
+        select: { submittedAt: true, status: true },
+      }),
+
+      // All requests for data category analysis
+      this.prisma.rightsRequest.findMany({
+        select: { dataCategories: true },
+      }),
+    ]);
+
+    // Build monthly trend
+    const monthlyTrend: Record<string, { total: number; closed: number; escalated: number }> = {};
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyTrend[key] = { total: 0, closed: 0, escalated: 0 };
+    }
+    for (const r of monthlyRequests) {
+      const key = `${r.submittedAt.getFullYear()}-${String(r.submittedAt.getMonth() + 1).padStart(2, '0')}`;
+      if (monthlyTrend[key]) {
+        monthlyTrend[key].total++;
+        if (r.status === 'CLOSED') monthlyTrend[key].closed++;
+        if (r.status === 'ESCALATED') monthlyTrend[key].escalated++;
+      }
+    }
+
+    // Flatten data categories and count frequency
+    const categoryCount: Record<string, number> = {};
+    for (const r of topDataCategories) {
+      for (const cat of r.dataCategories) {
+        categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+      }
+    }
+    const sortedCategories = Object.entries(categoryCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([category, count]) => ({ category, count }));
+
+    return {
+      byRegulation: Object.fromEntries(byRegulation.map((r) => [r.regulation, r._count])),
+      byChannel: Object.fromEntries(byChannel.map((c) => [c.submissionChannel, c._count])),
+      byVerificationMethod: Object.fromEntries(byVerification.map((v) => [v.verificationMethod, v._count])),
+      monthlyTrend,
+      topDataCategories: sortedCategories,
+    };
+  }
+
   // ==========================================
   // HELPERS
   // ==========================================
