@@ -19,6 +19,7 @@ import { PurposesModule } from './purposes/purposes.module';
 import { DataCategoriesModule } from './data-categories/data-categories.module';
 import { ThirdPartiesModule } from './third-parties/third-parties.module';
 import { SubProcessorsModule } from './sub-processors/sub-processors.module';
+import { RightsRequestsModule } from './rights-requests/rights-requests.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { SubProcessorsModule } from './sub-processors/sub-processors.module';
     DataCategoriesModule,
     ThirdPartiesModule,
     SubProcessorsModule,
+    RightsRequestsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

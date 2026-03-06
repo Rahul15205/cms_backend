@@ -32,6 +32,7 @@ model Tenant {
   auditLogs        AuditLog[]
   consentTemplates ConsentTemplate[]
   applications     Application[]
+  rightsRequests   RightsRequest[]
 }
 
 enum UserStatus {
@@ -690,3 +691,215 @@ model ConsentRecord {
   metadata Json? // E.g., device info, raw wizard answers
 }
 
+// ==========================================
+// Phase 3: RIGHTS MANAGEMENT MODULE
+// ==========================================
+
+enum RightsRequestType {
+  FILE_COMPLAINT
+  WITHDRAW_CONSENT
+  ACCESS
+  CORRECTION
+  ERASURE
+  GRIEVANCE_REDRESSAL
+  NOMINATE
+}
+
+enum RightsRequestStatus {
+  RECEIVED
+  IDENTITY_VERIFIED
+  ACKNOWLEDGED
+  IN_REVIEW
+  ACTION_TAKEN
+  RESPONSE_SENT
+  CLOSED
+  REJECTED
+  ESCALATED
+  ON_HOLD
+}
+
+enum RightsRequestPriority {
+  LOW
+  NORMAL
+  URGENT
+  CRITICAL
+}
+
+enum VerificationStatus {
+  VER_PENDING
+  VERIFIED
+  VER_FAILED
+  VER_EXPIRED
+}
+
+enum VerificationMethod {
+  OTP
+  EMAIL_VERIFY
+  AADHAAR_EKYC
+  DIGILOCKER
+  KNOWLEDGE_BASED
+  AUTHORIZED_REP
+  MANUAL_VERIFY
+}
+
+enum SubmissionChannel {
+  WEB
+  API_CHANNEL
+  EMAIL_CHANNEL
+  PHONE
+  IN_PERSON
+}
+
+enum WorkflowStepStatus {
+  WF_PENDING
+  WF_IN_PROGRESS
+  WF_COMPLETED
+  WF_SKIPPED
+}
+
+enum CaseNoteType {
+  NOTE_INTERNAL
+  NOTE_EXTERNAL
+}
+
+enum AttachmentCategory {
+  IDENTITY_PROOF
+  DATA_EXTRACT
+  DELETION_CONFIRMATION
+  COMMUNICATION
+  ATT_OTHER
+}
+
+model RightsRequest {
+  id         String @id @default(uuid())
+  caseNumber String @unique // Business key: RR-2026-000001
+
+  type       RightsRequestType
+  regulation Regulation          // Reuses existing enum
+  status     RightsRequestStatus @default(RECEIVED)
+  priority   RightsRequestPriority @default(NORMAL)
+
+  // Requester info
+  requesterId  String
+  requesterName String
+  requesterEmail String
+  requesterPhone String?
+
+  // Authorization
+  isAuthorizedRep      Boolean @default(false)
+  authorizedRepDetails Json?   // {name, relationship, proofDocument}
+
+  // Verification
+  verificationStatus     VerificationStatus  @default(VER_PENDING)
+  verificationMethod     VerificationMethod?
+  reVerificationRequired Boolean @default(false)
+  fraudFlag              Boolean @default(false)
+
+  // Request details
+  dataCategories      String[] // Personal, Financial, Health, etc.
+  description         String
+  relatedConsents     String[] // ConsentTemplate IDs
+  relatedApplications String[] // App names
+
+  // Submission
+  submissionChannel SubmissionChannel @default(WEB)
+  submittedAt       DateTime         @default(now())
+  acknowledgedAt    DateTime?
+  closedAt          DateTime?
+
+  // SLA
+  dueDate DateTime? // slaBreached & daysRemaining computed at query time
+
+  // Assignment
+  assignedTo   String? // FK → User (not enforced to allow external IDs)
+  assignedTeam String?
+  currentStep  String?
+
+  // Tenant
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  workflowSteps WorkflowStep[]
+  notes         CaseNote[]
+  attachments   CaseAttachment[]
+  evidenceItems EvidenceItem[]
+  auditEntries  RightsAuditEntry[]
+}
+
+model WorkflowStep {
+  id        String @id @default(uuid())
+  requestId String
+  request   RightsRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  name         String
+  order        Int
+  status       WorkflowStepStatus @default(WF_PENDING)
+  assignedRole String?
+  slaHours     Int?
+  completedAt  DateTime?
+  completedBy  String?
+  notes        String?
+
+  @@unique([requestId, order])
+}
+
+model CaseNote {
+  id        String @id @default(uuid())
+  requestId String
+  request   RightsRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  type        CaseNoteType @default(NOTE_INTERNAL)
+  content     String
+  createdBy   String
+  createdAt   DateTime     @default(now())
+  attachments String[]     // URLs or file references
+}
+
+model CaseAttachment {
+  id        String @id @default(uuid())
+  requestId String
+  request   RightsRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  fileName   String
+  fileType   String
+  fileSize   String
+  category   AttachmentCategory @default(ATT_OTHER)
+  uploadedBy String
+  uploadedAt DateTime           @default(now())
+  url        String
+}
+
+model EvidenceItem {
+  id        String @id @default(uuid())
+  requestId String
+  request   RightsRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  caseNumber String // Denormalized for quick lookup
+  fileName   String
+  fileType   String
+  category   String
+  uploadedBy String
+  uploadedAt DateTime @default(now())
+  size       String
+  verified   Boolean  @default(false)
+}
+
+model RightsAuditEntry {
+  id        String @id @default(uuid())
+  requestId String
+  request   RightsRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  caseNumber        String
+  action            String
+  performedBy       String
+  performedAt       DateTime      @default(now())
+  details           String?
+  systemApplication String?
+  ipAddress         String?
+  consentVersion    String?
+  severity          AuditSeverity @default(INFO) // Reuses existing enum
+}
