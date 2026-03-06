@@ -1,0 +1,692 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================================
+// CORE AUTH & USERS (Phase 1)
+// ==========================================
+
+enum TenantStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model Tenant {
+  id        String       @id @default(uuid())
+  name      String
+  domain    String?      @unique
+  status    TenantStatus @default(ACTIVE)
+  settings  Json?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  users            User[]
+  roles            Role[]
+  invitations      Invitation[]
+  accessRules      AccessRule[]
+  auditLogs        AuditLog[]
+  consentTemplates ConsentTemplate[]
+  applications     Application[]
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  LOCKED
+  PENDING
+  SUSPENDED
+}
+
+enum AccountType {
+  INTERNAL
+  EXTERNAL
+}
+
+model User {
+  id             String      @id @default(uuid())
+  email          String      @unique
+  password       String
+  name           String
+  phone          String?
+  status         UserStatus  @default(PENDING)
+  accountType    AccountType @default(INTERNAL)
+  department     String?
+  mfaEnabled     Boolean     @default(false)
+  lastLogin      DateTime?
+  validFrom      DateTime?
+  validUntil     DateTime?
+  riskScore      Int         @default(0)
+  workflowAccess Json?
+  apiAccess      Json?
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roles             UserRole[]
+  sessions          Session[]
+  sentInvitations   Invitation[]      @relation("InvitedBy")
+  auditLogs         AuditLog[]
+  createdTemplates  ConsentTemplate[]
+  publishedVersions ConsentVersion[]
+}
+
+enum RoleStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Role {
+  id           String     @id @default(uuid())
+  name         String
+  description  String?
+  isSystemRole Boolean    @default(false)
+  status       RoleStatus @default(ACTIVE)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  isTemporary Boolean   @default(false)
+  clonedFrom  String?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  users       UserRole[]
+  permissions Permission[]
+  invitations Invitation[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+enum ModuleName {
+  DASHBOARD
+  CONSENT_MANAGEMENT
+  RIGHTS_MANAGEMENT
+  GRIEVANCES
+  COOKIES_MANAGEMENT
+  NOTICES
+  CONFIGURATIONS
+  INTEGRATIONS
+  SECURITY
+  SETTINGS
+  USER_SETUP
+  REPORTS
+  LOGS
+}
+
+model Permission {
+  id     String @id @default(uuid())
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  module    ModuleName
+  view      Boolean    @default(false)
+  create    Boolean    @default(false)
+  edit      Boolean    @default(false)
+  approve   Boolean    @default(false)
+  export    Boolean    @default(false)
+  configure Boolean    @default(false)
+  admin     Boolean    @default(false)
+
+  @@unique([roleId, module])
+}
+
+enum SessionType {
+  WEB
+  MOBILE
+  API
+}
+
+model Session {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  device           String?
+  browser          String?
+  ipAddress        String?
+  location         String?
+  loginTime        DateTime    @default(now())
+  lastActivity     DateTime    @default(now())
+  isCurrentSession Boolean     @default(true)
+  sessionType      SessionType @default(WEB)
+  refreshToken     String?     @unique
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  FAILED
+}
+
+model Invitation {
+  id     String @id @default(uuid())
+  email  String
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  status    InvitationStatus @default(PENDING)
+  invitedBy String
+  inviter   User             @relation("InvitedBy", fields: [invitedBy], references: [id])
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  invitedAt  DateTime  @default(now())
+  expiresAt  DateTime
+  acceptedAt DateTime?
+}
+
+enum AccessRuleType {
+  IP
+  GEO
+  TIME
+  DEVICE
+  CUSTOM
+  RISK
+}
+
+enum AccessRuleStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model AccessRule {
+  id          String           @id @default(uuid())
+  name        String
+  type        AccessRuleType
+  status      AccessRuleStatus @default(ACTIVE)
+  description String?
+  conditions  Json
+  priority    Int              @default(0)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum AuditSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AuditCategory {
+  PROFILE
+  ROLE
+  STATUS
+  SESSION
+  SECURITY
+  TENANT
+  WORKFLOW
+  API
+  BRANDING
+  APPLICATION
+}
+
+model AuditLog {
+  id     String  @id @default(uuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  action    String
+  category  AuditCategory
+  details   Json?
+  ipAddress String?
+  severity  AuditSeverity @default(INFO)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+// ==========================================
+// Phase 2: CONSENT MODULE
+// ==========================================
+
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ConsentType {
+  EXPLICIT
+  IMPLICIT
+  OPTIONAL
+  MANDATORY
+  GRANULAR
+  PARENTAL
+}
+
+enum Regulation {
+  DPDP
+  GDPR
+  TAPA
+  PDPL
+  CUSTOM
+  CCPA
+  LGPD
+  PIPL
+}
+
+enum TargetUserCategory {
+  CUSTOMER
+  EMPLOYEE
+  VENDOR
+  MINOR
+  GUARDIAN
+}
+
+enum ConsentGivenBy {
+  SELF
+  GUARDIAN
+  REPRESENTATIVE
+}
+
+enum ConsentMechanism {
+  CHECKBOX
+  TOGGLE
+  SIGNATURE
+  CLICK_TO_CONFIRM
+  AUDIO_VIDEO
+}
+
+enum PurposeNecessity {
+  ESSENTIAL
+  NON_ESSENTIAL
+}
+
+enum DataCategory {
+  IDENTITY
+  CONTACT
+  FINANCIAL
+  HEALTH
+  BIOMETRIC
+  BEHAVIORAL
+  LOCATION
+  CUSTOM
+}
+
+enum DataSource {
+  DIRECT
+  THIRD_PARTY
+}
+
+enum ThirdPartyRole {
+  DATA_PROCESSOR
+  JOINT_CONTROLLER
+  SUB_PROCESSOR
+}
+
+model Purpose {
+  id                  String           @id @default(uuid())
+  name                String
+  description         String?
+  isPrimary           Boolean          @default(false)
+  necessity           PurposeNecessity
+  automatedProcessing Boolean          @default(false)
+  profilingUsage      Boolean          @default(false)
+
+  templateId String
+  template   ConsentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DataCategoryConfig {
+  id          String       @id @default(uuid())
+  category    DataCategory
+  label       String
+  mandatory   Boolean      @default(true)
+  source      DataSource   @default(DIRECT)
+  description String?
+  country     String?
+
+  templateId String
+  template   ConsentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ThirdParty {
+  id                  String         @id @default(uuid())
+  name                String
+  role                ThirdPartyRole
+  purpose             String
+  country             String
+  crossBorderTransfer Boolean        @default(false)
+
+  templateId String
+  template   ConsentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SubProcessor {
+  id                 String  @id @default(uuid())
+  name               String
+  purpose            String
+  country            String
+  changeNotification String?
+
+  templateId String
+  template   ConsentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DataRetention {
+  id                          String  @id @default(uuid())
+  period                      String
+  justification               String
+  autoDelete                  Boolean @default(false)
+  postWithdrawalRules         String?
+  expireConsentOnRetentionEnd Boolean @default(false)
+
+  templateId String          @unique
+  template   ConsentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SecurityMeasures {
+  id                  String   @id @default(uuid())
+  encryptionAtRest    Boolean  @default(false)
+  encryptionInTransit Boolean  @default(false)
+  accessControls      String?
+  monitoringLogging   String?
+  incidentResponse    String?
+  certifications      String[]
+  additionalMeasures  String[]
+
+  templateId String          @unique
+  template   ConsentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WithdrawalInfo {
+  id                 String  @id @default(uuid())
+  method             String
+  effect             String
+  rightsLink         String?
+  processingTimeline String?
+
+  templateId String          @unique
+  template   ConsentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ConsentTemplate {
+  id                 String               @id @default(uuid())
+  title              String
+  description        String?
+  type               ConsentType          @default(EXPLICIT)
+  regulations        Regulation[]
+  status             TemplateStatus       @default(DRAFT)
+  wizardFields       Json? // For storing dynamic form fields/questions
+  validityStart      DateTime?
+  validityEnd        DateTime?
+  noExpiry           Boolean              @default(true)
+  targetUserCategory TargetUserCategory[]
+  ageThreshold       Int                  @default(18)
+  consentGivenBy     ConsentGivenBy       @default(SELF)
+  mechanism          ConsentMechanism     @default(CHECKBOX)
+  separateConsents   Boolean              @default(false)
+  withdrawVisible    Boolean              @default(true)
+  dataSharing        Boolean              @default(false)
+  privacyNoticeRef   String?
+  auditTrailEnabled  Boolean              @default(true)
+  defaultLanguage    String               @default("en")
+  supportedLanguages String[]
+
+  tenantId  String
+  tenant    Tenant @relation(fields: [tenantId], references: [id])
+  createdBy String
+  creator   User   @relation(fields: [createdBy], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purposes       Purpose[]
+  dataCategories DataCategoryConfig[]
+  thirdParties   ThirdParty[]
+  subProcessors  SubProcessor[]
+  retention      DataRetention?
+  security       SecurityMeasures?
+  withdrawal     WithdrawalInfo?
+
+  versions          ConsentVersion[]
+  usageRecords      ConsentUsageRecord[]
+  applicationUsages ApplicationUsage[]
+}
+
+enum ConsentVersionStatus {
+  ACTIVE
+  ARCHIVED
+  LOCKED
+}
+
+model ConsentVersion {
+  id            String               @id @default(uuid())
+  versionNumber Int
+  content       String // The actual text/HTML of the agreement
+  status        ConsentVersionStatus @default(ACTIVE)
+
+  // Change tracking (from flow spec section 3.6)
+  changeSummary    String?
+  changedFields    String[] // List of changed field names
+  changeReason     String?
+  approvedBy       String?
+  approvalTimestamp DateTime?
+  effectiveFrom    DateTime?
+  effectiveTo      DateTime?
+  usersImpacted    Int       @default(0)
+  reconsentTriggered Boolean  @default(false)
+
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  templateId  String
+  template    ConsentTemplate @relation(fields: [templateId], references: [id])
+  publishedBy String
+  publisher   User            @relation(fields: [publishedBy], references: [id])
+
+  deployments ConsentDeployment[]
+  records     ConsentRecord[]
+
+  @@unique([templateId, versionNumber])
+}
+
+model Application {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+  apiKey      String  @unique // For integrating APIs
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deployments ConsentDeployment[]
+  records     ConsentRecord[]
+}
+
+// ==========================================
+// CONSENT DEPLOYMENT (Enriched per flow spec 3.3/3.4)
+// ==========================================
+
+enum DeploymentMode {
+  MANUAL
+  SCHEDULED
+}
+
+enum DeploymentStatus {
+  DEPLOYED
+  PENDING
+  FAILED
+  ROLLED_BACK
+}
+
+model ConsentDeployment {
+  id            String           @id @default(uuid())
+  versionId     String
+  version       ConsentVersion   @relation(fields: [versionId], references: [id])
+  applicationId String
+  application   Application      @relation(fields: [applicationId], references: [id])
+
+  deploymentMode      DeploymentMode   @default(MANUAL)
+  status              DeploymentStatus @default(PENDING)
+  activationDate      DateTime?
+  region              String?   // e.g., "India", "EU", "India, UAE"
+  platform            String[]  // e.g., ["Web", "Mobile", "API"]
+  userSegment         String?   // e.g., "All Users", "Enterprise"
+  deployedBy          String?   // FK → User (who deployed)
+  affectedUsers       Int       @default(0)
+  approvalRequired    Boolean   @default(false)
+  approvedBy          String?
+  rollbackAllowed     Boolean   @default(true)
+  rollbackConditions  String?
+  lockedAfterActivation Boolean @default(false)
+
+  isActive   Boolean  @default(true)
+  deployedAt DateTime @default(now())
+
+  logs DeploymentLog[]
+
+  @@unique([versionId, applicationId])
+}
+
+// ==========================================
+// DEPLOYMENT LOG (flow spec 3.5)
+// ==========================================
+
+enum DeploymentLogStatus {
+  SUCCESS
+  FAILURE
+}
+
+model DeploymentLog {
+  id           String              @id @default(uuid())
+  deploymentId String
+  deployment   ConsentDeployment   @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+
+  action      String    // e.g., "Deployed", "Rolled back", "Approved"
+  timestamp   DateTime  @default(now())
+  performedBy String    // User who performed the action
+  details     String?
+  status      DeploymentLogStatus @default(SUCCESS)
+}
+
+// ==========================================
+// CONSENT USAGE & CROSS-APP (flow spec 3.7, 3.9)
+// ==========================================
+
+enum ConsentUsageStatus {
+  ACTIVE
+  WITHDRAWN
+  EXPIRED
+}
+
+model ConsentUsageRecord {
+  id              String             @id @default(uuid())
+  userIdentifier  String             // Masked user ID (e.g., USR-****-7842)
+  templateId      String
+  template        ConsentTemplate    @relation(fields: [templateId], references: [id])
+  version         String
+  purposeMapped   String
+  systemApp       String             // System where consent was captured
+  consentDateTime DateTime           @default(now())
+  consentStatus   ConsentUsageStatus @default(ACTIVE)
+  lastValidation  DateTime?
+}
+
+enum ApplicationUsageStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+  PENDING
+}
+
+enum ApplicationUsageType {
+  CRM
+  HRMS
+  WEBSITE
+  API
+  MOBILE
+  ERP
+  INTERNAL
+}
+
+model ApplicationUsage {
+  id               String                 @id @default(uuid())
+  templateId       String
+  template         ConsentTemplate        @relation(fields: [templateId], references: [id])
+  templateVersion  String
+  applicationName  String
+  applicationType  ApplicationUsageType
+  systemOwner      String?
+  purposeUsed      String
+  lastValidation   DateTime?
+  status           ApplicationUsageStatus @default(ACTIVE)
+  usersConsented   Int                    @default(0)
+  violations       Int                    @default(0)
+}
+
+// ==========================================
+// CONSENT RECORDS (End-user level)
+// ==========================================
+
+enum ConsentStatus {
+  GRANTED
+  REVOKED
+}
+
+model ConsentRecord {
+  id            String         @id @default(uuid())
+  versionId     String
+  version       ConsentVersion @relation(fields: [versionId], references: [id])
+  applicationId String
+  application   Application    @relation(fields: [applicationId], references: [id])
+
+  userId       String? // If the end-user is known/logged in
+  endUserEmail String? // If capturing consent for an anonymous user via email
+  endUserIp    String? // Traceability
+
+  status    ConsentStatus @default(GRANTED)
+  grantedAt DateTime      @default(now())
+  revokedAt DateTime?
+
+  metadata Json? // E.g., device info, raw wizard answers
+}
+
