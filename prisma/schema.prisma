@@ -39,6 +39,12 @@ model Tenant {
   scannedWebsites ScannedWebsite[]
   cookieBanners    CookieBanner[]
   cookieConsentLogs CookieConsentLog[]
+  slaRules         SlaRule[]
+  notificationRules NotificationRule[]
+  escalationRules  EscalationRule[]
+  notices          Notice[]
+  noticeLanguages  NoticeLanguage[]
+  noticeTypes      NoticeType[]
 }
 
 enum UserStatus {
@@ -1108,4 +1114,231 @@ model CookieConsentLog {
   updatedAt DateTime @updatedAt
 }
 
+// ==========================================
+// CONFIGURATION MODULE — Phase 1
+// ==========================================
 
+// --- SLA Rules ---
+
+enum SLADurationUnit {
+  HOURS
+  DAYS
+}
+
+enum SLADayType {
+  WORKING
+  CALENDAR
+}
+
+enum SLAScope {
+  RIGHTS
+  GRIEVANCES
+}
+
+enum SLARuleStatus {
+  SLA_ACTIVE
+  SLA_INACTIVE
+  SLA_ARCHIVED
+}
+
+model SlaRule {
+  id              String          @id @default(uuid())
+  name            String
+  regulation      Regulation?     // Reuses existing enum
+  rightType       RightsRequestType? // Only when scope = RIGHTS
+  category        String?         // Grievance category or custom label
+  priority        String?         // e.g., "LOW", "NORMAL", "URGENT", "CRITICAL"
+  duration        Int
+  durationUnit    SLADurationUnit @default(DAYS)
+  dayType         SLADayType      @default(CALENDAR)
+  scope           SLAScope        @default(RIGHTS)
+  pauseConditions String[]
+  autoCloseEnabled Boolean        @default(false)
+  breachActions   String[]
+  status          SLARuleStatus   @default(SLA_ACTIVE)
+  version         Int             @default(1)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// --- Notification Rules ---
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+  WEBHOOK
+}
+
+enum RecipientType {
+  NOTIF_USER
+  NOTIF_ROLE
+  NOTIF_ADMIN
+  NOTIF_EXTERNAL
+}
+
+enum NotificationFrequency {
+  IMMEDIATE
+  BATCHED
+  SCHEDULED
+}
+
+enum ConfigRuleStatus {
+  CFG_ACTIVE
+  CFG_INACTIVE
+}
+
+model NotificationRule {
+  id              String                @id @default(uuid())
+  name            String
+  triggerEvent    String                // e.g., "rights_request_created", "sla_breach", "grievance_escalated"
+  channel         NotificationChannel   @default(EMAIL)
+  recipientType   RecipientType         @default(NOTIF_ROLE)
+  template        String?               // Template ID or inline template
+  language        String                @default("en")
+  frequency       NotificationFrequency @default(IMMEDIATE)
+  retryEnabled    Boolean               @default(false)
+  maxRetries      Int                   @default(3)
+  status          ConfigRuleStatus      @default(CFG_ACTIVE)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// --- Escalation Rules ---
+
+enum EscalationTrigger {
+  SLA_BREACH
+  MANUAL_FLAG
+  RISK_SCORE
+  PRIORITY_CHANGE
+}
+
+enum EscalationLevel {
+  L1
+  L2
+  L3
+}
+
+enum EscalationAction {
+  NOTIFY
+  REASSIGN
+  LOCK_CASE
+  ESCALATE_EXTERNAL
+}
+
+model EscalationRule {
+  id                    String             @id @default(uuid())
+  name                  String
+  triggerCondition      EscalationTrigger  @default(SLA_BREACH)
+  triggerThreshold      Int?               // e.g., hours past SLA, risk score threshold
+  escalationLevel       EscalationLevel    @default(L1)
+  recipientRole         String             // Role name to escalate to
+  recipientUser         String?            // Specific user ID (optional)
+  action                EscalationAction   @default(NOTIFY)
+  maxLevels             Int                @default(3)
+  autoCloseOnResolution Boolean            @default(true)
+  status                ConfigRuleStatus   @default(CFG_ACTIVE)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// NOTICES MODULE — Phase 2
+// ==========================================
+
+enum NoticeStatus {
+  NOTICE_ACTIVE
+  NOTICE_DRAFT
+  NOTICE_PENDING_REVIEW
+  NOTICE_ARCHIVED
+}
+
+model Notice {
+  id              String       @id @default(uuid())
+  title           String
+  content         String?      // Rich text / HTML content
+  currentVersion  Int          @default(1)
+  status          NoticeStatus @default(NOTICE_DRAFT)
+
+  typeId String?
+  type   NoticeType? @relation(fields: [typeId], references: [id])
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  versions        NoticeVersion[]
+  acknowledgements NoticeAcknowledgement[]
+}
+
+model NoticeVersion {
+  id       String @id @default(uuid())
+  noticeId String
+  notice   Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+  version  Int
+  title    String
+  content  String?  // Snapshot of content at this version
+  changes  String?  // Summary of changes made
+  author   String?  // User who created this version
+
+  createdAt DateTime @default(now())
+
+  @@unique([noticeId, version])
+}
+
+model NoticeLanguage {
+  id         String  @id @default(uuid())
+  code       String  // e.g., "en", "hi", "ar"
+  name       String  // e.g., "English", "Hindi", "Arabic"
+  isDefault  Boolean @default(false)
+  completion Int     @default(0) // Percentage 0-100
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NoticeType {
+  id          String  @id @default(uuid())
+  name        String  // e.g., "Privacy Policy", "Terms of Service", "Cookie Policy"
+  description String?
+  required    Boolean @default(false)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notices Notice[]
+}
+
+model NoticeAcknowledgement {
+  id       String @id @default(uuid())
+  noticeId String
+  notice   Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+  userId        String?  // Logged-in user ID
+  userEmail     String?  // Anonymous user email
+  acknowledgedAt DateTime @default(now())
+  version       Int      // Which version was acknowledged
+  ipAddress     String?
+}

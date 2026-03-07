@@ -1,0 +1,99 @@
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateEscalationRuleDto } from './dto/create-escalation-rule.dto';
+import { UpdateEscalationRuleDto } from './dto/update-escalation-rule.dto';
+import { EscalationTrigger, ConfigRuleStatus } from '@prisma/client';
+export declare class EscalationRulesService {
+    private prisma;
+    constructor(prisma: PrismaService);
+    create(dto: CreateEscalationRuleDto): import("@prisma/client").Prisma.Prisma__EscalationRuleClient<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.ConfigRuleStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        action: import("@prisma/client").$Enums.EscalationAction;
+        triggerCondition: import("@prisma/client").$Enums.EscalationTrigger;
+        triggerThreshold: number | null;
+        escalationLevel: import("@prisma/client").$Enums.EscalationLevel;
+        recipientRole: string;
+        recipientUser: string | null;
+        maxLevels: number;
+        autoCloseOnResolution: boolean;
+    }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    findAll(filters: {
+        triggerCondition?: EscalationTrigger;
+        status?: ConfigRuleStatus;
+        tenantId?: string;
+        limit?: number;
+        offset?: number;
+    }): Promise<{
+        total: number;
+        page: number;
+        limit: number;
+        data: {
+            id: string;
+            name: string;
+            status: import("@prisma/client").$Enums.ConfigRuleStatus;
+            createdAt: Date;
+            updatedAt: Date;
+            tenantId: string | null;
+            action: import("@prisma/client").$Enums.EscalationAction;
+            triggerCondition: import("@prisma/client").$Enums.EscalationTrigger;
+            triggerThreshold: number | null;
+            escalationLevel: import("@prisma/client").$Enums.EscalationLevel;
+            recipientRole: string;
+            recipientUser: string | null;
+            maxLevels: number;
+            autoCloseOnResolution: boolean;
+        }[];
+    }>;
+    findOne(id: string): Promise<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.ConfigRuleStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        action: import("@prisma/client").$Enums.EscalationAction;
+        triggerCondition: import("@prisma/client").$Enums.EscalationTrigger;
+        triggerThreshold: number | null;
+        escalationLevel: import("@prisma/client").$Enums.EscalationLevel;
+        recipientRole: string;
+        recipientUser: string | null;
+        maxLevels: number;
+        autoCloseOnResolution: boolean;
+    }>;
+    update(id: string, dto: UpdateEscalationRuleDto): Promise<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.ConfigRuleStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        action: import("@prisma/client").$Enums.EscalationAction;
+        triggerCondition: import("@prisma/client").$Enums.EscalationTrigger;
+        triggerThreshold: number | null;
+        escalationLevel: import("@prisma/client").$Enums.EscalationLevel;
+        recipientRole: string;
+        recipientUser: string | null;
+        maxLevels: number;
+        autoCloseOnResolution: boolean;
+    }>;
+    remove(id: string): Promise<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.ConfigRuleStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        action: import("@prisma/client").$Enums.EscalationAction;
+        triggerCondition: import("@prisma/client").$Enums.EscalationTrigger;
+        triggerThreshold: number | null;
+        escalationLevel: import("@prisma/client").$Enums.EscalationLevel;
+        recipientRole: string;
+        recipientUser: string | null;
+        maxLevels: number;
+        autoCloseOnResolution: boolean;
+    }>;
+}

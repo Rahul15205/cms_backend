@@ -1,0 +1,93 @@
+import { NotificationRulesService } from './notification-rules.service';
+import { CreateNotificationRuleDto } from './dto/create-notification-rule.dto';
+import { UpdateNotificationRuleDto } from './dto/update-notification-rule.dto';
+import { NotificationChannel, ConfigRuleStatus } from '@prisma/client';
+export declare class NotificationRulesController {
+    private readonly notificationRulesService;
+    constructor(notificationRulesService: NotificationRulesService);
+    create(dto: CreateNotificationRuleDto): import("@prisma/client").Prisma.Prisma__NotificationRuleClient<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.ConfigRuleStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        template: string | null;
+        frequency: import("@prisma/client").$Enums.NotificationFrequency;
+        language: string;
+        triggerEvent: string;
+        channel: import("@prisma/client").$Enums.NotificationChannel;
+        recipientType: import("@prisma/client").$Enums.RecipientType;
+        retryEnabled: boolean;
+        maxRetries: number;
+    }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    findAll(channel?: NotificationChannel, status?: ConfigRuleStatus, tenantId?: string, limit?: number, offset?: number): Promise<{
+        total: number;
+        page: number;
+        limit: number;
+        data: {
+            id: string;
+            name: string;
+            status: import("@prisma/client").$Enums.ConfigRuleStatus;
+            createdAt: Date;
+            updatedAt: Date;
+            tenantId: string | null;
+            template: string | null;
+            frequency: import("@prisma/client").$Enums.NotificationFrequency;
+            language: string;
+            triggerEvent: string;
+            channel: import("@prisma/client").$Enums.NotificationChannel;
+            recipientType: import("@prisma/client").$Enums.RecipientType;
+            retryEnabled: boolean;
+            maxRetries: number;
+        }[];
+    }>;
+    findOne(id: string): Promise<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.ConfigRuleStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        template: string | null;
+        frequency: import("@prisma/client").$Enums.NotificationFrequency;
+        language: string;
+        triggerEvent: string;
+        channel: import("@prisma/client").$Enums.NotificationChannel;
+        recipientType: import("@prisma/client").$Enums.RecipientType;
+        retryEnabled: boolean;
+        maxRetries: number;
+    }>;
+    update(id: string, dto: UpdateNotificationRuleDto): Promise<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.ConfigRuleStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        template: string | null;
+        frequency: import("@prisma/client").$Enums.NotificationFrequency;
+        language: string;
+        triggerEvent: string;
+        channel: import("@prisma/client").$Enums.NotificationChannel;
+        recipientType: import("@prisma/client").$Enums.RecipientType;
+        retryEnabled: boolean;
+        maxRetries: number;
+    }>;
+    remove(id: string): Promise<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.ConfigRuleStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        template: string | null;
+        frequency: import("@prisma/client").$Enums.NotificationFrequency;
+        language: string;
+        triggerEvent: string;
+        channel: import("@prisma/client").$Enums.NotificationChannel;
+        recipientType: import("@prisma/client").$Enums.RecipientType;
+        retryEnabled: boolean;
+        maxRetries: number;
+    }>;
+}

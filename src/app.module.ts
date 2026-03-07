@@ -22,6 +22,10 @@ import { SubProcessorsModule } from './sub-processors/sub-processors.module';
 import { RightsRequestsModule } from './rights-requests/rights-requests.module';
 import { GrievancesModule } from './grievances/grievances.module';
 import { CookiesManagementModule } from './cookies-management/cookies-management.module';
+import { SlaRulesModule } from './sla-rules/sla-rules.module';
+import { NotificationRulesModule } from './notification-rules/notification-rules.module';
+import { EscalationRulesModule } from './escalation-rules/escalation-rules.module';
+import { NoticesModule } from './notices/notices.module';
 
 @Module({
   imports: [
@@ -46,6 +50,10 @@ import { CookiesManagementModule } from './cookies-management/cookies-management
     RightsRequestsModule,
     GrievancesModule,
     CookiesManagementModule,
+    SlaRulesModule,
+    NotificationRulesModule,
+    EscalationRulesModule,
+    NoticesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

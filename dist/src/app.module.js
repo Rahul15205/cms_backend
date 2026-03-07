@@ -31,6 +31,10 @@ const sub_processors_module_1 = require("./sub-processors/sub-processors.module"
 const rights_requests_module_1 = require("./rights-requests/rights-requests.module");
 const grievances_module_1 = require("./grievances/grievances.module");
 const cookies_management_module_1 = require("./cookies-management/cookies-management.module");
+const sla_rules_module_1 = require("./sla-rules/sla-rules.module");
+const notification_rules_module_1 = require("./notification-rules/notification-rules.module");
+const escalation_rules_module_1 = require("./escalation-rules/escalation-rules.module");
+const notices_module_1 = require("./notices/notices.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -58,6 +62,10 @@ exports.AppModule = AppModule = __decorate([
             rights_requests_module_1.RightsRequestsModule,
             grievances_module_1.GrievancesModule,
             cookies_management_module_1.CookiesManagementModule,
+            sla_rules_module_1.SlaRulesModule,
+            notification_rules_module_1.NotificationRulesModule,
+            escalation_rules_module_1.EscalationRulesModule,
+            notices_module_1.NoticesModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],
