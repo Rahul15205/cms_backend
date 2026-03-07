@@ -1,0 +1,241 @@
+import { RightsRequestsService } from './rights-requests.service';
+import { CreateRightsRequestDto } from './dto/create-rights-request.dto';
+import { UpdateRightsRequestDto } from './dto/update-rights-request.dto';
+import { UpdateStatusDto } from './dto/update-status.dto';
+import { AssignRequestDto } from './dto/assign-request.dto';
+import { CreateCaseNoteDto } from './dto/create-case-note.dto';
+import { CreateCaseAttachmentDto } from './dto/create-case-attachment.dto';
+import { CreateEvidenceItemDto } from './dto/create-evidence-item.dto';
+import { RightsRequestStatus } from '@prisma/client';
+export declare class RightsRequestsController {
+    private readonly rightsRequestsService;
+    constructor(rightsRequestsService: RightsRequestsService);
+    create(dto: CreateRightsRequestDto, req: any): Promise<any>;
+    findAll(status?: RightsRequestStatus, type?: string, priority?: string, assignedTo?: string, search?: string, tenantId?: string, limit?: number, offset?: number): Promise<{
+        total: number;
+        page: number;
+        limit: number;
+        data: any[];
+    }>;
+    findOne(id: string): Promise<any>;
+    update(id: string, dto: UpdateRightsRequestDto): Promise<{
+        id: string;
+        status: import("@prisma/client").$Enums.RightsRequestStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        description: string;
+        tenantId: string | null;
+        type: import("@prisma/client").$Enums.RightsRequestType;
+        priority: import("@prisma/client").$Enums.RightsRequestPriority;
+        dataCategories: string[];
+        regulation: import("@prisma/client").$Enums.Regulation;
+        requesterId: string;
+        requesterName: string;
+        requesterEmail: string;
+        requesterPhone: string | null;
+        isAuthorizedRep: boolean;
+        authorizedRepDetails: import("@prisma/client/runtime/client").JsonValue | null;
+        relatedConsents: string[];
+        relatedApplications: string[];
+        submissionChannel: import("@prisma/client").$Enums.SubmissionChannel;
+        dueDate: Date | null;
+        assignedTo: string | null;
+        assignedTeam: string | null;
+        caseNumber: string;
+        verificationStatus: import("@prisma/client").$Enums.VerificationStatus;
+        verificationMethod: import("@prisma/client").$Enums.VerificationMethod | null;
+        reVerificationRequired: boolean;
+        fraudFlag: boolean;
+        submittedAt: Date;
+        acknowledgedAt: Date | null;
+        closedAt: Date | null;
+        currentStep: string | null;
+    }>;
+    updateStatus(id: string, dto: UpdateStatusDto, req: any): Promise<{
+        id: string;
+        status: import("@prisma/client").$Enums.RightsRequestStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        description: string;
+        tenantId: string | null;
+        type: import("@prisma/client").$Enums.RightsRequestType;
+        priority: import("@prisma/client").$Enums.RightsRequestPriority;
+        dataCategories: string[];
+        regulation: import("@prisma/client").$Enums.Regulation;
+        requesterId: string;
+        requesterName: string;
+        requesterEmail: string;
+        requesterPhone: string | null;
+        isAuthorizedRep: boolean;
+        authorizedRepDetails: import("@prisma/client/runtime/client").JsonValue | null;
+        relatedConsents: string[];
+        relatedApplications: string[];
+        submissionChannel: import("@prisma/client").$Enums.SubmissionChannel;
+        dueDate: Date | null;
+        assignedTo: string | null;
+        assignedTeam: string | null;
+        caseNumber: string;
+        verificationStatus: import("@prisma/client").$Enums.VerificationStatus;
+        verificationMethod: import("@prisma/client").$Enums.VerificationMethod | null;
+        reVerificationRequired: boolean;
+        fraudFlag: boolean;
+        submittedAt: Date;
+        acknowledgedAt: Date | null;
+        closedAt: Date | null;
+        currentStep: string | null;
+    }>;
+    assign(id: string, dto: AssignRequestDto, req: any): Promise<{
+        id: string;
+        status: import("@prisma/client").$Enums.RightsRequestStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        description: string;
+        tenantId: string | null;
+        type: import("@prisma/client").$Enums.RightsRequestType;
+        priority: import("@prisma/client").$Enums.RightsRequestPriority;
+        dataCategories: string[];
+        regulation: import("@prisma/client").$Enums.Regulation;
+        requesterId: string;
+        requesterName: string;
+        requesterEmail: string;
+        requesterPhone: string | null;
+        isAuthorizedRep: boolean;
+        authorizedRepDetails: import("@prisma/client/runtime/client").JsonValue | null;
+        relatedConsents: string[];
+        relatedApplications: string[];
+        submissionChannel: import("@prisma/client").$Enums.SubmissionChannel;
+        dueDate: Date | null;
+        assignedTo: string | null;
+        assignedTeam: string | null;
+        caseNumber: string;
+        verificationStatus: import("@prisma/client").$Enums.VerificationStatus;
+        verificationMethod: import("@prisma/client").$Enums.VerificationMethod | null;
+        reVerificationRequired: boolean;
+        fraudFlag: boolean;
+        submittedAt: Date;
+        acknowledgedAt: Date | null;
+        closedAt: Date | null;
+        currentStep: string | null;
+    }>;
+    getWorkflow(id: string): Promise<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.WorkflowStepStatus;
+        notes: string | null;
+        order: number;
+        requestId: string;
+        assignedRole: string | null;
+        slaHours: number | null;
+        completedAt: Date | null;
+        completedBy: string | null;
+    }[]>;
+    getNotes(id: string): Promise<{
+        id: string;
+        createdAt: Date;
+        type: import("@prisma/client").$Enums.CaseNoteType;
+        content: string;
+        createdBy: string;
+        attachments: string[];
+        requestId: string;
+    }[]>;
+    addNote(id: string, dto: CreateCaseNoteDto, req: any): Promise<{
+        id: string;
+        createdAt: Date;
+        type: import("@prisma/client").$Enums.CaseNoteType;
+        content: string;
+        createdBy: string;
+        attachments: string[];
+        requestId: string;
+    }>;
+    getAttachments(id: string): Promise<{
+        url: string;
+        id: string;
+        category: import("@prisma/client").$Enums.AttachmentCategory;
+        fileName: string;
+        fileType: string;
+        fileSize: string;
+        requestId: string;
+        uploadedBy: string;
+        uploadedAt: Date;
+    }[]>;
+    addAttachment(id: string, dto: CreateCaseAttachmentDto, req: any): Promise<{
+        url: string;
+        id: string;
+        category: import("@prisma/client").$Enums.AttachmentCategory;
+        fileName: string;
+        fileType: string;
+        fileSize: string;
+        requestId: string;
+        uploadedBy: string;
+        uploadedAt: Date;
+    }>;
+    getEvidence(id: string): Promise<{
+        id: string;
+        category: string;
+        fileName: string;
+        fileType: string;
+        size: string;
+        verified: boolean;
+        caseNumber: string;
+        requestId: string;
+        uploadedBy: string;
+        uploadedAt: Date;
+    }[]>;
+    addEvidence(id: string, dto: CreateEvidenceItemDto, req: any): Promise<{
+        id: string;
+        category: string;
+        fileName: string;
+        fileType: string;
+        size: string;
+        verified: boolean;
+        caseNumber: string;
+        requestId: string;
+        uploadedBy: string;
+        uploadedAt: Date;
+    }>;
+    getAuditTrail(id: string): Promise<{
+        id: string;
+        consentVersion: string | null;
+        ipAddress: string | null;
+        severity: import("@prisma/client").$Enums.AuditSeverity;
+        action: string;
+        details: string | null;
+        performedBy: string;
+        caseNumber: string;
+        performedAt: Date;
+        systemApplication: string | null;
+        requestId: string;
+    }[]>;
+    getMetrics(): Promise<{
+        total: number;
+        byStatus: {
+            [k: string]: number;
+        };
+        byType: {
+            [k: string]: number;
+        };
+        byPriority: {
+            [k: string]: number;
+        };
+        slaBreached: number;
+        avgResolutionDays: number;
+    }>;
+    getAnalytics(): Promise<{
+        byRegulation: {
+            [k: string]: number;
+        };
+        byChannel: {
+            [k: string]: number;
+        };
+        byVerificationMethod: any;
+        monthlyTrend: Record<string, {
+            total: number;
+            closed: number;
+            escalated: number;
+        }>;
+        topDataCategories: {
+            category: string;
+            count: number;
+        }[];
+    }>;
+}

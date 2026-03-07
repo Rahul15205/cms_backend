@@ -20,6 +20,8 @@ import { DataCategoriesModule } from './data-categories/data-categories.module';
 import { ThirdPartiesModule } from './third-parties/third-parties.module';
 import { SubProcessorsModule } from './sub-processors/sub-processors.module';
 import { RightsRequestsModule } from './rights-requests/rights-requests.module';
+import { GrievancesModule } from './grievances/grievances.module';
+import { CookiesManagementModule } from './cookies-management/cookies-management.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { RightsRequestsModule } from './rights-requests/rights-requests.module';
     ThirdPartiesModule,
     SubProcessorsModule,
     RightsRequestsModule,
+    GrievancesModule,
+    CookiesManagementModule,
   ],
   controllers: [AppController],
   providers: [AppService],

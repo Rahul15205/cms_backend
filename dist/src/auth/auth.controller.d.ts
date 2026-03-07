@@ -28,8 +28,24 @@ export declare class AuthController {
             tenant: string;
         };
     }>;
-    logout(): {
+    logout(req: any): Promise<{
         message: string;
-    };
-    getProfile(req: any): any;
+    }>;
+    getProfile(req: any): Promise<{
+        id: string;
+        name: string;
+        email: string;
+        phone: string | null;
+        status: import("@prisma/client").$Enums.UserStatus;
+        accountType: import("@prisma/client").$Enums.AccountType;
+        department: string | null;
+        mfaEnabled: boolean;
+        lastLogin: Date | null;
+        roles: string[];
+        permissions: any;
+        tenant: {
+            id: string;
+            name: string;
+        };
+    }>;
 }

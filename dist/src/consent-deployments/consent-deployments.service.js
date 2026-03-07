@@ -12,13 +12,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConsentDeploymentsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const client_1 = require("@prisma/client");
 let ConsentDeploymentsService = class ConsentDeploymentsService {
     prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async create(createConsentDeploymentDto) {
-        const { versionId, applicationId } = createConsentDeploymentDto;
+    async create(createConsentDeploymentDto, deployedBy) {
+        const { versionId, applicationId, activationDate, ...rest } = createConsentDeploymentDto;
         const version = await this.prisma.consentVersion.findUnique({ where: { id: versionId } });
         if (!version)
             throw new common_1.NotFoundException('Consent Version not found');
@@ -33,8 +34,27 @@ let ConsentDeploymentsService = class ConsentDeploymentsService {
         if (existing) {
             throw new common_1.ConflictException('This version is already deployed to this application.');
         }
-        return this.prisma.consentDeployment.create({
-            data: createConsentDeploymentDto
+        return this.prisma.$transaction(async (prisma) => {
+            const deployment = await prisma.consentDeployment.create({
+                data: {
+                    versionId,
+                    applicationId,
+                    ...rest,
+                    activationDate: activationDate ? new Date(activationDate) : undefined,
+                    deployedBy,
+                    status: client_1.DeploymentStatus.DEPLOYED,
+                }
+            });
+            await prisma.deploymentLog.create({
+                data: {
+                    deploymentId: deployment.id,
+                    action: 'Deployed',
+                    performedBy: deployedBy || 'system',
+                    details: `Deployed version to application ${application.name}`,
+                    status: 'SUCCESS',
+                }
+            });
+            return deployment;
         });
     }
     async findAll(applicationId, versionId, limit, offset) {
@@ -70,7 +90,8 @@ let ConsentDeploymentsService = class ConsentDeploymentsService {
             where: { id },
             include: {
                 version: { include: { template: { select: { title: true } } } },
-                application: true
+                application: true,
+                logs: { orderBy: { timestamp: 'desc' } }
             }
         });
         if (!deployment)
@@ -82,6 +103,41 @@ let ConsentDeploymentsService = class ConsentDeploymentsService {
         return this.prisma.consentDeployment.update({
             where: { id },
             data: updateConsentDeploymentDto
+        });
+    }
+    async rollback(id, performedBy) {
+        const deployment = await this.findOne(id);
+        if (!deployment.rollbackAllowed) {
+            throw new common_1.BadRequestException('Rollback is not allowed for this deployment');
+        }
+        if (deployment.status === client_1.DeploymentStatus.ROLLED_BACK) {
+            throw new common_1.BadRequestException('This deployment has already been rolled back');
+        }
+        return this.prisma.$transaction(async (prisma) => {
+            const updated = await prisma.consentDeployment.update({
+                where: { id },
+                data: {
+                    status: client_1.DeploymentStatus.ROLLED_BACK,
+                    isActive: false,
+                }
+            });
+            await prisma.deploymentLog.create({
+                data: {
+                    deploymentId: id,
+                    action: 'Rolled back',
+                    performedBy,
+                    details: 'Deployment rolled back',
+                    status: 'SUCCESS',
+                }
+            });
+            return updated;
+        });
+    }
+    async getDeploymentLogs(deploymentId) {
+        await this.findOne(deploymentId);
+        return this.prisma.deploymentLog.findMany({
+            where: { deploymentId },
+            orderBy: { timestamp: 'desc' }
         });
     }
     async remove(id) {

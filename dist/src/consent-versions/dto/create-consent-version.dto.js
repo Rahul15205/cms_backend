@@ -15,6 +15,12 @@ const swagger_1 = require("@nestjs/swagger");
 class CreateConsentVersionDto {
     content;
     templateId;
+    changeSummary;
+    changedFields;
+    changeReason;
+    effectiveFrom;
+    effectiveTo;
+    reconsentTriggered;
 }
 exports.CreateConsentVersionDto = CreateConsentVersionDto;
 __decorate([
@@ -29,4 +35,41 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateConsentVersionDto.prototype, "templateId", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'Updated data sharing clause' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateConsentVersionDto.prototype, "changeSummary", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: ['dataSharing', 'thirdParties'] }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsString)({ each: true }),
+    __metadata("design:type", Array)
+], CreateConsentVersionDto.prototype, "changedFields", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'Regulatory requirement update' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateConsentVersionDto.prototype, "changeReason", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: '2026-04-01T00:00:00.000Z' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], CreateConsentVersionDto.prototype, "effectiveFrom", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: '2027-04-01T00:00:00.000Z' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], CreateConsentVersionDto.prototype, "effectiveTo", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateConsentVersionDto.prototype, "reconsentTriggered", void 0);
 //# sourceMappingURL=create-consent-version.dto.js.map

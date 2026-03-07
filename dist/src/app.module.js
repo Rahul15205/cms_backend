@@ -24,6 +24,13 @@ const consent_versions_module_1 = require("./consent-versions/consent-versions.m
 const applications_module_1 = require("./applications/applications.module");
 const consent_deployments_module_1 = require("./consent-deployments/consent-deployments.module");
 const consent_records_module_1 = require("./consent-records/consent-records.module");
+const purposes_module_1 = require("./purposes/purposes.module");
+const data_categories_module_1 = require("./data-categories/data-categories.module");
+const third_parties_module_1 = require("./third-parties/third-parties.module");
+const sub_processors_module_1 = require("./sub-processors/sub-processors.module");
+const rights_requests_module_1 = require("./rights-requests/rights-requests.module");
+const grievances_module_1 = require("./grievances/grievances.module");
+const cookies_management_module_1 = require("./cookies-management/cookies-management.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -44,6 +51,13 @@ exports.AppModule = AppModule = __decorate([
             applications_module_1.ApplicationsModule,
             consent_deployments_module_1.ConsentDeploymentsModule,
             consent_records_module_1.ConsentRecordsModule,
+            purposes_module_1.PurposesModule,
+            data_categories_module_1.DataCategoriesModule,
+            third_parties_module_1.ThirdPartiesModule,
+            sub_processors_module_1.SubProcessorsModule,
+            rights_requests_module_1.RightsRequestsModule,
+            grievances_module_1.GrievancesModule,
+            cookies_management_module_1.CookiesManagementModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

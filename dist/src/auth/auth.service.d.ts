@@ -30,4 +30,24 @@ export declare class AuthService {
             tenant: string;
         };
     }>;
+    logout(userId: string): Promise<{
+        message: string;
+    }>;
+    getProfile(userId: string): Promise<{
+        id: string;
+        name: string;
+        email: string;
+        phone: string | null;
+        status: import("@prisma/client").$Enums.UserStatus;
+        accountType: import("@prisma/client").$Enums.AccountType;
+        department: string | null;
+        mfaEnabled: boolean;
+        lastLogin: Date | null;
+        roles: string[];
+        permissions: any;
+        tenant: {
+            id: string;
+            name: string;
+        };
+    }>;
 }

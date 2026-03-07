@@ -29,8 +29,8 @@ let ConsentDeploymentsController = class ConsentDeploymentsController {
     constructor(consentDeploymentsService) {
         this.consentDeploymentsService = consentDeploymentsService;
     }
-    create(createConsentDeploymentDto) {
-        return this.consentDeploymentsService.create(createConsentDeploymentDto);
+    create(createConsentDeploymentDto, req) {
+        return this.consentDeploymentsService.create(createConsentDeploymentDto, req.user.userId);
     }
     findAll(applicationId, versionId, limit, offset) {
         return this.consentDeploymentsService.findAll(applicationId, versionId, limit, offset);
@@ -38,8 +38,14 @@ let ConsentDeploymentsController = class ConsentDeploymentsController {
     findOne(id) {
         return this.consentDeploymentsService.findOne(id);
     }
+    getLogs(id) {
+        return this.consentDeploymentsService.getDeploymentLogs(id);
+    }
     update(id, updateConsentDeploymentDto) {
         return this.consentDeploymentsService.update(id, updateConsentDeploymentDto);
+    }
+    rollback(id, req) {
+        return this.consentDeploymentsService.rollback(id, req.user.userId);
     }
     remove(id) {
         return this.consentDeploymentsService.remove(id);
@@ -52,8 +58,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Deploy a Consent Version to an Application' }),
     (0, swagger_1.ApiResponse)({ status: 201, type: consent_deployment_response_dto_1.ConsentDeploymentResponseDto }),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_consent_deployment_dto_1.CreateConsentDeploymentDto]),
+    __metadata("design:paramtypes", [create_consent_deployment_dto_1.CreateConsentDeploymentDto, Object]),
     __metadata("design:returntype", void 0)
 ], ConsentDeploymentsController.prototype, "create", null);
 __decorate([
@@ -76,7 +83,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)(':id'),
     (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.CONSENT_MANAGEMENT, action: 'view' }),
-    (0, swagger_1.ApiOperation)({ summary: 'Get details of a specific deployment' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Get details of a specific deployment (includes logs)' }),
     (0, swagger_1.ApiResponse)({ status: 200, type: consent_deployment_response_dto_1.ConsentDeploymentResponseDto }),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
@@ -84,9 +91,18 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ConsentDeploymentsController.prototype, "findOne", null);
 __decorate([
+    (0, common_1.Get)(':id/logs'),
+    (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.CONSENT_MANAGEMENT, action: 'view' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Get deployment logs for a specific deployment' }),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ConsentDeploymentsController.prototype, "getLogs", null);
+__decorate([
     (0, common_1.Put)(':id'),
     (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.CONSENT_MANAGEMENT, action: 'edit' }),
-    (0, swagger_1.ApiOperation)({ summary: 'Update deployment status (e.g. toggle isActive)' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Update deployment configuration (e.g. toggle isActive, region, segment)' }),
     (0, swagger_1.ApiResponse)({ status: 200, type: consent_deployment_response_dto_1.ConsentDeploymentResponseDto }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
@@ -94,6 +110,16 @@ __decorate([
     __metadata("design:paramtypes", [String, update_consent_deployment_dto_1.UpdateConsentDeploymentDto]),
     __metadata("design:returntype", void 0)
 ], ConsentDeploymentsController.prototype, "update", null);
+__decorate([
+    (0, common_1.Put)(':id/rollback'),
+    (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.CONSENT_MANAGEMENT, action: 'approve' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Rollback a deployment (sets status to ROLLED_BACK and deactivates)' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], ConsentDeploymentsController.prototype, "rollback", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.CONSENT_MANAGEMENT, action: 'admin' }),

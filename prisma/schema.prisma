@@ -33,6 +33,12 @@ model Tenant {
   consentTemplates ConsentTemplate[]
   applications     Application[]
   rightsRequests   RightsRequest[]
+  grievances       Grievance[]
+  cookieCategories CookieCategory[]
+  cookieInventories CookieInventory[]
+  scannedWebsites ScannedWebsite[]
+  cookieBanners    CookieBanner[]
+  cookieConsentLogs CookieConsentLog[]
 }
 
 enum UserStatus {
@@ -903,3 +909,203 @@ model RightsAuditEntry {
   consentVersion    String?
   severity          AuditSeverity @default(INFO) // Reuses existing enum
 }
+
+// ==========================================
+// GRIEVANCES MODULE
+// ==========================================
+
+enum GrievanceCategory {
+  DATA_ACCESS
+  CONSENT
+  PRIVACY
+  DATA_ERASURE
+  DATA_PORTABILITY
+  MINOR_CONSENT
+  NOTICE
+  SLA
+}
+
+enum GrievanceStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  ESCALATED
+}
+
+enum GrievancePriority {
+  GRV_LOW
+  GRV_MEDIUM
+  GRV_HIGH
+  GRV_CRITICAL
+}
+
+model Grievance {
+  id          String @id @default(uuid())
+  caseNumber  String @unique // Business key: GRV-2026-0001
+
+  subject     String
+  description String?
+  userId      String  // Requester/filer
+  userName    String?
+  userEmail   String?
+
+  category    GrievanceCategory
+  priority    GrievancePriority  @default(GRV_MEDIUM)
+  status      GrievanceStatus    @default(OPEN)
+
+  assignedTo  String?
+  assignedTeam String?
+
+  tenantId    String?
+  tenant      Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  resolvedAt  DateTime?
+  escalatedAt DateTime?
+
+  comments GrievanceComment[]
+}
+
+model GrievanceComment {
+  id          String @id @default(uuid())
+  grievanceId String
+  grievance   Grievance @relation(fields: [grievanceId], references: [id], onDelete: Cascade)
+
+  content     String
+  createdBy   String
+  createdAt   DateTime @default(now())
+}
+
+// ==========================================
+// COOKIES MANAGEMENT MODULE
+// ==========================================
+
+enum CookieCategoryType {
+  NECESSARY
+  ANALYTICS
+  FUNCTIONAL
+  ADVERTISING
+  UNCATEGORIZED
+}
+
+model CookieCategory {
+  id          String             @id @default(uuid())
+  name        String
+  category    CookieCategoryType
+  description String?
+  enabled     Boolean            @default(true)
+  locked      Boolean            @default(false)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cookies CookieInventory[]
+}
+
+model CookieInventory {
+  id          String         @id @default(uuid())
+  name        String
+  domain      String
+  expiration  String?
+  description String?
+
+  categoryId String
+  category   CookieCategory @relation(fields: [categoryId], references: [id])
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ScanFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+}
+
+enum ScanStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum ScanDepth {
+  STANDARD
+  DEEP
+}
+
+model ScannedWebsite {
+  id              String        @id @default(uuid())
+  name            String
+  url             String
+  frequency       ScanFrequency @default(MONTHLY)
+  lastScan        DateTime?
+  status          ScanStatus    @default(PENDING)
+  depth           ScanDepth     @default(STANDARD)
+  email           String?       // notification contact
+  autoCategorize  Boolean       @default(false)
+  scanBehindLogin Boolean       @default(false)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum BannerPosition {
+  BOTTOM
+  TOP
+  CENTER
+  CORNER
+}
+
+enum BannerStatus {
+  DRAFT
+  ACTIVE
+}
+
+model CookieBanner {
+  id        String         @id @default(uuid())
+  name      String
+  theme     String         // e.g., CSS class or JSON config
+  language  String         @default("en")
+  position  BannerPosition @default(BOTTOM)
+  status    BannerStatus   @default(DRAFT)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ConsentLogStatus {
+  ACCEPTED
+  WITHDRAWN
+}
+
+model CookieConsentLog {
+  id         String           @id @default(uuid())
+  userId     String?          // logged in user or anonymous ID
+  date       DateTime         @default(now())
+  region     String?
+  categories String[]         // IDs of categories accepted
+  status     ConsentLogStatus @default(ACCEPTED)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+

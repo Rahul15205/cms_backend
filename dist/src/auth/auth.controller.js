@@ -32,11 +32,11 @@ let AuthController = class AuthController {
     refresh(refreshDto) {
         return this.authService.refresh(refreshDto);
     }
-    logout() {
-        return { message: 'Logged out successfully' };
+    logout(req) {
+        return this.authService.logout(req.user.userId);
     }
     getProfile(req) {
-        return req.user;
+        return this.authService.getProfile(req.user.userId);
     }
 };
 exports.AuthController = AuthController;
@@ -62,16 +62,20 @@ __decorate([
 ], AuthController.prototype, "refresh", null);
 __decorate([
     (0, common_1.Post)('logout'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, swagger_1.ApiOperation)({ summary: 'Logout and invalidate current session' }),
+    __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "logout", null);
 __decorate([
     (0, common_1.Get)('me'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_1.ApiOperation)({ summary: 'Get current authorized user' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Get current authorized user with full profile' }),
     (0, swagger_1.ApiResponse)({ status: 200, type: user_response_dto_1.UserResponseDto }),
     __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),

@@ -178,6 +178,55 @@ let AuthService = class AuthService {
             }
         };
     }
+    async logout(userId) {
+        await this.prisma.session.updateMany({
+            where: { userId, isCurrentSession: true },
+            data: { isCurrentSession: false, refreshToken: null },
+        });
+        return { message: 'Logged out successfully. All sessions invalidated.' };
+    }
+    async getProfile(userId) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                roles: { include: { role: { include: { permissions: true } } } },
+                tenant: true,
+            },
+        });
+        if (!user) {
+            throw new common_1.UnauthorizedException('User not found');
+        }
+        return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            status: user.status,
+            accountType: user.accountType,
+            department: user.department,
+            mfaEnabled: user.mfaEnabled,
+            lastLogin: user.lastLogin,
+            roles: user.roles.map((ur) => ur.role.name),
+            permissions: user.roles.reduce((acc, ur) => {
+                ur.role.permissions.forEach((p) => {
+                    acc[p.module] = {
+                        view: p.view || acc[p.module]?.view,
+                        create: p.create || acc[p.module]?.create,
+                        edit: p.edit || acc[p.module]?.edit,
+                        approve: p.approve || acc[p.module]?.approve,
+                        export: p.export || acc[p.module]?.export,
+                        configure: p.configure || acc[p.module]?.configure,
+                        admin: p.admin || acc[p.module]?.admin,
+                    };
+                });
+                return acc;
+            }, {}),
+            tenant: {
+                id: user.tenant.id,
+                name: user.tenant.name,
+            },
+        };
+    }
 };
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([

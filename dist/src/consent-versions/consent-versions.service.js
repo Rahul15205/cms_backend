@@ -19,7 +19,7 @@ let ConsentVersionsService = class ConsentVersionsService {
         this.prisma = prisma;
     }
     async create(createConsentVersionDto, publisherId) {
-        const { templateId, content } = createConsentVersionDto;
+        const { templateId, content, changeSummary, changedFields, changeReason, effectiveFrom, effectiveTo, reconsentTriggered } = createConsentVersionDto;
         const template = await this.prisma.consentTemplate.findUnique({
             where: { id: templateId },
             include: { versions: { orderBy: { versionNumber: 'desc' }, take: 1 } }
@@ -36,7 +36,13 @@ let ConsentVersionsService = class ConsentVersionsService {
                     versionNumber: nextVersionNumber,
                     content,
                     templateId,
-                    publishedBy: publisherId
+                    publishedBy: publisherId,
+                    changeSummary,
+                    changedFields: changedFields || [],
+                    changeReason,
+                    effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : undefined,
+                    effectiveTo: effectiveTo ? new Date(effectiveTo) : undefined,
+                    reconsentTriggered: reconsentTriggered || false,
                 }
             });
             if (template.status === client_1.TemplateStatus.DRAFT) {

@@ -35,8 +35,21 @@ export declare class ApplicationsService {
             };
         } & {
             id: string;
+            status: import("@prisma/client").$Enums.DeploymentStatus;
+            approvedBy: string | null;
             versionId: string;
             applicationId: string;
+            deploymentMode: import("@prisma/client").$Enums.DeploymentMode;
+            activationDate: Date | null;
+            region: string | null;
+            platform: string[];
+            userSegment: string | null;
+            deployedBy: string | null;
+            affectedUsers: number;
+            approvalRequired: boolean;
+            rollbackAllowed: boolean;
+            rollbackConditions: string | null;
+            lockedAfterActivation: boolean;
             isActive: boolean;
             deployedAt: Date;
         })[];

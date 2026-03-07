@@ -5,8 +5,19 @@ export declare class ConsentVersionsService {
     constructor(prisma: PrismaService);
     create(createConsentVersionDto: CreateConsentVersionDto, publisherId: string): Promise<{
         id: string;
+        status: import("@prisma/client").$Enums.ConsentVersionStatus;
+        createdAt: Date;
         content: string;
         versionNumber: number;
+        changeSummary: string | null;
+        changedFields: string[];
+        changeReason: string | null;
+        approvedBy: string | null;
+        approvalTimestamp: Date | null;
+        effectiveFrom: Date | null;
+        effectiveTo: Date | null;
+        usersImpacted: number;
+        reconsentTriggered: boolean;
         publishedAt: Date;
         templateId: string;
         publishedBy: string;
@@ -22,8 +33,19 @@ export declare class ConsentVersionsService {
             };
         } & {
             id: string;
+            status: import("@prisma/client").$Enums.ConsentVersionStatus;
+            createdAt: Date;
             content: string;
             versionNumber: number;
+            changeSummary: string | null;
+            changedFields: string[];
+            changeReason: string | null;
+            approvedBy: string | null;
+            approvalTimestamp: Date | null;
+            effectiveFrom: Date | null;
+            effectiveTo: Date | null;
+            usersImpacted: number;
+            reconsentTriggered: boolean;
             publishedAt: Date;
             templateId: string;
             publishedBy: string;
@@ -37,8 +59,24 @@ export declare class ConsentVersionsService {
             updatedAt: Date;
             description: string | null;
             tenantId: string;
+            type: import("@prisma/client").$Enums.ConsentType;
             title: string;
             wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
+            regulations: import("@prisma/client").$Enums.Regulation[];
+            validityStart: Date | null;
+            validityEnd: Date | null;
+            noExpiry: boolean;
+            targetUserCategory: import("@prisma/client").$Enums.TargetUserCategory[];
+            ageThreshold: number;
+            consentGivenBy: import("@prisma/client").$Enums.ConsentGivenBy;
+            mechanism: import("@prisma/client").$Enums.ConsentMechanism;
+            separateConsents: boolean;
+            withdrawVisible: boolean;
+            dataSharing: boolean;
+            privacyNoticeRef: string | null;
+            auditTrailEnabled: boolean;
+            defaultLanguage: string;
+            supportedLanguages: string[];
             createdBy: string;
         };
         publisher: {
@@ -47,8 +85,19 @@ export declare class ConsentVersionsService {
         };
     } & {
         id: string;
+        status: import("@prisma/client").$Enums.ConsentVersionStatus;
+        createdAt: Date;
         content: string;
         versionNumber: number;
+        changeSummary: string | null;
+        changedFields: string[];
+        changeReason: string | null;
+        approvedBy: string | null;
+        approvalTimestamp: Date | null;
+        effectiveFrom: Date | null;
+        effectiveTo: Date | null;
+        usersImpacted: number;
+        reconsentTriggered: boolean;
         publishedAt: Date;
         templateId: string;
         publishedBy: string;
