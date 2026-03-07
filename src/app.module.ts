@@ -26,6 +26,15 @@ import { SlaRulesModule } from './sla-rules/sla-rules.module';
 import { NotificationRulesModule } from './notification-rules/notification-rules.module';
 import { EscalationRulesModule } from './escalation-rules/escalation-rules.module';
 import { NoticesModule } from './notices/notices.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { ConsentAnalyticsModule } from './consent-analytics/consent-analytics.module';
+import { IntegrationsModule } from './integrations/integrations.module';
+import { ApiKeysModule } from './api-keys/api-keys.module';
+import { EncryptionModule } from './encryption/encryption.module';
+import { LogRetentionModule } from './log-retention/log-retention.module';
+import { ExportConfigsModule } from './export-configs/export-configs.module';
+import { AadhaarConfigModule } from './aadhaar-config/aadhaar-config.module';
+import { WorkflowConfigsModule } from './workflow-configs/workflow-configs.module';
 
 @Module({
   imports: [
@@ -54,6 +63,15 @@ import { NoticesModule } from './notices/notices.module';
     NotificationRulesModule,
     EscalationRulesModule,
     NoticesModule,
+    DashboardModule,
+    ConsentAnalyticsModule,
+    IntegrationsModule,
+    ApiKeysModule,
+    EncryptionModule,
+    LogRetentionModule,
+    ExportConfigsModule,
+    AadhaarConfigModule,
+    WorkflowConfigsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

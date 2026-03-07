@@ -35,6 +35,15 @@ const sla_rules_module_1 = require("./sla-rules/sla-rules.module");
 const notification_rules_module_1 = require("./notification-rules/notification-rules.module");
 const escalation_rules_module_1 = require("./escalation-rules/escalation-rules.module");
 const notices_module_1 = require("./notices/notices.module");
+const dashboard_module_1 = require("./dashboard/dashboard.module");
+const consent_analytics_module_1 = require("./consent-analytics/consent-analytics.module");
+const integrations_module_1 = require("./integrations/integrations.module");
+const api_keys_module_1 = require("./api-keys/api-keys.module");
+const encryption_module_1 = require("./encryption/encryption.module");
+const log_retention_module_1 = require("./log-retention/log-retention.module");
+const export_configs_module_1 = require("./export-configs/export-configs.module");
+const aadhaar_config_module_1 = require("./aadhaar-config/aadhaar-config.module");
+const workflow_configs_module_1 = require("./workflow-configs/workflow-configs.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -66,6 +75,15 @@ exports.AppModule = AppModule = __decorate([
             notification_rules_module_1.NotificationRulesModule,
             escalation_rules_module_1.EscalationRulesModule,
             notices_module_1.NoticesModule,
+            dashboard_module_1.DashboardModule,
+            consent_analytics_module_1.ConsentAnalyticsModule,
+            integrations_module_1.IntegrationsModule,
+            api_keys_module_1.ApiKeysModule,
+            encryption_module_1.EncryptionModule,
+            log_retention_module_1.LogRetentionModule,
+            export_configs_module_1.ExportConfigsModule,
+            aadhaar_config_module_1.AadhaarConfigModule,
+            workflow_configs_module_1.WorkflowConfigsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

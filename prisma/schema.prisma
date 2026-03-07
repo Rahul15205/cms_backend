@@ -45,6 +45,13 @@ model Tenant {
   notices          Notice[]
   noticeLanguages  NoticeLanguage[]
   noticeTypes      NoticeType[]
+  integrations     Integration[]
+  apiKeys          ApiKey[]
+  encryptionConfig EncryptionConfig?
+  logRetentionRules LogRetentionRule[]
+  exportConfigs    ExportConfig[]
+  aadhaarConfig    AadhaarConfig?
+  workflowConfigs  WorkflowConfig[]
 }
 
 enum UserStatus {
@@ -1341,4 +1348,178 @@ model NoticeAcknowledgement {
   acknowledgedAt DateTime @default(now())
   version       Int      // Which version was acknowledged
   ipAddress     String?
+}
+
+// ==========================================
+// INTEGRATIONS MODULE — Phase 4
+// ==========================================
+
+enum IntegrationType {
+  CRM
+  ANALYTICS
+  CUSTOM
+  ERP
+  COMMUNICATION
+  IDENTITY
+  STORAGE
+  GATEWAY
+  CONNECTOR
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  PENDING
+  DISCONNECTED
+  ERROR
+}
+
+model Integration {
+  id         String            @id @default(uuid())
+  name       String
+  type       IntegrationType   @default(CUSTOM)
+  status     IntegrationStatus @default(DISCONNECTED)
+  icon       String?           // URL or icon identifier
+  lastSync   DateTime?
+  apiCalls   Int               @default(0)
+  config     Json?             // Connection config (API keys, endpoints, etc.)
+  errorMessage String?         // Last error message if status = ERROR
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  syncLogs  IntegrationSyncLog[]
+}
+
+model IntegrationSyncLog {
+  id            String   @id @default(uuid())
+  integrationId String
+  integration   Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  syncType      String   // "manual" | "scheduled" | "webhook"
+  status        String   // "success" | "failed" | "partial"
+  recordsSynced Int      @default(0)
+  errorDetails  String?
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+}
+
+// ==========================================
+// ADVANCED CONFIG MODULE — Phase 5
+// ==========================================
+
+model ApiKey {
+  id        String    @id @default(uuid())
+  name      String
+  key       String    @unique
+  scopes    String[]  // ["read:consent", "write:consent", etc.]
+  expiresAt DateTime?
+  lastUsed  DateTime?
+  status    ConfigRuleStatus @default(CFG_ACTIVE)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EncryptionConfig {
+  id               String  @id @default(uuid())
+  algorithm        String  @default("AES-256-GCM")
+  keyRotationDays  Int     @default(90)
+  lastRotation     DateTime?
+  status           ConfigRuleStatus @default(CFG_ACTIVE)
+  provider         String  @default("KMS") // "KMS" | "Vault" | "Local"
+
+  tenantId String? @unique // One config per tenant
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum LogType {
+  AUDIT
+  CONSENT
+  RIGHTS
+  GRIEVANCE
+  SECURITY
+  SYSTEM
+}
+
+model LogRetentionRule {
+  id              String   @id @default(uuid())
+  logType         LogType
+  retentionPeriod Int      @default(365)
+  retentionUnit   String   @default("days") // "days" | "months" | "years"
+  regulation      String?
+  autoArchive     Boolean  @default(true)
+  autoDelete      Boolean  @default(false)
+  status          ConfigRuleStatus @default(CFG_ACTIVE)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ExportConfig {
+  id                  String   @id @default(uuid())
+  name                String
+  reportType          String   // "CONSENT" | "RIGHTS" | "COMPLIANCE" | "AUDIT"
+  format              String   @default("csv") // "pdf" | "csv" | "json" | "xlsx"
+  scheduleFrequency   String   @default("on-demand") // "daily" | "weekly" | "monthly" | "on-demand"
+  scheduledTime       String?
+  recipients          String[]
+  dataMaskingEnabled  Boolean  @default(true)
+  brandingEnabled     Boolean  @default(true)
+  status              ConfigRuleStatus @default(CFG_ACTIVE)
+  lastExecuted        DateTime?
+  nextExecution       DateTime?
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AadhaarConfig {
+  id                   String  @id @default(uuid())
+  enabled              Boolean @default(false)
+  environment          String  @default("sandbox") // "sandbox" | "production"
+  verificationMode     String  @default("otp") // "otp" | "offline-xml" | "masked-only"
+  usageScopes          String[]
+  consentRequired      Boolean @default(true)
+  consentText          String?
+  consentRetentionDays Int     @default(30)
+  autoPurgeEnabled     Boolean @default(true)
+  autoPurgeDays        Int     @default(7)
+  serviceProviderName  String?
+  rateLimit            Int     @default(100)
+
+  tenantId String? @unique
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkflowConfig {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  type        String   // "RIGHTS" | "GRIEVANCE" | "CONSENT"
+  steps       Json     // Array of workflow steps with roles/actions
+  status      ConfigRuleStatus @default(CFG_ACTIVE)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
