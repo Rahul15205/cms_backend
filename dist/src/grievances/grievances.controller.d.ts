@@ -14,11 +14,11 @@ export declare class GrievancesController {
         description: string | null;
         tenantId: string | null;
         userId: string;
+        caseNumber: string;
         priority: import("@prisma/client").$Enums.GrievancePriority;
-        category: import("@prisma/client").$Enums.GrievanceCategory;
         assignedTo: string | null;
         assignedTeam: string | null;
-        caseNumber: string;
+        category: import("@prisma/client").$Enums.GrievanceCategory;
         subject: string;
         userName: string | null;
         userEmail: string | null;
@@ -41,11 +41,11 @@ export declare class GrievancesController {
             description: string | null;
             tenantId: string | null;
             userId: string;
+            caseNumber: string;
             priority: import("@prisma/client").$Enums.GrievancePriority;
-            category: import("@prisma/client").$Enums.GrievanceCategory;
             assignedTo: string | null;
             assignedTeam: string | null;
-            caseNumber: string;
+            category: import("@prisma/client").$Enums.GrievanceCategory;
             subject: string;
             userName: string | null;
             userEmail: string | null;
@@ -69,8 +69,8 @@ export declare class GrievancesController {
         comments: {
             id: string;
             createdAt: Date;
-            content: string;
             createdBy: string;
+            content: string;
             grievanceId: string;
         }[];
         _count: {
@@ -84,11 +84,11 @@ export declare class GrievancesController {
         description: string | null;
         tenantId: string | null;
         userId: string;
+        caseNumber: string;
         priority: import("@prisma/client").$Enums.GrievancePriority;
-        category: import("@prisma/client").$Enums.GrievanceCategory;
         assignedTo: string | null;
         assignedTeam: string | null;
-        caseNumber: string;
+        category: import("@prisma/client").$Enums.GrievanceCategory;
         subject: string;
         userName: string | null;
         userEmail: string | null;
@@ -103,11 +103,11 @@ export declare class GrievancesController {
         description: string | null;
         tenantId: string | null;
         userId: string;
+        caseNumber: string;
         priority: import("@prisma/client").$Enums.GrievancePriority;
-        category: import("@prisma/client").$Enums.GrievanceCategory;
         assignedTo: string | null;
         assignedTeam: string | null;
-        caseNumber: string;
+        category: import("@prisma/client").$Enums.GrievanceCategory;
         subject: string;
         userName: string | null;
         userEmail: string | null;
@@ -117,8 +117,8 @@ export declare class GrievancesController {
     addComment(id: string, dto: CreateGrievanceCommentDto, req: any): Promise<{
         id: string;
         createdAt: Date;
-        content: string;
         createdBy: string;
+        content: string;
         grievanceId: string;
     }>;
     escalate(id: string, req: any): Promise<{
@@ -129,11 +129,11 @@ export declare class GrievancesController {
         description: string | null;
         tenantId: string | null;
         userId: string;
+        caseNumber: string;
         priority: import("@prisma/client").$Enums.GrievancePriority;
-        category: import("@prisma/client").$Enums.GrievanceCategory;
         assignedTo: string | null;
         assignedTeam: string | null;
-        caseNumber: string;
+        category: import("@prisma/client").$Enums.GrievanceCategory;
         subject: string;
         userName: string | null;
         userEmail: string | null;

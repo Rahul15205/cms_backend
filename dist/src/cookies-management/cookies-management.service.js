@@ -35,6 +35,20 @@ let CookiesManagementService = class CookiesManagementService {
             },
         });
     }
+    async updateCategory(id, dto, tenantId) {
+        const category = await this.prisma.cookieCategory.findUnique({ where: { id } });
+        if (!category || category.tenantId !== tenantId) {
+            throw new common_1.NotFoundException('Category not found');
+        }
+        return this.prisma.cookieCategory.update({ where: { id }, data: dto });
+    }
+    async deleteCategory(id, tenantId) {
+        const category = await this.prisma.cookieCategory.findUnique({ where: { id } });
+        if (!category || category.tenantId !== tenantId) {
+            throw new common_1.NotFoundException('Category not found');
+        }
+        return this.prisma.cookieCategory.delete({ where: { id } });
+    }
     async createCookie(dto, tenantId) {
         const category = await this.prisma.cookieCategory.findUnique({
             where: { id: dto.categoryId },
@@ -69,6 +83,13 @@ let CookiesManagementService = class CookiesManagementService {
             where: { id },
             data: dto,
         });
+    }
+    async deleteCookie(id, tenantId) {
+        const cookie = await this.prisma.cookieInventory.findUnique({ where: { id } });
+        if (!cookie || cookie.tenantId !== tenantId) {
+            throw new common_1.NotFoundException('Cookie not found');
+        }
+        return this.prisma.cookieInventory.delete({ where: { id } });
     }
     async createWebsite(dto, tenantId) {
         return this.prisma.scannedWebsite.create({
@@ -111,6 +132,13 @@ let CookiesManagementService = class CookiesManagementService {
             },
         });
     }
+    async deleteWebsite(id, tenantId) {
+        const website = await this.prisma.scannedWebsite.findUnique({ where: { id } });
+        if (!website || website.tenantId !== tenantId) {
+            throw new common_1.NotFoundException('Website not found');
+        }
+        return this.prisma.scannedWebsite.delete({ where: { id } });
+    }
     async createBanner(dto, tenantId) {
         return this.prisma.cookieBanner.create({
             data: {
@@ -136,6 +164,13 @@ let CookiesManagementService = class CookiesManagementService {
             where: { id },
             data: dto,
         });
+    }
+    async deleteBanner(id, tenantId) {
+        const banner = await this.prisma.cookieBanner.findUnique({ where: { id } });
+        if (!banner || banner.tenantId !== tenantId) {
+            throw new common_1.NotFoundException('Banner not found');
+        }
+        return this.prisma.cookieBanner.delete({ where: { id } });
     }
     async recordConsentLog(dto, tenantId) {
         return this.prisma.cookieConsentLog.create({

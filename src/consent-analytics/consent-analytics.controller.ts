@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Query } from '@nestjs/common';
 import { ConsentAnalyticsService } from './consent-analytics.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -52,5 +52,20 @@ export class ConsentAnalyticsController {
   @ApiOperation({ summary: 'Get aggregate consent analytics (templates, records, deployments, cross-app)' })
   getAnalytics() {
     return this.consentAnalyticsService.getAnalytics();
+  }
+
+  @Get('system-configs')
+  @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'view' })
+  @ApiOperation({ summary: 'List system configs for usage traceability' })
+  @ApiQuery({ name: 'tenantId', required: false })
+  getSystemConfigs(@Query('tenantId') tenantId?: string) {
+    return this.consentAnalyticsService.getSystemConfigs(tenantId);
+  }
+
+  @Post('system-configs')
+  @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'create' })
+  @ApiOperation({ summary: 'Create a system config for usage traceability' })
+  createSystemConfig(@Body() dto: { name: string; type: string; integrationMode: string; authMethod: string; endpoint: string; description?: string; tenantId?: string }) {
+    return this.consentAnalyticsService.createSystemConfig(dto);
   }
 }

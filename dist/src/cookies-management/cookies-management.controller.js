@@ -34,6 +34,14 @@ let CookiesManagementController = class CookiesManagementController {
         const tenantId = req.user.tenantId;
         return this.cookiesManagementService.getCategories(tenantId);
     }
+    updateCategory(id, dto, req) {
+        const tenantId = req.user.tenantId;
+        return this.cookiesManagementService.updateCategory(id, dto, tenantId);
+    }
+    deleteCategory(id, req) {
+        const tenantId = req.user.tenantId;
+        return this.cookiesManagementService.deleteCategory(id, tenantId);
+    }
     createCookie(dto, req) {
         const tenantId = req.user.tenantId;
         return this.cookiesManagementService.createCookie(dto, tenantId);
@@ -46,6 +54,10 @@ let CookiesManagementController = class CookiesManagementController {
         const tenantId = req.user.tenantId;
         return this.cookiesManagementService.updateCookie(id, dto, tenantId);
     }
+    deleteCookie(id, req) {
+        const tenantId = req.user.tenantId;
+        return this.cookiesManagementService.deleteCookie(id, tenantId);
+    }
     createWebsite(dto, req) {
         const tenantId = req.user.tenantId;
         return this.cookiesManagementService.createWebsite(dto, tenantId);
@@ -57,6 +69,10 @@ let CookiesManagementController = class CookiesManagementController {
     updateWebsite(id, dto, req) {
         const tenantId = req.user.tenantId;
         return this.cookiesManagementService.updateWebsite(id, dto, tenantId);
+    }
+    deleteWebsite(id, req) {
+        const tenantId = req.user.tenantId;
+        return this.cookiesManagementService.deleteWebsite(id, tenantId);
     }
     startScan(id, req) {
         const tenantId = req.user.tenantId;
@@ -73,6 +89,10 @@ let CookiesManagementController = class CookiesManagementController {
     updateBanner(id, dto, req) {
         const tenantId = req.user.tenantId;
         return this.cookiesManagementService.updateBanner(id, dto, tenantId);
+    }
+    deleteBanner(id, req) {
+        const tenantId = req.user.tenantId;
+        return this.cookiesManagementService.deleteBanner(id, tenantId);
     }
     recordConsentLog(dto, req) {
         const tenantId = req.user.tenantId;
@@ -104,6 +124,23 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], CookiesManagementController.prototype, "getCategories", null);
 __decorate([
+    (0, common_1.Put)('categories/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:returntype", void 0)
+], CookiesManagementController.prototype, "updateCategory", null);
+__decorate([
+    (0, common_1.Delete)('categories/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], CookiesManagementController.prototype, "deleteCategory", null);
+__decorate([
     (0, common_1.Post)('inventory'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Request)()),
@@ -128,6 +165,14 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], CookiesManagementController.prototype, "updateCookie", null);
 __decorate([
+    (0, common_1.Delete)('inventory/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], CookiesManagementController.prototype, "deleteCookie", null);
+__decorate([
     (0, common_1.Post)('websites'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Request)()),
@@ -151,6 +196,14 @@ __decorate([
     __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", void 0)
 ], CookiesManagementController.prototype, "updateWebsite", null);
+__decorate([
+    (0, common_1.Delete)('websites/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], CookiesManagementController.prototype, "deleteWebsite", null);
 __decorate([
     (0, common_1.Post)('scan/:id'),
     __param(0, (0, common_1.Param)('id')),
@@ -183,6 +236,14 @@ __decorate([
     __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", void 0)
 ], CookiesManagementController.prototype, "updateBanner", null);
+__decorate([
+    (0, common_1.Delete)('banners/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], CookiesManagementController.prototype, "deleteBanner", null);
 __decorate([
     (0, common_1.Post)('consent-logs'),
     __param(0, (0, common_1.Body)()),

@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Put,
+  Delete,
   Param,
   UseGuards,
   Request,
@@ -37,6 +38,22 @@ export class CookiesManagementController {
     return this.cookiesManagementService.getCategories(tenantId);
   }
 
+  @Put('categories/:id')
+  updateCategory(
+    @Param('id') id: string,
+    @Body() dto: Partial<CreateCookieCategoryDto>,
+    @Request() req,
+  ) {
+    const tenantId = req.user.tenantId;
+    return this.cookiesManagementService.updateCategory(id, dto, tenantId);
+  }
+
+  @Delete('categories/:id')
+  deleteCategory(@Param('id') id: string, @Request() req) {
+    const tenantId = req.user.tenantId;
+    return this.cookiesManagementService.deleteCategory(id, tenantId);
+  }
+
   // ---------------------------------------------------------
   // Cookie Inventory
   // ---------------------------------------------------------
@@ -63,6 +80,12 @@ export class CookiesManagementController {
     return this.cookiesManagementService.updateCookie(id, dto, tenantId);
   }
 
+  @Delete('inventory/:id')
+  deleteCookie(@Param('id') id: string, @Request() req) {
+    const tenantId = req.user.tenantId;
+    return this.cookiesManagementService.deleteCookie(id, tenantId);
+  }
+
   // ---------------------------------------------------------
   // Website Scanner (Phase 2)
   // ---------------------------------------------------------
@@ -87,6 +110,12 @@ export class CookiesManagementController {
   ) {
     const tenantId = req.user.tenantId;
     return this.cookiesManagementService.updateWebsite(id, dto, tenantId);
+  }
+
+  @Delete('websites/:id')
+  deleteWebsite(@Param('id') id: string, @Request() req) {
+    const tenantId = req.user.tenantId;
+    return this.cookiesManagementService.deleteWebsite(id, tenantId);
   }
 
   @Post('scan/:id')
@@ -119,6 +148,12 @@ export class CookiesManagementController {
   ) {
     const tenantId = req.user.tenantId;
     return this.cookiesManagementService.updateBanner(id, dto, tenantId);
+  }
+
+  @Delete('banners/:id')
+  deleteBanner(@Param('id') id: string, @Request() req) {
+    const tenantId = req.user.tenantId;
+    return this.cookiesManagementService.deleteBanner(id, tenantId);
   }
 
   // ---------------------------------------------------------

@@ -134,6 +134,17 @@ export class NoticesService {
     });
   }
 
+  createLanguage(dto: { code: string; name: string; isDefault?: boolean; tenantId?: string }) {
+    return this.prisma.noticeLanguage.create({
+      data: {
+        code: dto.code,
+        name: dto.name,
+        isDefault: dto.isDefault ?? false,
+        tenantId: dto.tenantId,
+      },
+    });
+  }
+
   // ==========================================
   // NOTICE TYPES
   // ==========================================

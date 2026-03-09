@@ -13,8 +13,8 @@ export declare class AccessRulesController {
         description: string | null;
         tenantId: string | null;
         type: import("@prisma/client").$Enums.AccessRuleType;
-        conditions: import("@prisma/client/runtime/client").JsonValue;
         priority: number;
+        conditions: import("@prisma/client/runtime/client").JsonValue;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     findAll(tenantId?: string): import("@prisma/client").Prisma.PrismaPromise<{
         id: string;
@@ -25,8 +25,8 @@ export declare class AccessRulesController {
         description: string | null;
         tenantId: string | null;
         type: import("@prisma/client").$Enums.AccessRuleType;
-        conditions: import("@prisma/client/runtime/client").JsonValue;
         priority: number;
+        conditions: import("@prisma/client/runtime/client").JsonValue;
     }[]>;
     findOne(id: string): Promise<{
         id: string;
@@ -37,8 +37,8 @@ export declare class AccessRulesController {
         description: string | null;
         tenantId: string | null;
         type: import("@prisma/client").$Enums.AccessRuleType;
-        conditions: import("@prisma/client/runtime/client").JsonValue;
         priority: number;
+        conditions: import("@prisma/client/runtime/client").JsonValue;
     }>;
     update(id: string, updateAccessRuleDto: UpdateAccessRuleDto): Promise<{
         id: string;
@@ -49,8 +49,8 @@ export declare class AccessRulesController {
         description: string | null;
         tenantId: string | null;
         type: import("@prisma/client").$Enums.AccessRuleType;
-        conditions: import("@prisma/client/runtime/client").JsonValue;
         priority: number;
+        conditions: import("@prisma/client/runtime/client").JsonValue;
     }>;
     remove(id: string): Promise<{
         id: string;
@@ -61,7 +61,7 @@ export declare class AccessRulesController {
         description: string | null;
         tenantId: string | null;
         type: import("@prisma/client").$Enums.AccessRuleType;
-        conditions: import("@prisma/client/runtime/client").JsonValue;
         priority: number;
+        conditions: import("@prisma/client/runtime/client").JsonValue;
     }>;
 }

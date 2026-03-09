@@ -23,8 +23,8 @@ export declare class NoticesService {
         updatedAt: Date;
         tenantId: string | null;
         title: string;
-        content: string | null;
         createdBy: string | null;
+        content: string | null;
         typeId: string | null;
         currentVersion: number;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
@@ -60,8 +60,8 @@ export declare class NoticesService {
             updatedAt: Date;
             tenantId: string | null;
             title: string;
-            content: string | null;
             createdBy: string | null;
+            content: string | null;
             typeId: string | null;
             currentVersion: number;
         })[];
@@ -76,9 +76,6 @@ export declare class NoticesService {
             tenantId: string | null;
             required: boolean;
         } | null;
-        _count: {
-            acknowledgements: number;
-        };
         versions: {
             id: string;
             createdAt: Date;
@@ -89,6 +86,9 @@ export declare class NoticesService {
             author: string | null;
             noticeId: string;
         }[];
+        _count: {
+            acknowledgements: number;
+        };
     } & {
         id: string;
         status: import("@prisma/client").$Enums.NoticeStatus;
@@ -96,8 +96,8 @@ export declare class NoticesService {
         updatedAt: Date;
         tenantId: string | null;
         title: string;
-        content: string | null;
         createdBy: string | null;
+        content: string | null;
         typeId: string | null;
         currentVersion: number;
     }>;
@@ -118,8 +118,8 @@ export declare class NoticesService {
         updatedAt: Date;
         tenantId: string | null;
         title: string;
-        content: string | null;
         createdBy: string | null;
+        content: string | null;
         typeId: string | null;
         currentVersion: number;
     }>;
@@ -143,6 +143,21 @@ export declare class NoticesService {
         isDefault: boolean;
         completion: number;
     }[]>;
+    createLanguage(dto: {
+        code: string;
+        name: string;
+        isDefault?: boolean;
+        tenantId?: string;
+    }): import("@prisma/client").Prisma.Prisma__NoticeLanguageClient<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        code: string;
+        isDefault: boolean;
+        completion: number;
+    }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     createType(dto: CreateNoticeTypeDto): import("@prisma/client").Prisma.Prisma__NoticeTypeClient<{
         id: string;
         name: string;

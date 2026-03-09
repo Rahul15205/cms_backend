@@ -111,6 +111,16 @@ let NoticesService = class NoticesService {
             orderBy: { name: 'asc' },
         });
     }
+    createLanguage(dto) {
+        return this.prisma.noticeLanguage.create({
+            data: {
+                code: dto.code,
+                name: dto.name,
+                isDefault: dto.isDefault ?? false,
+                tenantId: dto.tenantId,
+            },
+        });
+    }
     createType(dto) {
         return this.prisma.noticeType.create({
             data: dto,

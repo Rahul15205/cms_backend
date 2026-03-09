@@ -1,5 +1,11 @@
 import 'dotenv/config';
-import { PrismaClient, UserStatus, AccountType, RoleStatus, ModuleName } from '@prisma/client';
+import { 
+  PrismaClient, UserStatus, AccountType, RoleStatus, ModuleName,
+  TemplateStatus, ConsentType, Regulation, TargetUserCategory, 
+  ConsentGivenBy, ConsentMechanism, PurposeNecessity,
+  RightsRequestType, RightsRequestStatus, RightsRequestPriority,
+  CookieCategoryType
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -14,11 +20,11 @@ async function main() {
 
   // 1. Create Default Tenant
   const tenant = await prisma.tenant.upsert({
-    where: { domain: 'default.cms.local' },
+    where: { domain: 'acme.com' },
     update: {},
     create: {
-      name: 'Default Organization',
-      domain: 'default.cms.local',
+      name: 'Acme Corp',
+      domain: 'acme.com',
       status: 'ACTIVE',
       settings: {},
     },
@@ -76,7 +82,7 @@ async function main() {
   const adminRole = createdRoles.find(r => r.name === 'Admin');
   const hashedPassword = bcrypt.hashSync('Consent@2024', 10);
 
-  const adminEmail = 'admin@cms.local';
+  const adminEmail = 'admin@acme.com';
   
   const adminUser = await prisma.user.upsert({
     where: { email: adminEmail },
@@ -104,6 +110,145 @@ async function main() {
       userId: adminUser.id,
       roleId: adminRole!.id
     }
+  });
+  // 4. Create Sample Consent Template
+  console.log('Creating sample Consent Template...');
+  const template = await prisma.consentTemplate.create({
+    data: {
+      title: 'Marketing & Analytics Processing',
+      description: 'Consent for marketing communications and behavioral analytics.',
+      type: ConsentType.EXPLICIT,
+      regulations: [Regulation.DPDP, Regulation.GDPR],
+      status: TemplateStatus.PUBLISHED,
+      noExpiry: true,
+      targetUserCategory: [TargetUserCategory.CUSTOMER],
+      consentGivenBy: ConsentGivenBy.SELF,
+      mechanism: ConsentMechanism.CHECKBOX,
+      tenantId: tenant.id,
+      createdBy: adminUser.id,
+      purposes: {
+        create: [
+          {
+            name: 'Email Marketing',
+            description: 'Send promotional emails and newsletters.',
+            isPrimary: true,
+            necessity: PurposeNecessity.NON_ESSENTIAL,
+          },
+          {
+            name: 'Behavioral Analytics',
+            description: 'Track user behavior to improve services.',
+            isPrimary: false,
+            necessity: PurposeNecessity.NON_ESSENTIAL,
+            automatedProcessing: true,
+          }
+        ]
+      }
+    }
+  });
+
+  // 5. Create Sample Rights Requests
+  console.log('Creating sample Rights Requests...');
+  await prisma.rightsRequest.create({
+    data: {
+      caseNumber: 'RR-2026-000001',
+      type: RightsRequestType.ERASURE,
+      regulation: Regulation.DPDP,
+      status: RightsRequestStatus.RECEIVED,
+      priority: RightsRequestPriority.NORMAL,
+      requesterId: 'USR-001',
+      requesterName: 'John Doe',
+      requesterEmail: 'john.doe@example.com',
+      description: 'Requesting erasure of personal marketing data.',
+      tenantId: tenant.id,
+    }
+  });
+
+  await prisma.rightsRequest.create({
+    data: {
+      caseNumber: 'RR-2026-000002',
+      type: RightsRequestType.ACCESS,
+      regulation: Regulation.GDPR,
+      status: RightsRequestStatus.IN_REVIEW,
+      priority: RightsRequestPriority.URGENT,
+      requesterId: 'USR-002',
+      requesterName: 'Jane Smith',
+      requesterEmail: 'jane.smith@example.com',
+      description: 'Requesting access to all profile data.',
+      tenantId: tenant.id,
+    }
+  });
+
+  // 6. Create Sample Cookie Categories
+  console.log('Creating sample Cookie Categories...');
+  await prisma.cookieCategory.createMany({
+    data: [
+      {
+        name: 'Strictly Necessary',
+        category: CookieCategoryType.NECESSARY,
+        description: 'Required for the website to function properly.',
+        locked: true,
+        tenantId: tenant.id,
+      },
+      {
+        name: 'Analytics',
+        category: CookieCategoryType.ANALYTICS,
+        description: 'Used to gather statistics on website usage.',
+        locked: false,
+        tenantId: tenant.id,
+      },
+      {
+        name: 'Marketing',
+        category: CookieCategoryType.ADVERTISING,
+        description: 'Used to deliver targeted advertisements.',
+        locked: false,
+        tenantId: tenant.id,
+      }
+    ]
+  });
+  // 7. Create Sample Notice Languages
+  console.log('Creating sample Notice Languages...');
+  await prisma.noticeLanguage.createMany({
+    data: [
+      {
+        code: 'en',
+        name: 'English',
+        isDefault: true,
+        completion: 100,
+        tenantId: tenant.id,
+      },
+      {
+        code: 'hi',
+        name: 'Hindi',
+        isDefault: false,
+        completion: 100,
+        tenantId: tenant.id,
+      }
+    ]
+  });
+
+  // 8. Create Sample Notice Types
+  console.log('Creating sample Notice Types...');
+  await prisma.noticeType.createMany({
+    data: [
+      {
+        name: 'Privacy Policy',
+        description: 'Main privacy policy governing data collection.',
+        required: true,
+        tenantId: tenant.id,
+      },
+      {
+        name: 'Terms of Service',
+        description: 'Rules governing the use of our services.',
+        required: true,
+        tenantId: tenant.id,
+      },
+      {
+        name: 'Cookie Policy',
+        description: 'Details about how we use cookies.',
+        required: false,
+        tenantId: tenant.id,
+      }
+    ]
   });
 
   console.log('Seed completed successfully!');

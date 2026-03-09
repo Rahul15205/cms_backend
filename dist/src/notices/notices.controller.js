@@ -37,6 +37,9 @@ let NoticesController = class NoticesController {
     getLanguages(tenantId) {
         return this.noticesService.getLanguages(tenantId);
     }
+    createLanguage(dto) {
+        return this.noticesService.createLanguage(dto);
+    }
     getTypes(tenantId) {
         return this.noticesService.getTypes(tenantId);
     }
@@ -94,6 +97,15 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], NoticesController.prototype, "getLanguages", null);
+__decorate([
+    (0, common_1.Post)('languages'),
+    (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.NOTICES, action: 'create' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Add a new notice language' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], NoticesController.prototype, "createLanguage", null);
 __decorate([
     (0, common_1.Get)('types'),
     (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.NOTICES, action: 'view' }),

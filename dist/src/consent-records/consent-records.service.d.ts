@@ -61,10 +61,10 @@ export declare class ConsentRecordsService {
                 updatedAt: Date;
                 description: string | null;
                 tenantId: string;
-                type: import("@prisma/client").$Enums.ConsentType;
                 title: string;
-                wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
+                type: import("@prisma/client").$Enums.ConsentType;
                 regulations: import("@prisma/client").$Enums.Regulation[];
+                wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
                 validityStart: Date | null;
                 validityEnd: Date | null;
                 noExpiry: boolean;
@@ -87,17 +87,17 @@ export declare class ConsentRecordsService {
             createdAt: Date;
             content: string;
             versionNumber: number;
+            templateId: string;
             changeSummary: string | null;
             changedFields: string[];
             changeReason: string | null;
-            approvedBy: string | null;
-            approvalTimestamp: Date | null;
             effectiveFrom: Date | null;
             effectiveTo: Date | null;
-            usersImpacted: number;
             reconsentTriggered: boolean;
+            approvedBy: string | null;
+            approvalTimestamp: Date | null;
+            usersImpacted: number;
             publishedAt: Date;
-            templateId: string;
             publishedBy: string;
         };
     } & {

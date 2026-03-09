@@ -36,10 +36,10 @@ export declare class DataCategoriesController {
             updatedAt: Date;
             description: string | null;
             tenantId: string;
-            type: import("@prisma/client").$Enums.ConsentType;
             title: string;
-            wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
+            type: import("@prisma/client").$Enums.ConsentType;
             regulations: import("@prisma/client").$Enums.Regulation[];
+            wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
             validityStart: Date | null;
             validityEnd: Date | null;
             noExpiry: boolean;

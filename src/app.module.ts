@@ -35,6 +35,10 @@ import { LogRetentionModule } from './log-retention/log-retention.module';
 import { ExportConfigsModule } from './export-configs/export-configs.module';
 import { AadhaarConfigModule } from './aadhaar-config/aadhaar-config.module';
 import { WorkflowConfigsModule } from './workflow-configs/workflow-configs.module';
+import { ReportsModule } from './reports/reports.module';
+import { SystemLogsModule } from './system-logs/system-logs.module';
+import { SecurityModule } from './security/security.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -72,6 +76,10 @@ import { WorkflowConfigsModule } from './workflow-configs/workflow-configs.modul
     ExportConfigsModule,
     AadhaarConfigModule,
     WorkflowConfigsModule,
+    ReportsModule,
+    SystemLogsModule,
+    SecurityModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

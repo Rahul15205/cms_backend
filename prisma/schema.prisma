@@ -1523,3 +1523,104 @@ model WorkflowConfig {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ==========================================
+// REPORTS MODULE
+// ==========================================
+
+enum ReportType {
+  CONSENT
+  RIGHTS
+  COMPLIANCE
+  AUDIT
+}
+
+enum ReportFormat {
+  PDF
+  CSV
+  JSON
+  XLSX
+}
+
+enum ReportStatus {
+  RPT_PENDING
+  RPT_COMPLETED
+  RPT_FAILED
+}
+
+model GeneratedReport {
+  id          String       @id @default(uuid())
+  name        String
+  reportType  ReportType
+  format      ReportFormat @default(CSV)
+  status      ReportStatus @default(RPT_PENDING)
+  generatedBy String       // User ID
+  filePath    String?      // Path to the generated file
+  fileSize    Int?         // Size in bytes
+  parameters  Json?        // Filter parameters used for this report
+  errorMessage String?     // Error details if failed
+
+  tenantId String?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+}
+
+// ==========================================
+// SYSTEM LOGS MODULE (Unified Log Viewer)
+// ==========================================
+
+enum SystemLogCategory {
+  LOG_CONSENT
+  LOG_RIGHTS
+  LOG_SECURITY
+  LOG_SYSTEM
+  LOG_AUDIT
+  LOG_COMPLIANCE
+}
+
+model SystemLog {
+  id        String            @id @default(uuid())
+  category  SystemLogCategory
+  action    String
+  userName  String?
+  target    String?           // Entity affected
+  ipAddress String?
+  details   Json?
+
+  tenantId String?
+
+  createdAt DateTime @default(now())
+}
+
+// ==========================================
+// DASHBOARD WIDGET CONFIG (Per-User)
+// ==========================================
+
+model DashboardWidgetConfig {
+  id      String @id @default(uuid())
+  userId  String @unique // One config per user
+  widgets Json   // Array of widget settings: {id, type, title, enabled, order, size, roles}
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// SYSTEM CONFIG (Usage Traceability — flow spec 3.8)
+// ==========================================
+
+model SystemConfig {
+  id              String @id @default(uuid())
+  name            String
+  type            String    // e.g., "CRM", "HRMS", "ERP"
+  integrationMode String   // e.g., "API", "SDK", "Webhook"
+  authMethod      String   // e.g., "OAuth2", "API Key", "JWT"
+  endpoint        String
+  description     String?
+
+  tenantId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

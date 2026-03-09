@@ -55,6 +55,13 @@ export class NoticesController {
     return this.noticesService.getLanguages(tenantId);
   }
 
+  @Post('languages')
+  @Permissions({ module: ModuleName.NOTICES, action: 'create' })
+  @ApiOperation({ summary: 'Add a new notice language' })
+  createLanguage(@Body() dto: { code: string; name: string; isDefault?: boolean; tenantId?: string }) {
+    return this.noticesService.createLanguage(dto);
+  }
+
   @Get('types')
   @Permissions({ module: ModuleName.NOTICES, action: 'view' })
   @ApiOperation({ summary: 'List notice types (e.g., Privacy Policy, Terms of Service)' })

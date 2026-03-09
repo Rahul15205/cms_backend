@@ -45,11 +45,11 @@ const prisma = new client_1.PrismaClient({ adapter });
 async function main() {
     console.log('Seeding default tenant, roles, and admin user...');
     const tenant = await prisma.tenant.upsert({
-        where: { domain: 'default.cms.local' },
+        where: { domain: 'acme.com' },
         update: {},
         create: {
-            name: 'Default Organization',
-            domain: 'default.cms.local',
+            name: 'Acme Corp',
+            domain: 'acme.com',
             status: 'ACTIVE',
             settings: {},
         },
@@ -96,7 +96,7 @@ async function main() {
     }
     const adminRole = createdRoles.find(r => r.name === 'Admin');
     const hashedPassword = bcrypt.hashSync('Consent@2024', 10);
-    const adminEmail = 'admin@cms.local';
+    const adminEmail = 'admin@acme.com';
     const adminUser = await prisma.user.upsert({
         where: { email: adminEmail },
         update: {},
@@ -121,6 +121,136 @@ async function main() {
             userId: adminUser.id,
             roleId: adminRole.id
         }
+    });
+    console.log('Creating sample Consent Template...');
+    const template = await prisma.consentTemplate.create({
+        data: {
+            title: 'Marketing & Analytics Processing',
+            description: 'Consent for marketing communications and behavioral analytics.',
+            type: client_1.ConsentType.EXPLICIT,
+            regulations: [client_1.Regulation.DPDP, client_1.Regulation.GDPR],
+            status: client_1.TemplateStatus.PUBLISHED,
+            noExpiry: true,
+            targetUserCategory: [client_1.TargetUserCategory.CUSTOMER],
+            consentGivenBy: client_1.ConsentGivenBy.SELF,
+            mechanism: client_1.ConsentMechanism.CHECKBOX,
+            tenantId: tenant.id,
+            createdBy: adminUser.id,
+            purposes: {
+                create: [
+                    {
+                        name: 'Email Marketing',
+                        description: 'Send promotional emails and newsletters.',
+                        isPrimary: true,
+                        necessity: client_1.PurposeNecessity.NON_ESSENTIAL,
+                    },
+                    {
+                        name: 'Behavioral Analytics',
+                        description: 'Track user behavior to improve services.',
+                        isPrimary: false,
+                        necessity: client_1.PurposeNecessity.NON_ESSENTIAL,
+                        automatedProcessing: true,
+                    }
+                ]
+            }
+        }
+    });
+    console.log('Creating sample Rights Requests...');
+    await prisma.rightsRequest.create({
+        data: {
+            caseNumber: 'RR-2026-000001',
+            type: client_1.RightsRequestType.ERASURE,
+            regulation: client_1.Regulation.DPDP,
+            status: client_1.RightsRequestStatus.RECEIVED,
+            priority: client_1.RightsRequestPriority.NORMAL,
+            requesterId: 'USR-001',
+            requesterName: 'John Doe',
+            requesterEmail: 'john.doe@example.com',
+            description: 'Requesting erasure of personal marketing data.',
+            tenantId: tenant.id,
+        }
+    });
+    await prisma.rightsRequest.create({
+        data: {
+            caseNumber: 'RR-2026-000002',
+            type: client_1.RightsRequestType.ACCESS,
+            regulation: client_1.Regulation.GDPR,
+            status: client_1.RightsRequestStatus.IN_REVIEW,
+            priority: client_1.RightsRequestPriority.URGENT,
+            requesterId: 'USR-002',
+            requesterName: 'Jane Smith',
+            requesterEmail: 'jane.smith@example.com',
+            description: 'Requesting access to all profile data.',
+            tenantId: tenant.id,
+        }
+    });
+    console.log('Creating sample Cookie Categories...');
+    await prisma.cookieCategory.createMany({
+        data: [
+            {
+                name: 'Strictly Necessary',
+                category: client_1.CookieCategoryType.NECESSARY,
+                description: 'Required for the website to function properly.',
+                locked: true,
+                tenantId: tenant.id,
+            },
+            {
+                name: 'Analytics',
+                category: client_1.CookieCategoryType.ANALYTICS,
+                description: 'Used to gather statistics on website usage.',
+                locked: false,
+                tenantId: tenant.id,
+            },
+            {
+                name: 'Marketing',
+                category: client_1.CookieCategoryType.ADVERTISING,
+                description: 'Used to deliver targeted advertisements.',
+                locked: false,
+                tenantId: tenant.id,
+            }
+        ]
+    });
+    console.log('Creating sample Notice Languages...');
+    await prisma.noticeLanguage.createMany({
+        data: [
+            {
+                code: 'en',
+                name: 'English',
+                isDefault: true,
+                completion: 100,
+                tenantId: tenant.id,
+            },
+            {
+                code: 'hi',
+                name: 'Hindi',
+                isDefault: false,
+                completion: 100,
+                tenantId: tenant.id,
+            }
+        ]
+    });
+    console.log('Creating sample Notice Types...');
+    await prisma.noticeType.createMany({
+        data: [
+            {
+                name: 'Privacy Policy',
+                description: 'Main privacy policy governing data collection.',
+                required: true,
+                tenantId: tenant.id,
+            },
+            {
+                name: 'Terms of Service',
+                description: 'Rules governing the use of our services.',
+                required: true,
+                tenantId: tenant.id,
+            },
+            {
+                name: 'Cookie Policy',
+                description: 'Details about how we use cookies.',
+                required: false,
+                tenantId: tenant.id,
+            }
+        ]
     });
     console.log('Seed completed successfully!');
 }

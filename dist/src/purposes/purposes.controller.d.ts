@@ -10,11 +10,11 @@ export declare class PurposesController {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
-        templateId: string;
         isPrimary: boolean;
         necessity: import("@prisma/client").$Enums.PurposeNecessity;
         automatedProcessing: boolean;
         profilingUsage: boolean;
+        templateId: string;
     }>;
     findAll(): Promise<{
         id: string;
@@ -22,11 +22,11 @@ export declare class PurposesController {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
-        templateId: string;
         isPrimary: boolean;
         necessity: import("@prisma/client").$Enums.PurposeNecessity;
         automatedProcessing: boolean;
         profilingUsage: boolean;
+        templateId: string;
     }[]>;
     findOne(id: string): Promise<{
         template: {
@@ -36,10 +36,10 @@ export declare class PurposesController {
             updatedAt: Date;
             description: string | null;
             tenantId: string;
-            type: import("@prisma/client").$Enums.ConsentType;
             title: string;
-            wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
+            type: import("@prisma/client").$Enums.ConsentType;
             regulations: import("@prisma/client").$Enums.Regulation[];
+            wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
             validityStart: Date | null;
             validityEnd: Date | null;
             noExpiry: boolean;
@@ -62,11 +62,11 @@ export declare class PurposesController {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
-        templateId: string;
         isPrimary: boolean;
         necessity: import("@prisma/client").$Enums.PurposeNecessity;
         automatedProcessing: boolean;
         profilingUsage: boolean;
+        templateId: string;
     }>;
     update(id: string, updatePurposeDto: UpdatePurposeDto): Promise<{
         id: string;
@@ -74,11 +74,11 @@ export declare class PurposesController {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
-        templateId: string;
         isPrimary: boolean;
         necessity: import("@prisma/client").$Enums.PurposeNecessity;
         automatedProcessing: boolean;
         profilingUsage: boolean;
+        templateId: string;
     }>;
     remove(id: string): Promise<{
         id: string;
@@ -86,10 +86,10 @@ export declare class PurposesController {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
-        templateId: string;
         isPrimary: boolean;
         necessity: import("@prisma/client").$Enums.PurposeNecessity;
         automatedProcessing: boolean;
         profilingUsage: boolean;
+        templateId: string;
     }>;
 }

@@ -117,4 +117,32 @@ export class ConsentAnalyticsService {
       },
     };
   }
+
+  /**
+   * GET /api/consent/system-configs — list system configs for usage traceability.
+   */
+  async getSystemConfigs(tenantId?: string) {
+    const where = tenantId ? { tenantId } : {};
+    return this.prisma.systemConfig.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * POST /api/consent/system-configs — create a system config entry.
+   */
+  async createSystemConfig(dto: {
+    name: string;
+    type: string;
+    integrationMode: string;
+    authMethod: string;
+    endpoint: string;
+    description?: string;
+    tenantId?: string;
+  }) {
+    return this.prisma.systemConfig.create({
+      data: dto,
+    });
+  }
 }

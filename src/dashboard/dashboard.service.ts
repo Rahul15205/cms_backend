@@ -225,4 +225,25 @@ export class DashboardService {
       recentSecurityEvents,
     };
   }
+
+  /**
+   * Get user's widget configuration.
+   */
+  async getWidgetConfig(userId: string) {
+    const config = await this.prisma.dashboardWidgetConfig.findUnique({
+      where: { userId },
+    });
+    return config ?? { userId, widgets: [] };
+  }
+
+  /**
+   * Upsert user's widget configuration.
+   */
+  async updateWidgetConfig(userId: string, widgets: any) {
+    return this.prisma.dashboardWidgetConfig.upsert({
+      where: { userId },
+      update: { widgets },
+      create: { userId, widgets },
+    });
+  }
 }

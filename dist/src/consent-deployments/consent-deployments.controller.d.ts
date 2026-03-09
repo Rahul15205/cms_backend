@@ -15,13 +15,13 @@ export declare class ConsentDeploymentsController {
         region: string | null;
         platform: string[];
         userSegment: string | null;
-        deployedBy: string | null;
-        affectedUsers: number;
         approvalRequired: boolean;
         rollbackAllowed: boolean;
         rollbackConditions: string | null;
         lockedAfterActivation: boolean;
         isActive: boolean;
+        deployedBy: string | null;
+        affectedUsers: number;
         deployedAt: Date;
     }>;
     findAll(applicationId?: string, versionId?: string, limit?: number, offset?: number): Promise<{
@@ -47,13 +47,13 @@ export declare class ConsentDeploymentsController {
             region: string | null;
             platform: string[];
             userSegment: string | null;
-            deployedBy: string | null;
-            affectedUsers: number;
             approvalRequired: boolean;
             rollbackAllowed: boolean;
             rollbackConditions: string | null;
             lockedAfterActivation: boolean;
             isActive: boolean;
+            deployedBy: string | null;
+            affectedUsers: number;
             deployedAt: Date;
         })[];
     }>;
@@ -77,17 +77,17 @@ export declare class ConsentDeploymentsController {
             createdAt: Date;
             content: string;
             versionNumber: number;
+            templateId: string;
             changeSummary: string | null;
             changedFields: string[];
             changeReason: string | null;
-            approvedBy: string | null;
-            approvalTimestamp: Date | null;
             effectiveFrom: Date | null;
             effectiveTo: Date | null;
-            usersImpacted: number;
             reconsentTriggered: boolean;
+            approvedBy: string | null;
+            approvalTimestamp: Date | null;
+            usersImpacted: number;
             publishedAt: Date;
-            templateId: string;
             publishedBy: string;
         };
         logs: {
@@ -110,13 +110,13 @@ export declare class ConsentDeploymentsController {
         region: string | null;
         platform: string[];
         userSegment: string | null;
-        deployedBy: string | null;
-        affectedUsers: number;
         approvalRequired: boolean;
         rollbackAllowed: boolean;
         rollbackConditions: string | null;
         lockedAfterActivation: boolean;
         isActive: boolean;
+        deployedBy: string | null;
+        affectedUsers: number;
         deployedAt: Date;
     }>;
     getLogs(id: string): Promise<{
@@ -139,13 +139,13 @@ export declare class ConsentDeploymentsController {
         region: string | null;
         platform: string[];
         userSegment: string | null;
-        deployedBy: string | null;
-        affectedUsers: number;
         approvalRequired: boolean;
         rollbackAllowed: boolean;
         rollbackConditions: string | null;
         lockedAfterActivation: boolean;
         isActive: boolean;
+        deployedBy: string | null;
+        affectedUsers: number;
         deployedAt: Date;
     }>;
     rollback(id: string, req: any): Promise<{
@@ -159,13 +159,13 @@ export declare class ConsentDeploymentsController {
         region: string | null;
         platform: string[];
         userSegment: string | null;
-        deployedBy: string | null;
-        affectedUsers: number;
         approvalRequired: boolean;
         rollbackAllowed: boolean;
         rollbackConditions: string | null;
         lockedAfterActivation: boolean;
         isActive: boolean;
+        deployedBy: string | null;
+        affectedUsers: number;
         deployedAt: Date;
     }>;
     remove(id: string): Promise<{
@@ -179,13 +179,13 @@ export declare class ConsentDeploymentsController {
         region: string | null;
         platform: string[];
         userSegment: string | null;
-        deployedBy: string | null;
-        affectedUsers: number;
         approvalRequired: boolean;
         rollbackAllowed: boolean;
         rollbackConditions: string | null;
         lockedAfterActivation: boolean;
         isActive: boolean;
+        deployedBy: string | null;
+        affectedUsers: number;
         deployedAt: Date;
     }>;
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Put, Param, Body, UseGuards, Query, Request } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -56,5 +56,19 @@ export class DashboardController {
   @ApiQuery({ name: 'tenantId', required: false })
   getSecurityKpis(@Query('tenantId') tenantId?: string) {
     return this.dashboardService.getSecurityKpis(tenantId);
+  }
+
+  @Get('widget-config')
+  @Permissions({ module: ModuleName.DASHBOARD, action: 'view' })
+  @ApiOperation({ summary: 'Get current user widget configuration' })
+  getWidgetConfig(@Request() req: any) {
+    return this.dashboardService.getWidgetConfig(req.user.userId);
+  }
+
+  @Put('widget-config')
+  @Permissions({ module: ModuleName.DASHBOARD, action: 'edit' })
+  @ApiOperation({ summary: 'Save user widget configuration' })
+  updateWidgetConfig(@Request() req: any, @Body() body: { widgets: any }) {
+    return this.dashboardService.updateWidgetConfig(req.user.userId, body.widgets);
   }
 }

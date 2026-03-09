@@ -33,6 +33,28 @@ export declare class CookiesManagementService {
         enabled: boolean;
         locked: boolean;
     })[]>;
+    updateCategory(id: string, dto: Partial<CreateCookieCategoryDto>, tenantId: string): Promise<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        description: string | null;
+        tenantId: string | null;
+        category: import("@prisma/client").$Enums.CookieCategoryType;
+        enabled: boolean;
+        locked: boolean;
+    }>;
+    deleteCategory(id: string, tenantId: string): Promise<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        description: string | null;
+        tenantId: string | null;
+        category: import("@prisma/client").$Enums.CookieCategoryType;
+        enabled: boolean;
+        locked: boolean;
+    }>;
     createCookie(dto: CreateCookieInventoryDto, tenantId: string): Promise<{
         id: string;
         domain: string;
@@ -68,6 +90,17 @@ export declare class CookiesManagementService {
         categoryId: string;
     })[]>;
     updateCookie(id: string, dto: Partial<CreateCookieInventoryDto>, tenantId: string): Promise<{
+        id: string;
+        domain: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        description: string | null;
+        tenantId: string | null;
+        expiration: string | null;
+        categoryId: string;
+    }>;
+    deleteCookie(id: string, tenantId: string): Promise<{
         id: string;
         domain: string;
         name: string;
@@ -138,6 +171,21 @@ export declare class CookiesManagementService {
         scanBehindLogin: boolean;
         lastScan: Date | null;
     }>;
+    deleteWebsite(id: string, tenantId: string): Promise<{
+        url: string;
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.ScanStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        email: string | null;
+        frequency: import("@prisma/client").$Enums.ScanFrequency;
+        depth: import("@prisma/client").$Enums.ScanDepth;
+        autoCategorize: boolean;
+        scanBehindLogin: boolean;
+        lastScan: Date | null;
+    }>;
     createBanner(dto: CreateCookieBannerDto, tenantId: string): Promise<{
         id: string;
         name: string;
@@ -161,6 +209,17 @@ export declare class CookiesManagementService {
         position: import("@prisma/client").$Enums.BannerPosition;
     }[]>;
     updateBanner(id: string, dto: Partial<CreateCookieBannerDto>, tenantId: string): Promise<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.BannerStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        theme: string;
+        language: string;
+        position: import("@prisma/client").$Enums.BannerPosition;
+    }>;
+    deleteBanner(id: string, tenantId: string): Promise<{
         id: string;
         name: string;
         status: import("@prisma/client").$Enums.BannerStatus;

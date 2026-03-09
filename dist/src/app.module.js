@@ -44,6 +44,10 @@ const log_retention_module_1 = require("./log-retention/log-retention.module");
 const export_configs_module_1 = require("./export-configs/export-configs.module");
 const aadhaar_config_module_1 = require("./aadhaar-config/aadhaar-config.module");
 const workflow_configs_module_1 = require("./workflow-configs/workflow-configs.module");
+const reports_module_1 = require("./reports/reports.module");
+const system_logs_module_1 = require("./system-logs/system-logs.module");
+const security_module_1 = require("./security/security.module");
+const settings_module_1 = require("./settings/settings.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -84,6 +88,10 @@ exports.AppModule = AppModule = __decorate([
             export_configs_module_1.ExportConfigsModule,
             aadhaar_config_module_1.AadhaarConfigModule,
             workflow_configs_module_1.WorkflowConfigsModule,
+            reports_module_1.ReportsModule,
+            system_logs_module_1.SystemLogsModule,
+            security_module_1.SecurityModule,
+            settings_module_1.SettingsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],
