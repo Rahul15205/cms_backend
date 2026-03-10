@@ -46,6 +46,9 @@ let NoticesController = class NoticesController {
     createType(dto) {
         return this.noticesService.createType(dto);
     }
+    getGlobalHistory() {
+        return this.noticesService.getGlobalHistory();
+    }
     findOne(id) {
         return this.noticesService.findOne(id);
     }
@@ -125,6 +128,14 @@ __decorate([
     __metadata("design:paramtypes", [create_notice_type_dto_1.CreateNoticeTypeDto]),
     __metadata("design:returntype", void 0)
 ], NoticesController.prototype, "createType", null);
+__decorate([
+    (0, common_1.Get)('history/global'),
+    (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.NOTICES, action: 'view' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Get global version history across all notices' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], NoticesController.prototype, "getGlobalHistory", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.NOTICES, action: 'view' }),

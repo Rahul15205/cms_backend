@@ -48,6 +48,7 @@ const reports_module_1 = require("./reports/reports.module");
 const system_logs_module_1 = require("./system-logs/system-logs.module");
 const security_module_1 = require("./security/security.module");
 const settings_module_1 = require("./settings/settings.module");
+const languages_module_1 = require("./languages/languages.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -92,6 +93,7 @@ exports.AppModule = AppModule = __decorate([
             system_logs_module_1.SystemLogsModule,
             security_module_1.SecurityModule,
             settings_module_1.SettingsModule,
+            languages_module_1.LanguagesModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

@@ -9,24 +9,24 @@ export declare class NoticesService {
     create(dto: CreateNoticeDto, userId?: string): import("@prisma/client").Prisma.Prisma__NoticeClient<{
         type: {
             id: string;
-            name: string;
             createdAt: Date;
             updatedAt: Date;
-            description: string | null;
             tenantId: string | null;
+            name: string;
+            description: string | null;
             required: boolean;
         } | null;
     } & {
         id: string;
+        title: string;
+        content: string | null;
+        currentVersion: number;
         status: import("@prisma/client").$Enums.NoticeStatus;
+        createdBy: string | null;
         createdAt: Date;
         updatedAt: Date;
-        tenantId: string | null;
-        title: string;
-        createdBy: string | null;
-        content: string | null;
         typeId: string | null;
-        currentVersion: number;
+        tenantId: string | null;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     findAll(filters: {
         status?: NoticeStatus;
@@ -42,11 +42,11 @@ export declare class NoticesService {
         data: ({
             type: {
                 id: string;
-                name: string;
                 createdAt: Date;
                 updatedAt: Date;
-                description: string | null;
                 tenantId: string | null;
+                name: string;
+                description: string | null;
                 required: boolean;
             } | null;
             _count: {
@@ -55,90 +55,100 @@ export declare class NoticesService {
             };
         } & {
             id: string;
+            title: string;
+            content: string | null;
+            currentVersion: number;
             status: import("@prisma/client").$Enums.NoticeStatus;
+            createdBy: string | null;
             createdAt: Date;
             updatedAt: Date;
-            tenantId: string | null;
-            title: string;
-            createdBy: string | null;
-            content: string | null;
             typeId: string | null;
-            currentVersion: number;
+            tenantId: string | null;
         })[];
     }>;
     findOne(id: string): Promise<{
         type: {
             id: string;
-            name: string;
             createdAt: Date;
             updatedAt: Date;
-            description: string | null;
             tenantId: string | null;
+            name: string;
+            description: string | null;
             required: boolean;
         } | null;
         versions: {
             id: string;
-            createdAt: Date;
             title: string;
             content: string | null;
+            createdAt: Date;
             version: number;
+            noticeId: string;
             changes: string | null;
             author: string | null;
-            noticeId: string;
         }[];
         _count: {
             acknowledgements: number;
         };
     } & {
         id: string;
+        title: string;
+        content: string | null;
+        currentVersion: number;
         status: import("@prisma/client").$Enums.NoticeStatus;
+        createdBy: string | null;
         createdAt: Date;
         updatedAt: Date;
-        tenantId: string | null;
-        title: string;
-        createdBy: string | null;
-        content: string | null;
         typeId: string | null;
-        currentVersion: number;
+        tenantId: string | null;
     }>;
     update(id: string, dto: UpdateNoticeDto, userId?: string): Promise<{
         type: {
             id: string;
-            name: string;
             createdAt: Date;
             updatedAt: Date;
-            description: string | null;
             tenantId: string | null;
+            name: string;
+            description: string | null;
             required: boolean;
         } | null;
     } & {
         id: string;
+        title: string;
+        content: string | null;
+        currentVersion: number;
         status: import("@prisma/client").$Enums.NoticeStatus;
+        createdBy: string | null;
         createdAt: Date;
         updatedAt: Date;
-        tenantId: string | null;
-        title: string;
-        createdBy: string | null;
-        content: string | null;
         typeId: string | null;
-        currentVersion: number;
+        tenantId: string | null;
     }>;
     getHistory(noticeId: string): Promise<{
         id: string;
-        createdAt: Date;
         title: string;
         content: string | null;
+        createdAt: Date;
         version: number;
+        noticeId: string;
         changes: string | null;
         author: string | null;
+    }[]>;
+    getGlobalHistory(): Promise<{
+        id: string;
+        title: string;
+        content: string | null;
+        createdAt: Date;
+        version: number;
         noticeId: string;
+        changes: string | null;
+        author: string | null;
     }[]>;
     getLanguages(tenantId?: string): import("@prisma/client").Prisma.PrismaPromise<{
         id: string;
-        name: string;
         createdAt: Date;
         updatedAt: Date;
         tenantId: string | null;
+        name: string;
         code: string;
         isDefault: boolean;
         completion: number;
@@ -150,21 +160,21 @@ export declare class NoticesService {
         tenantId?: string;
     }): import("@prisma/client").Prisma.Prisma__NoticeLanguageClient<{
         id: string;
-        name: string;
         createdAt: Date;
         updatedAt: Date;
         tenantId: string | null;
+        name: string;
         code: string;
         isDefault: boolean;
         completion: number;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     createType(dto: CreateNoticeTypeDto): import("@prisma/client").Prisma.Prisma__NoticeTypeClient<{
         id: string;
-        name: string;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
         tenantId: string | null;
+        name: string;
+        description: string | null;
         required: boolean;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     getTypes(tenantId?: string): Promise<({
@@ -173,11 +183,11 @@ export declare class NoticesService {
         };
     } & {
         id: string;
-        name: string;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
         tenantId: string | null;
+        name: string;
+        description: string | null;
         required: boolean;
     })[]>;
 }

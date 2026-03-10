@@ -122,6 +122,14 @@ export class NoticesService {
     });
   }
 
+  async getGlobalHistory() {
+    return this.prisma.noticeVersion.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50, // Limit to recent 50 globally
+      // Include notice details if needed for title, but noticeVersion already has 'title'
+    });
+  }
+
   // ==========================================
   // LANGUAGES
   // ==========================================

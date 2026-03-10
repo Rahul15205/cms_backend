@@ -147,6 +147,20 @@ export class RightsRequestsController {
     return this.rightsRequestsService.getAuditTrail(id);
   }
 
+  @Get('evidence')
+  @Permissions({ module: ModuleName.RIGHTS_MANAGEMENT, action: 'view' })
+  @ApiOperation({ summary: 'List all evidence items across all requests' })
+  getAllEvidence() {
+    return this.rightsRequestsService.getAllEvidence();
+  }
+
+  @Get('audit')
+  @Permissions({ module: ModuleName.RIGHTS_MANAGEMENT, action: 'view' })
+  @ApiOperation({ summary: 'Get global audit trail across all requests' })
+  getGlobalAuditTrail() {
+    return this.rightsRequestsService.getGlobalAuditTrail();
+  }
+
   // ==========================================
   // PHASE 5: Metrics & Analytics (2 endpoints)
   // ==========================================

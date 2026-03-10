@@ -6,42 +6,51 @@ import { UpdateEncryptionConfigDto } from './dto/update-encryption-config.dto';
 export class EncryptionService {
   constructor(private prisma: PrismaService) {}
 
-  async getConfig(tenantId: string) {
-    let config = await this.prisma.encryptionConfig.findUnique({
-      where: { tenantId },
-    });
+  async getConfig(tenantId?: string) {
+    const where = tenantId ? { tenantId } : { id: undefined }; // Without tenantId, just fetch the first one if we can't search by unique tenantId
+    
+    // Prisma requires a unique identifier. If tenantId isn't provided, 
+    // fetch the first available config using findFirst instead of findUnique
+    let config = tenantId 
+      ? await this.prisma.encryptionConfig.findUnique({ where: { tenantId } })
+      : await this.prisma.encryptionConfig.findFirst();
 
     if (!config) {
       // Initialize with defaults if not exists
       config = await this.prisma.encryptionConfig.create({
-        data: { tenantId } as any,
+        data: tenantId ? { tenantId } as any : {},
       });
     }
 
     return config;
   }
 
-  async updateConfig(tenantId: string, dto: UpdateEncryptionConfigDto) {
-    // Upsert equivalent
-    const existing = await this.prisma.encryptionConfig.findUnique({
-      where: { tenantId },
-    });
+  async updateConfig(tenantId: string | undefined, dto: UpdateEncryptionConfigDto) {
+    const existing = tenantId
+      ? await this.prisma.encryptionConfig.findUnique({ where: { tenantId } })
+      : await this.prisma.encryptionConfig.findFirst();
 
     if (existing) {
       return this.prisma.encryptionConfig.update({
-        where: { tenantId },
+        where: { id: existing.id },
         data: dto as any,
       });
     } else {
       return this.prisma.encryptionConfig.create({
-        data: { ...dto, tenantId } as any,
+        data: tenantId ? { ...dto, tenantId } as any : { ...dto } as any,
       });
     }
   }
 
-  async rotateKey(tenantId: string) {
+  async rotateKey(tenantId?: string) {
+    const existing = tenantId
+      ? await this.prisma.encryptionConfig.findUnique({ where: { tenantId } })
+      : await this.prisma.encryptionConfig.findFirst();
+      
+    if (!existing) return null;
+
     return this.prisma.encryptionConfig.update({
-      where: { tenantId },
+      where: { id: existing.id },
       data: {
         lastRotation: new Date(),
       },

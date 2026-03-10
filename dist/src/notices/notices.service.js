@@ -104,6 +104,12 @@ let NoticesService = class NoticesService {
             orderBy: { version: 'desc' },
         });
     }
+    async getGlobalHistory() {
+        return this.prisma.noticeVersion.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+        });
+    }
     getLanguages(tenantId) {
         const where = tenantId ? { tenantId } : {};
         return this.prisma.noticeLanguage.findMany({

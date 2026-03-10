@@ -77,6 +77,13 @@ export class NoticesController {
     return this.noticesService.createType(dto);
   }
 
+  @Get('history/global')
+  @Permissions({ module: ModuleName.NOTICES, action: 'view' })
+  @ApiOperation({ summary: 'Get global version history across all notices' })
+  getGlobalHistory() {
+    return this.noticesService.getGlobalHistory();
+  }
+
   @Get(':id')
   @Permissions({ module: ModuleName.NOTICES, action: 'view' })
   @ApiOperation({ summary: 'Get a specific notice with its version history' })

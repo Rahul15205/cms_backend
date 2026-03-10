@@ -402,12 +402,38 @@ export class RightsRequestsService {
     });
   }
 
+  async getAllEvidence() {
+    return this.prisma.evidenceItem.findMany({
+      orderBy: { uploadedAt: 'desc' },
+    });
+  }
+
+  async getGlobalAuditTrail() {
+    return this.prisma.rightsAuditEntry.findMany({
+      orderBy: { performedAt: 'desc' },
+      take: 100, // Limit global audit to last 100 items for performance
+    });
+  }
+
   // ==========================================
   // PHASE 5: Metrics
   // ==========================================
 
   async getMetrics() {
-    const [total, byStatus, byType, byPriority, slaBreached, closedRequests] = await Promise.all([
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const [
+      total,
+      byStatus,
+      byType,
+      byPriority,
+      slaBreached,
+      closedRequests,
+      newToday,
+      newThisWeek
+    ] = await Promise.all([
       this.prisma.rightsRequest.count(),
       this.prisma.rightsRequest.groupBy({ by: ['status'], _count: true }),
       this.prisma.rightsRequest.groupBy({ by: ['type'], _count: true }),
@@ -425,6 +451,8 @@ export class RightsRequestsService {
         },
         select: { submittedAt: true, closedAt: true },
       }),
+      this.prisma.rightsRequest.count({ where: { createdAt: { gte: startOfToday } } }),
+      this.prisma.rightsRequest.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
     ]);
 
     // Compute average resolution time in days
@@ -439,13 +467,63 @@ export class RightsRequestsService {
       avgResolutionDays = Math.round((totalDays / closedRequests.length) * 10) / 10;
     }
 
-    return {
+    const statusMap = Object.fromEntries(byStatus.map((s) => [s.status, s._count]));
+    const typeMap = Object.fromEntries(byType.map((t) => [t.type, t._count]));
+
+    // Get repeat requests
+    const repeats = await this.prisma.rightsRequest.groupBy({
+      by: ['requesterEmail'],
+      _count: true,
+      having: {
+        requesterEmail: { _count: { gt: 1 } }
+      }
+    });
+
+    const metrics = {
       total,
-      byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count])),
-      byType: Object.fromEntries(byType.map((t) => [t.type, t._count])),
-      byPriority: Object.fromEntries(byPriority.map((p) => [p.priority, p._count])),
-      slaBreached,
+      newToday,
+      newThisWeek,
+      pending: total - (statusMap[RightsRequestStatus.CLOSED] || 0) - (statusMap[RightsRequestStatus.REJECTED] || 0),
+      completed: statusMap[RightsRequestStatus.CLOSED] || 0,
+      rejected: statusMap[RightsRequestStatus.REJECTED] || 0,
+      slaCompliance: total > 0 ? Math.round(((total - slaBreached) / total) * 100) : 100,
+      slaBreaches: slaBreached,
       avgResolutionDays,
+      fulfilmentRate: total > 0 ? Math.round(((statusMap[RightsRequestStatus.CLOSED] || 0) / total) * 100) : 100,
+      repeatRequests: repeats.length,
+    };
+
+    // Map backend types to frontend lowercase keys
+    const breakdown: Record<string, number> = {
+      file_complaint: typeMap['FILE_COMPLAINT'] || 0,
+      withdraw_consent: typeMap['WITHDRAW_CONSENT'] || 0,
+      access: typeMap['ACCESS'] || 0,
+      correction: typeMap['CORRECTION'] || 0,
+      erasure: typeMap['ERASURE'] || 0,
+      grievance_redressal: typeMap['GRIEVANCE_REDRESSAL'] || 0,
+      nominate: typeMap['NOMINATE'] || 0,
+    };
+
+    const typeColors: Record<string, string> = {
+      ACCESS: 'hsl(217, 91%, 50%)',
+      CORRECTION: 'hsl(142, 76%, 36%)',
+      ERASURE: 'hsl(0, 72%, 51%)',
+      WITHDRAW_CONSENT: 'hsl(38, 92%, 50%)',
+      FILE_COMPLAINT: 'hsl(12, 76%, 61%)',
+      GRIEVANCE_REDRESSAL: 'hsl(262, 83%, 58%)',
+      NOMINATE: 'hsl(199, 89%, 48%)',
+    };
+
+    const breakdownChart = byType.map((t) => ({
+      name: t.type.charAt(0) + t.type.slice(1).toLowerCase().replace(/_/g, ' '),
+      value: t._count,
+      color: typeColors[t.type] || 'hsl(215, 16%, 47%)',
+    }));
+
+    return {
+      metrics,
+      breakdown,
+      breakdownChart,
     };
   }
 
@@ -485,19 +563,22 @@ export class RightsRequestsService {
       }),
     ]);
 
-    // Build monthly trend
-    const monthlyTrend: Record<string, { total: number; closed: number; escalated: number }> = {};
+    // Build monthly trend with per-regulation counts
+    const monthlyTrend: Record<string, any> = {};
     for (let i = 0; i < 12; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthlyTrend[key] = { total: 0, closed: 0, escalated: 0 };
+      monthlyTrend[key] = { total: 0, gdpr: 0, dpdp: 0, ccpa: 0, lgpd: 0 };
     }
     for (const r of monthlyRequests) {
       const key = `${r.submittedAt.getFullYear()}-${String(r.submittedAt.getMonth() + 1).padStart(2, '0')}`;
       if (monthlyTrend[key]) {
         monthlyTrend[key].total++;
-        if (r.status === 'CLOSED') monthlyTrend[key].closed++;
-        if (r.status === 'ESCALATED') monthlyTrend[key].escalated++;
+        // Approximate mapping to regulation keys
+        const reg = (r as any).regulation?.toLowerCase();
+        if (reg && monthlyTrend[key][reg] !== undefined) {
+          monthlyTrend[key][reg]++;
+        }
       }
     }
 
@@ -513,12 +594,68 @@ export class RightsRequestsService {
       .slice(0, 10)
       .map(([category, count]) => ({ category, count }));
 
+    // Map regulation metrics to frontend structure
+    const regulationMetricsMap: Record<string, any> = {
+      GDPR: { total: 0, fulfilled: 0, rejected: 0, pending: 0, avgDays: 0, slaCompliance: 100 },
+      DPDP: { total: 0, fulfilled: 0, rejected: 0, pending: 0, avgDays: 0, slaCompliance: 100 },
+      CCPA: { total: 0, fulfilled: 0, rejected: 0, pending: 0, avgDays: 0, slaCompliance: 100 },
+      LGPD: { total: 0, fulfilled: 0, rejected: 0, pending: 0, avgDays: 0, slaCompliance: 100 },
+      PDPL: { total: 0, fulfilled: 0, rejected: 0, pending: 0, avgDays: 0, slaCompliance: 100 },
+    };
+
+    byRegulation.forEach((r) => {
+      if (regulationMetricsMap[r.regulation]) {
+        regulationMetricsMap[r.regulation].total = r._count;
+      }
+    });
+
+    // Monthly trend in frontend format
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const formattedTrend = Object.entries(monthlyTrend).map(([key, data]) => {
+      const [year, month] = key.split('-');
+      return {
+        name: monthNames[parseInt(month) - 1],
+        total: data.total,
+        gdpr: data.gdpr,
+        dpdp: data.dpdp,
+        ccpa: data.ccpa,
+        lgpd: data.lgpd,
+      };
+    });
+
+    // Type distribution in frontend format
+    const typeColors: Record<string, string> = {
+      ACCESS: 'hsl(217, 91%, 50%)',
+      CORRECTION: 'hsl(142, 76%, 36%)',
+      ERASURE: 'hsl(0, 72%, 51%)',
+      PORTABILITY: 'hsl(262, 83%, 58%)',
+      OTHER: 'hsl(38, 92%, 50%)',
+    };
+
+    const typeDistribution = (await this.prisma.rightsRequest.groupBy({ by: ['type'], _count: true })).map((t) => ({
+      name: t.type.charAt(0) + t.type.slice(1).toLowerCase(),
+      value: t._count,
+      color: typeColors[t.type] || 'hsl(200, 10%, 50%)',
+    }));
+
+    // Get metrics for summary
+    const metricsResult = await this.getMetrics();
+    const { metrics } = metricsResult;
+
     return {
-      byRegulation: Object.fromEntries(byRegulation.map((r) => [r.regulation, r._count])),
-      byChannel: Object.fromEntries(byChannel.map((c) => [c.submissionChannel, c._count])),
-      byVerificationMethod: Object.fromEntries(byVerification.map((v) => [v.verificationMethod, v._count])),
-      monthlyTrend,
-      topDataCategories: sortedCategories,
+      summary: {
+        fulfilmentRate: metrics.fulfilmentRate,
+        avgResolutionDays: metrics.avgResolutionDays,
+        totalSlaBreaches: metrics.slaBreaches,
+        repeatRequests: metrics.repeatRequests,
+      },
+      regulationMetrics: Object.entries(regulationMetricsMap).map(([reg, data]) => ({ regulation: reg, ...data })),
+      monthlyTrend: formattedTrend,
+      typeDistribution: metricsResult.breakdownChart,
+      applicationRisks: [], // Mock or aggregate from relatedApplications
+      repeatRequesters: [], // Mock for now
+      fulfilmentByType: metricsResult.breakdownChart.map(t => ({ name: t.name, value: 95 })), // Approximation
+      abuseIndicators: [],
     };
   }
 

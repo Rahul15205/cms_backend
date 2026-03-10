@@ -74,6 +74,12 @@ let RightsRequestsController = class RightsRequestsController {
     getAuditTrail(id) {
         return this.rightsRequestsService.getAuditTrail(id);
     }
+    getAllEvidence() {
+        return this.rightsRequestsService.getAllEvidence();
+    }
+    getGlobalAuditTrail() {
+        return this.rightsRequestsService.getGlobalAuditTrail();
+    }
     getMetrics() {
         return this.rightsRequestsService.getMetrics();
     }
@@ -235,6 +241,22 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], RightsRequestsController.prototype, "getAuditTrail", null);
+__decorate([
+    (0, common_1.Get)('evidence'),
+    (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.RIGHTS_MANAGEMENT, action: 'view' }),
+    (0, swagger_1.ApiOperation)({ summary: 'List all evidence items across all requests' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], RightsRequestsController.prototype, "getAllEvidence", null);
+__decorate([
+    (0, common_1.Get)('audit'),
+    (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.RIGHTS_MANAGEMENT, action: 'view' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Get global audit trail across all requests' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], RightsRequestsController.prototype, "getGlobalAuditTrail", null);
 __decorate([
     (0, common_1.Get)('metrics'),
     (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.RIGHTS_MANAGEMENT, action: 'view' }),

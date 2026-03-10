@@ -39,6 +39,7 @@ import { ReportsModule } from './reports/reports.module';
 import { SystemLogsModule } from './system-logs/system-logs.module';
 import { SecurityModule } from './security/security.module';
 import { SettingsModule } from './settings/settings.module';
+import { LanguagesModule } from './languages/languages.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { SettingsModule } from './settings/settings.module';
     SystemLogsModule,
     SecurityModule,
     SettingsModule,
+    LanguagesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -215,37 +215,80 @@ export declare class RightsRequestsService {
         systemApplication: string | null;
         requestId: string;
     }[]>;
+    getAllEvidence(): Promise<{
+        id: string;
+        caseNumber: string;
+        category: string;
+        fileName: string;
+        fileType: string;
+        size: string;
+        verified: boolean;
+        requestId: string;
+        uploadedBy: string;
+        uploadedAt: Date;
+    }[]>;
+    getGlobalAuditTrail(): Promise<{
+        id: string;
+        caseNumber: string;
+        consentVersion: string | null;
+        ipAddress: string | null;
+        severity: import("@prisma/client").$Enums.AuditSeverity;
+        action: string;
+        details: string | null;
+        performedBy: string;
+        performedAt: Date;
+        systemApplication: string | null;
+        requestId: string;
+    }[]>;
     getMetrics(): Promise<{
-        total: number;
-        byStatus: {
-            [k: string]: number;
+        metrics: {
+            total: number;
+            newToday: number;
+            newThisWeek: number;
+            pending: number;
+            completed: number;
+            rejected: number;
+            slaCompliance: number;
+            slaBreaches: number;
+            avgResolutionDays: number;
+            fulfilmentRate: number;
+            repeatRequests: number;
         };
-        byType: {
-            [k: string]: number;
-        };
-        byPriority: {
-            [k: string]: number;
-        };
-        slaBreached: number;
-        avgResolutionDays: number;
+        breakdown: Record<string, number>;
+        breakdownChart: {
+            name: string;
+            value: number;
+            color: string;
+        }[];
     }>;
     getAnalytics(): Promise<{
-        byRegulation: {
-            [k: string]: number;
+        summary: {
+            fulfilmentRate: number;
+            avgResolutionDays: number;
+            totalSlaBreaches: number;
+            repeatRequests: number;
         };
-        byChannel: {
-            [k: string]: number;
-        };
-        byVerificationMethod: any;
-        monthlyTrend: Record<string, {
-            total: number;
-            closed: number;
-            escalated: number;
-        }>;
-        topDataCategories: {
-            category: string;
-            count: number;
+        regulationMetrics: any[];
+        monthlyTrend: {
+            name: string;
+            total: any;
+            gdpr: any;
+            dpdp: any;
+            ccpa: any;
+            lgpd: any;
         }[];
+        typeDistribution: {
+            name: string;
+            value: number;
+            color: string;
+        }[];
+        applicationRisks: never[];
+        repeatRequesters: never[];
+        fulfilmentByType: {
+            name: string;
+            value: number;
+        }[];
+        abuseIndicators: never[];
     }>;
     private enrichWithSla;
 }
