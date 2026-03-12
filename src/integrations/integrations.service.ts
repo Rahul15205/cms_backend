@@ -139,6 +139,50 @@ export class IntegrationsService {
     });
   }
 
+  async getMetrics() {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const [totalIntegrations, connectedCount, failedCount, syncs] = await Promise.all([
+      this.prisma.integration.count(),
+      this.prisma.integration.count({ where: { status: IntegrationStatus.CONNECTED } }),
+      this.prisma.integration.count({ where: { status: IntegrationStatus.ERROR } }),
+      this.prisma.integrationSyncLog.findMany({
+        where: { startedAt: { gte: sevenDaysAgo } },
+        select: { startedAt: true },
+      }),
+    ]);
+
+    const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const trendMap: Record<string, { name: string; calls: number }> = {};
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      trendMap[key] = {
+        name: daysOfWeek[d.getDay()],
+        calls: 0,
+      };
+    }
+
+    syncs.forEach((s) => {
+      const key = s.startedAt.toISOString().split('T')[0];
+      if (trendMap[key]) trendMap[key].calls++;
+    });
+
+    const apiUsageData = Object.entries(trendMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([_, val]) => val);
+
+    return {
+      totalIntegrations,
+      connectedCount,
+      failedCount,
+      apiUsageData,
+    };
+  }
+
   async remove(id: string) {
     await this.findOne(id);
     return this.prisma.integration.delete({ where: { id } });

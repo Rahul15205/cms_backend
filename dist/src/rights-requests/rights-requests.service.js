@@ -420,10 +420,74 @@ let RightsRequestsService = class RightsRequestsService {
             value: t._count,
             color: typeColors[t.type] || 'hsl(215, 16%, 47%)',
         }));
+        const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+        const weeklyTrends = await this.prisma.rightsRequest.findMany({
+            where: { createdAt: { gte: fourWeeksAgo } },
+            select: { createdAt: true, type: true },
+        });
+        const trendData = [];
+        for (let i = 3; i >= 0; i--) {
+            const d = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+            const name = `Week ${4 - i}`;
+            const entry = { name, access: 0, correction: 0, erasure: 0, file_complaint: 0, withdraw_consent: 0, grievance_redressal: 0, nominate: 0 };
+            const weekStart = new Date(d.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const weekEnd = d;
+            weeklyTrends.forEach((r) => {
+                if (r.createdAt >= weekStart && r.createdAt <= weekEnd) {
+                    const typeKey = r.type.toLowerCase();
+                    if (entry[typeKey] !== undefined)
+                        entry[typeKey]++;
+                }
+            });
+            trendData.push(entry);
+        }
+        const byReg = await this.prisma.rightsRequest.groupBy({
+            by: ['regulation'],
+            _count: true
+        });
+        const regulationColors = {
+            GDPR: 'hsl(217, 91%, 50%)',
+            DPDP: 'hsl(142, 76%, 36%)',
+            CCPA: 'hsl(262, 83%, 58%)',
+            LGPD: 'hsl(38, 92%, 50%)',
+            CUSTOM: 'hsl(215, 16%, 47%)',
+            TAPA: 'hsl(199, 89%, 48%)',
+            PDPL: 'hsl(12, 76%, 61%)',
+            PIPL: 'hsl(180, 70%, 40%)',
+        };
+        const regulationBreakdown = byReg.map(r => ({
+            name: r.regulation,
+            value: r._count,
+            color: regulationColors[r.regulation] || 'hsl(215, 16%, 47%)'
+        }));
+        const workflowStatus = [
+            { stage: "Received", count: statusMap[client_1.RightsRequestStatus.RECEIVED] || 0, color: "bg-muted-foreground" },
+            { stage: "Verified", count: statusMap[client_1.RightsRequestStatus.IDENTITY_VERIFIED] || 0, color: "bg-info" },
+            { stage: "In Review", count: statusMap[client_1.RightsRequestStatus.IN_REVIEW] || 0, color: "bg-warning" },
+            { stage: "Action Taken", count: statusMap[client_1.RightsRequestStatus.ACTION_TAKEN] || 0, color: "bg-primary" },
+            { stage: "Completed", count: statusMap[client_1.RightsRequestStatus.CLOSED] || 0, color: "bg-success" },
+        ];
+        const priorities = ['CRITICAL', 'URGENT', 'NORMAL'];
+        const slaByPriority = await Promise.all(priorities.map(async (p) => {
+            const count = await this.prisma.rightsRequest.count({ where: { priority: p } });
+            const breached = await this.prisma.rightsRequest.count({
+                where: {
+                    priority: p,
+                    dueDate: { lt: new Date() },
+                    status: { notIn: [client_1.RightsRequestStatus.CLOSED, client_1.RightsRequestStatus.REJECTED] }
+                }
+            });
+            const percentage = count > 0 ? Math.round(((count - breached) / count) * 100) : 100;
+            return { level: p.charAt(0) + p.slice(1).toLowerCase(), count, breached, percentage };
+        }));
         return {
             metrics,
             breakdown,
             breakdownChart,
+            regulationBreakdown,
+            workflowStatus,
+            slaByPriority,
+            trendData,
         };
     }
     async getAnalytics() {

@@ -20,15 +20,10 @@ export declare class RightsRequestsController {
     findOne(id: string): Promise<any>;
     update(id: string, dto: UpdateRightsRequestDto): Promise<{
         id: string;
-        status: import("@prisma/client").$Enums.RightsRequestStatus;
-        createdAt: Date;
-        updatedAt: Date;
-        description: string;
-        tenantId: string | null;
-        type: import("@prisma/client").$Enums.RightsRequestType;
-        dataCategories: string[];
         caseNumber: string;
+        type: import("@prisma/client").$Enums.RightsRequestType;
         regulation: import("@prisma/client").$Enums.Regulation;
+        status: import("@prisma/client").$Enums.RightsRequestStatus;
         priority: import("@prisma/client").$Enums.RightsRequestPriority;
         requesterId: string;
         requesterName: string;
@@ -40,6 +35,8 @@ export declare class RightsRequestsController {
         verificationMethod: import("@prisma/client").$Enums.VerificationMethod | null;
         reVerificationRequired: boolean;
         fraudFlag: boolean;
+        dataCategories: string[];
+        description: string;
         relatedConsents: string[];
         relatedApplications: string[];
         submissionChannel: import("@prisma/client").$Enums.SubmissionChannel;
@@ -50,18 +47,16 @@ export declare class RightsRequestsController {
         assignedTo: string | null;
         assignedTeam: string | null;
         currentStep: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
     }>;
     updateStatus(id: string, dto: UpdateStatusDto, req: any): Promise<{
         id: string;
-        status: import("@prisma/client").$Enums.RightsRequestStatus;
-        createdAt: Date;
-        updatedAt: Date;
-        description: string;
-        tenantId: string | null;
-        type: import("@prisma/client").$Enums.RightsRequestType;
-        dataCategories: string[];
         caseNumber: string;
+        type: import("@prisma/client").$Enums.RightsRequestType;
         regulation: import("@prisma/client").$Enums.Regulation;
+        status: import("@prisma/client").$Enums.RightsRequestStatus;
         priority: import("@prisma/client").$Enums.RightsRequestPriority;
         requesterId: string;
         requesterName: string;
@@ -73,6 +68,8 @@ export declare class RightsRequestsController {
         verificationMethod: import("@prisma/client").$Enums.VerificationMethod | null;
         reVerificationRequired: boolean;
         fraudFlag: boolean;
+        dataCategories: string[];
+        description: string;
         relatedConsents: string[];
         relatedApplications: string[];
         submissionChannel: import("@prisma/client").$Enums.SubmissionChannel;
@@ -83,18 +80,16 @@ export declare class RightsRequestsController {
         assignedTo: string | null;
         assignedTeam: string | null;
         currentStep: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
     }>;
     assign(id: string, dto: AssignRequestDto, req: any): Promise<{
         id: string;
-        status: import("@prisma/client").$Enums.RightsRequestStatus;
-        createdAt: Date;
-        updatedAt: Date;
-        description: string;
-        tenantId: string | null;
-        type: import("@prisma/client").$Enums.RightsRequestType;
-        dataCategories: string[];
         caseNumber: string;
+        type: import("@prisma/client").$Enums.RightsRequestType;
         regulation: import("@prisma/client").$Enums.Regulation;
+        status: import("@prisma/client").$Enums.RightsRequestStatus;
         priority: import("@prisma/client").$Enums.RightsRequestPriority;
         requesterId: string;
         requesterName: string;
@@ -106,6 +101,8 @@ export declare class RightsRequestsController {
         verificationMethod: import("@prisma/client").$Enums.VerificationMethod | null;
         reVerificationRequired: boolean;
         fraudFlag: boolean;
+        dataCategories: string[];
+        description: string;
         relatedConsents: string[];
         relatedApplications: string[];
         submissionChannel: import("@prisma/client").$Enums.SubmissionChannel;
@@ -116,12 +113,15 @@ export declare class RightsRequestsController {
         assignedTo: string | null;
         assignedTeam: string | null;
         currentStep: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
     }>;
     getWorkflow(id: string): Promise<{
         id: string;
-        name: string;
         status: import("@prisma/client").$Enums.WorkflowStepStatus;
         notes: string | null;
+        name: string;
         order: number;
         requestId: string;
         assignedRole: string | null;
@@ -131,105 +131,105 @@ export declare class RightsRequestsController {
     }[]>;
     getNotes(id: string): Promise<{
         id: string;
-        createdAt: Date;
         type: import("@prisma/client").$Enums.CaseNoteType;
-        createdBy: string;
+        createdAt: Date;
         attachments: string[];
-        content: string;
         requestId: string;
+        content: string;
+        createdBy: string;
     }[]>;
     addNote(id: string, dto: CreateCaseNoteDto, req: any): Promise<{
         id: string;
-        createdAt: Date;
         type: import("@prisma/client").$Enums.CaseNoteType;
-        createdBy: string;
+        createdAt: Date;
         attachments: string[];
-        content: string;
         requestId: string;
+        content: string;
+        createdBy: string;
     }>;
     getAttachments(id: string): Promise<{
-        url: string;
         id: string;
-        category: import("@prisma/client").$Enums.AttachmentCategory;
+        requestId: string;
         fileName: string;
         fileType: string;
         fileSize: string;
-        requestId: string;
+        category: import("@prisma/client").$Enums.AttachmentCategory;
         uploadedBy: string;
         uploadedAt: Date;
+        url: string;
     }[]>;
     addAttachment(id: string, dto: CreateCaseAttachmentDto, req: any): Promise<{
-        url: string;
         id: string;
-        category: import("@prisma/client").$Enums.AttachmentCategory;
+        requestId: string;
         fileName: string;
         fileType: string;
         fileSize: string;
-        requestId: string;
+        category: import("@prisma/client").$Enums.AttachmentCategory;
         uploadedBy: string;
         uploadedAt: Date;
+        url: string;
     }>;
     getEvidence(id: string): Promise<{
         id: string;
         caseNumber: string;
-        category: string;
+        requestId: string;
         fileName: string;
         fileType: string;
-        size: string;
-        verified: boolean;
-        requestId: string;
+        category: string;
         uploadedBy: string;
         uploadedAt: Date;
+        size: string;
+        verified: boolean;
     }[]>;
     addEvidence(id: string, dto: CreateEvidenceItemDto, req: any): Promise<{
         id: string;
         caseNumber: string;
-        category: string;
+        requestId: string;
         fileName: string;
         fileType: string;
-        size: string;
-        verified: boolean;
-        requestId: string;
+        category: string;
         uploadedBy: string;
         uploadedAt: Date;
+        size: string;
+        verified: boolean;
     }>;
     getAuditTrail(id: string): Promise<{
+        consentVersion: string | null;
         id: string;
         caseNumber: string;
-        consentVersion: string | null;
-        ipAddress: string | null;
-        severity: import("@prisma/client").$Enums.AuditSeverity;
+        requestId: string;
         action: string;
-        details: string | null;
         performedBy: string;
         performedAt: Date;
+        details: string | null;
         systemApplication: string | null;
-        requestId: string;
+        ipAddress: string | null;
+        severity: import("@prisma/client").$Enums.AuditSeverity;
     }[]>;
     getAllEvidence(): Promise<{
         id: string;
         caseNumber: string;
-        category: string;
+        requestId: string;
         fileName: string;
         fileType: string;
-        size: string;
-        verified: boolean;
-        requestId: string;
+        category: string;
         uploadedBy: string;
         uploadedAt: Date;
+        size: string;
+        verified: boolean;
     }[]>;
     getGlobalAuditTrail(): Promise<{
+        consentVersion: string | null;
         id: string;
         caseNumber: string;
-        consentVersion: string | null;
-        ipAddress: string | null;
-        severity: import("@prisma/client").$Enums.AuditSeverity;
+        requestId: string;
         action: string;
-        details: string | null;
         performedBy: string;
         performedAt: Date;
+        details: string | null;
         systemApplication: string | null;
-        requestId: string;
+        ipAddress: string | null;
+        severity: import("@prisma/client").$Enums.AuditSeverity;
     }[]>;
     getMetrics(): Promise<{
         metrics: {
@@ -251,6 +251,23 @@ export declare class RightsRequestsController {
             value: number;
             color: string;
         }[];
+        regulationBreakdown: {
+            name: import("@prisma/client").$Enums.Regulation;
+            value: number;
+            color: string;
+        }[];
+        workflowStatus: {
+            stage: string;
+            count: number;
+            color: string;
+        }[];
+        slaByPriority: {
+            level: string;
+            count: number;
+            breached: number;
+            percentage: number;
+        }[];
+        trendData: any[];
     }>;
     getAnalytics(): Promise<{
         summary: {

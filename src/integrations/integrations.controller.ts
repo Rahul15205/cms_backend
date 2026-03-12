@@ -22,6 +22,13 @@ export class IntegrationsController {
     return this.integrationsService.create(dto);
   }
 
+  @Get('metrics')
+  @Permissions({ module: ModuleName.INTEGRATIONS, action: 'view' })
+  @ApiOperation({ summary: 'Get integration metrics and trends' })
+  getMetrics() {
+    return this.integrationsService.getMetrics();
+  }
+
   @Get()
   @Permissions({ module: ModuleName.INTEGRATIONS, action: 'view' })
   @ApiOperation({ summary: 'List integrations with filters' })

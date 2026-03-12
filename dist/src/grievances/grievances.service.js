@@ -118,15 +118,78 @@ let GrievancesService = class GrievancesService {
         return updated;
     }
     async getMetrics() {
-        const [total, byStatus, byCategory, byPriority] = await Promise.all([
+        const now = new Date();
+        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+        const [total, byStatus, byCategory, byPriority, trendResult, resolvedGrievances] = await Promise.all([
             this.prisma.grievance.count(),
             this.prisma.grievance.groupBy({ by: ['status'], _count: true }),
             this.prisma.grievance.groupBy({ by: ['category'], _count: true }),
             this.prisma.grievance.groupBy({ by: ['priority'], _count: true }),
+            this.prisma.grievance.findMany({
+                where: { createdAt: { gte: sixMonthsAgo } },
+                select: { createdAt: true },
+            }),
+            this.prisma.grievance.findMany({
+                where: { status: client_1.GrievanceStatus.RESOLVED },
+                select: { createdAt: true, updatedAt: true },
+            }),
         ]);
+        const statusMap = Object.fromEntries(byStatus.map((s) => [s.status, s._count]));
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const trendMap = {};
+        for (let i = 0; i < 6; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = `${monthNames[d.getMonth()]} ${d.getFullYear() % 100}`;
+            trendMap[key] = 0;
+        }
+        trendResult.forEach((g) => {
+            const d = g.createdAt;
+            const key = `${monthNames[d.getMonth()]} ${d.getFullYear() % 100}`;
+            if (trendMap[key] !== undefined)
+                trendMap[key]++;
+        });
+        const trendData = Object.entries(trendMap)
+            .map(([name, cases]) => ({ name, cases }))
+            .reverse();
+        let avgResolutionDays = 0;
+        const distribution = {
+            under24h: 0,
+            days1_3: 0,
+            days3_7: 0,
+            over7d: 0,
+        };
+        if (resolvedGrievances.length > 0) {
+            let totalMs = 0;
+            resolvedGrievances.forEach((g) => {
+                const diff = g.updatedAt.getTime() - g.createdAt.getTime();
+                totalMs += diff;
+                const hours = diff / (1000 * 60 * 60);
+                if (hours < 24)
+                    distribution.under24h++;
+                else if (hours < 72)
+                    distribution.days1_3++;
+                else if (hours < 168)
+                    distribution.days3_7++;
+                else
+                    distribution.over7d++;
+            });
+            avgResolutionDays = Math.round((totalMs / resolvedGrievances.length / (1000 * 60 * 60 * 24)) * 10) / 10;
+        }
+        const resolutionTimeDistribution = [
+            { name: "< 24 hours", value: distribution.under24h, color: "hsl(142, 76%, 36%)" },
+            { name: "1-3 days", value: distribution.days1_3, color: "hsl(199, 89%, 48%)" },
+            { name: "3-7 days", value: distribution.days3_7, color: "hsl(38, 92%, 50%)" },
+            { name: "> 7 days", value: distribution.over7d, color: "hsl(0, 72%, 51%)" },
+        ];
         return {
             total,
-            byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count])),
+            open: statusMap[client_1.GrievanceStatus.OPEN] || 0,
+            inProgress: statusMap[client_1.GrievanceStatus.IN_PROGRESS] || 0,
+            resolved: statusMap[client_1.GrievanceStatus.RESOLVED] || 0,
+            escalated: statusMap[client_1.GrievanceStatus.ESCALATED] || 0,
+            trendData,
+            avgResolutionDays,
+            resolutionTimeDistribution,
             byCategory: Object.fromEntries(byCategory.map((c) => [c.category, c._count])),
             byPriority: Object.fromEntries(byPriority.map((p) => [p.priority, p._count])),
         };
