@@ -4,9 +4,9 @@ export declare class SessionsService {
     constructor(prisma: PrismaService);
     findAllForUser(userId: string): Promise<{
         id: string;
+        ipAddress: string | null;
         device: string | null;
         browser: string | null;
-        ipAddress: string | null;
         location: string | null;
         loginTime: Date;
         lastActivity: Date;
@@ -17,9 +17,9 @@ export declare class SessionsService {
         id: string;
         userId: string;
         refreshToken: string | null;
+        ipAddress: string | null;
         device: string | null;
         browser: string | null;
-        ipAddress: string | null;
         location: string | null;
         loginTime: Date;
         lastActivity: Date;

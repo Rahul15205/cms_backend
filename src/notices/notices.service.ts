@@ -13,14 +13,29 @@ export class NoticesService {
   // NOTICES CRUD
   // ==========================================
 
-  create(dto: CreateNoticeDto, userId?: string) {
-    return this.prisma.notice.create({
+  async create(dto: CreateNoticeDto, userId?: string) {
+    const notice = await this.prisma.notice.create({
       data: {
         ...dto,
         createdBy: userId,
+        currentVersion: 1,
       } as any,
       include: { type: true },
     });
+
+    // Auto-create v1 snapshot for global history
+    await this.prisma.noticeVersion.create({
+      data: {
+        noticeId: notice.id,
+        version: 1,
+        title: notice.title,
+        content: notice.content || '',
+        changes: 'Initial version',
+        author: userId,
+      },
+    });
+
+    return notice;
   }
 
   async findAll(filters: {

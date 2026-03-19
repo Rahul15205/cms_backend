@@ -38,9 +38,33 @@ export class ConsentRecordsService {
       recordPayload.revokedAt = new Date();
     }
 
-    return this.prisma.consentRecord.create({
-      data: recordPayload as any
+    const record = await this.prisma.consentRecord.create({
+      data: recordPayload as any,
+      include: {
+        version: { include: { template: true } },
+        application: true
+      }
     });
+
+    // Automatically create a Usage Record for analytics/traceability (enterprise flow spec 3.7)
+    if (record.status === ConsentStatus.GRANTED) {
+      await this.prisma.consentUsageRecord.create({
+        data: {
+          userIdentifier: record.userId || record.endUserEmail || 'anonymous',
+          templateId: record.version.templateId,
+          version: record.version.versionNumber.toString(),
+          purposeMapped: record.version.template.title || 'General', // Fallback to general if no specific purpose title
+          systemApp: record.application.name,
+          consentDateTime: record.grantedAt,
+          consentStatus: 'ACTIVE',
+        }
+      }).catch(err => {
+        console.error('Failed to create automated usage record:', err);
+        // We don't throw here to avoid failing the main consent capture
+      });
+    }
+
+    return record;
   }
 
   async findAll(status?: ConsentStatus, versionId?: string, applicationId?: string, userId?: string, email?: string, limit?: number, offset?: number) {

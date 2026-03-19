@@ -4,9 +4,9 @@ export declare class SessionsController {
     constructor(sessionsService: SessionsService);
     findAll(req: any): Promise<{
         id: string;
+        ipAddress: string | null;
         device: string | null;
         browser: string | null;
-        ipAddress: string | null;
         location: string | null;
         loginTime: Date;
         lastActivity: Date;
@@ -17,9 +17,9 @@ export declare class SessionsController {
         id: string;
         userId: string;
         refreshToken: string | null;
+        ipAddress: string | null;
         device: string | null;
         browser: string | null;
-        ipAddress: string | null;
         location: string | null;
         loginTime: Date;
         lastActivity: Date;

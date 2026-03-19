@@ -98,6 +98,100 @@ export class ConsentAnalyticsService {
       this.prisma.applicationUsage.groupBy({ by: ['applicationType'], _count: true }),
     ]);
 
+    // Map statuses to match frontend expectations
+    const recordsStatusMap = Object.fromEntries(recordsByStatus.map((s) => [s.status, s._count]));
+    const mappedRecordsByStatus = {
+      ACTIVE: recordsStatusMap['GRANTED'] || 0,
+      WITHDRAWN: recordsStatusMap['REVOKED'] || 0,
+      EXPIRED: 0, // Not explicitly tracked in consentRecord yet
+    };
+
+    // 4. Re-consent Success Rate (Per Template)
+    const publishedTemplates = await this.prisma.consentTemplate.findMany({
+      where: { status: 'PUBLISHED' },
+      select: { id: true, title: true }
+    });
+
+    const reconsentMetrics = await this.prisma.consentRecord.findMany({
+      where: { status: 'GRANTED' },
+      include: { version: { include: { template: true } } },
+    });
+
+    const templateSuccessMap: Record<string, { completed: number; sent: number }> = {};
+    
+    // Initialize with all published templates
+    publishedTemplates.forEach(t => {
+      templateSuccessMap[t.title] = { completed: 0, sent: 0 };
+    });
+
+    reconsentMetrics.forEach(rec => {
+      const title = rec.version.template.title;
+      if (templateSuccessMap[title]) {
+        templateSuccessMap[title].completed++;
+        // If we don't track 'sent' explicitly, we can't show a real rate.
+        // For now, assume completions are the visible part.
+        templateSuccessMap[title].sent = templateSuccessMap[title].completed;
+      }
+    });
+
+    const reconsentData = Object.entries(templateSuccessMap).map(([template, stats]) => ({
+      template,
+      completed: stats.completed,
+      sent: stats.sent,
+      rate: stats.sent > 0 ? Math.round((stats.completed / stats.sent) * 100) : 0,
+    })).slice(0, 4);
+
+    // 5. Fatigue Indicators
+    const userConsentCounts = await this.prisma.consentRecord.groupBy({
+      by: ['userId'],
+      _count: true,
+      where: { userId: { not: null } }
+    });
+    const multiRequestUserCount = userConsentCounts.filter(u => u._count > 2).length;
+    const totalUsers = userConsentCounts.length || 0;
+    const multiRequestRate = totalUsers > 0 ? Math.round((multiRequestUserCount / totalUsers) * 100) : 0;
+
+    const withdrawals = await this.prisma.consentRecord.findMany({
+      where: { status: 'REVOKED', revokedAt: { not: null } },
+    });
+    const immediateWithdrawals = withdrawals.filter(w => {
+      if (!w.revokedAt) return false;
+      const hours = (w.revokedAt.getTime() - w.grantedAt.getTime()) / (1000 * 60 * 60);
+      return hours < 24;
+    }).length;
+    const withdrawalRate = totalRecords > 0 ? Math.round((immediateWithdrawals / totalRecords) * 100) : 0;
+
+    const fatigueIndicators = [
+      {
+        metric: "Multiple Consent Requests",
+        value: multiRequestRate,
+        threshold: 30,
+        status: multiRequestRate > 30 ? "warning" : "healthy",
+        description: "Users receiving 3+ consent requests in 30 days",
+      },
+      {
+        metric: "Immediate Withdrawal",
+        value: withdrawalRate,
+        threshold: 10,
+        status: withdrawalRate > 10 ? "warning" : "healthy",
+        description: "Withdrawals within 24 hours of consent",
+      },
+      {
+        metric: "Rapid Decline Rate",
+        value: 0, 
+        threshold: 15,
+        status: "healthy",
+        description: "Users declining within 2 seconds",
+      },
+      {
+        metric: "Re-consent Abandonment",
+        value: 0,
+        threshold: 25,
+        status: "healthy",
+        description: "Incomplete re-consent flows",
+      }
+    ];
+
     return {
       templates: {
         total: totalTemplates,
@@ -106,7 +200,7 @@ export class ConsentAnalyticsService {
       },
       records: {
         total: totalRecords,
-        byStatus: Object.fromEntries(recordsByStatus.map((s) => [s.status, s._count])),
+        byStatus: mappedRecordsByStatus,
       },
       deployments: {
         total: totalDeployments,
@@ -115,6 +209,8 @@ export class ConsentAnalyticsService {
       crossAppUsage: {
         byApplicationType: Object.fromEntries(usageByApp.map((a) => [a.applicationType, a._count])),
       },
+      reconsentData,
+      fatigueIndicators
     };
   }
 

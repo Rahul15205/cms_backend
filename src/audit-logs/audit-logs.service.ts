@@ -40,4 +40,16 @@ export class AuditLogsService {
       }
     });
   }
+
+  async create(data: {
+    userId?: string;
+    action: string;
+    category: AuditCategory;
+    details?: any;
+    ipAddress?: string;
+    severity?: AuditSeverity;
+    tenantId?: string;
+  }) {
+    return this.prisma.auditLog.create({ data });
+  }
 }

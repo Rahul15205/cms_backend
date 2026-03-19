@@ -1,4 +1,7 @@
-import { Controller, Get, Post, Body, Param, Put, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Query, UseGuards, Request, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { RightsRequestsService } from './rights-requests.service';
 import { CreateRightsRequestDto } from './dto/create-rights-request.dto';
 import { UpdateRightsRequestDto } from './dto/update-rights-request.dto';
@@ -135,9 +138,36 @@ export class RightsRequestsController {
 
   @Post('requests/:id/evidence')
   @Permissions({ module: ModuleName.RIGHTS_MANAGEMENT, action: 'create' })
-  @ApiOperation({ summary: 'Add an evidence item' })
-  addEvidence(@Param('id') id: string, @Body() dto: CreateEvidenceItemDto, @Request() req: any) {
-    return this.rightsRequestsService.addEvidence(id, dto, req.user.userId);
+  @ApiOperation({ summary: 'Add an evidence item (supports multipart form file uploads)' })
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: './uploads/evidence',
+      filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = extname(file.originalname);
+        cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+      },
+    }),
+  }))
+  addEvidence(
+    @Param('id') id: string,
+    @Body() dto: CreateEvidenceItemDto,
+    @Request() req: any,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.rightsRequestsService.addEvidence(id, dto, req.user.userId, file);
+  }
+
+  @Put('requests/:requestId/evidence/:id/verify')
+  @Permissions({ module: ModuleName.RIGHTS_MANAGEMENT, action: 'edit' })
+  @ApiOperation({ summary: 'Update verification status of an evidence item' })
+  verifyEvidence(
+    @Param('requestId') requestId: string,
+    @Param('id') id: string,
+    @Body('verified') verified: boolean,
+    @Request() req: any,
+  ) {
+    return this.rightsRequestsService.verifyEvidence(requestId, id, verified, req.user.userId);
   }
 
   @Get('requests/:id/audit')

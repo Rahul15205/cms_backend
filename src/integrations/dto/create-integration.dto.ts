@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsEnum, IsOptional, IsObject } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IntegrationType } from '@prisma/client';
+import { IntegrationType, IntegrationStatus } from '@prisma/client';
 
 export class CreateIntegrationDto {
   @ApiProperty({ example: 'Salesforce CRM' })
@@ -11,7 +11,13 @@ export class CreateIntegrationDto {
   @ApiPropertyOptional({ enum: IntegrationType, example: 'CRM' })
   @IsOptional()
   @IsEnum(IntegrationType)
+  @IsEnum(IntegrationType)
   type?: IntegrationType;
+
+  @ApiPropertyOptional({ enum: IntegrationStatus, example: 'CONNECTED' })
+  @IsOptional()
+  @IsEnum(IntegrationStatus)
+  status?: IntegrationStatus;
 
   @ApiPropertyOptional({ example: 'salesforce-icon' })
   @IsOptional()

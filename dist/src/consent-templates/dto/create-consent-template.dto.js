@@ -16,7 +16,21 @@ const client_1 = require("@prisma/client");
 class CreateConsentTemplateDto {
     title;
     description;
+    type;
+    regulations;
     status;
+    noExpiry;
+    targetUserCategory;
+    ageThreshold;
+    consentGivenBy;
+    mechanism;
+    separateConsents;
+    withdrawVisible;
+    dataSharing;
+    privacyNoticeRef;
+    auditTrailEnabled;
+    defaultLanguage;
+    supportedLanguages;
     wizardFields;
 }
 exports.CreateConsentTemplateDto = CreateConsentTemplateDto;
@@ -33,13 +47,100 @@ __decorate([
     __metadata("design:type", String)
 ], CreateConsentTemplateDto.prototype, "description", void 0);
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: client_1.ConsentType, example: client_1.ConsentType.EXPLICIT }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(client_1.ConsentType),
+    __metadata("design:type", String)
+], CreateConsentTemplateDto.prototype, "type", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: client_1.Regulation, isArray: true, example: [client_1.Regulation.GDPR] }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsEnum)(client_1.Regulation, { each: true }),
+    __metadata("design:type", Array)
+], CreateConsentTemplateDto.prototype, "regulations", void 0);
+__decorate([
     (0, swagger_1.ApiPropertyOptional)({ enum: client_1.TemplateStatus, example: client_1.TemplateStatus.DRAFT }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsEnum)(client_1.TemplateStatus),
     __metadata("design:type", String)
 ], CreateConsentTemplateDto.prototype, "status", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ example: { requireSignature: true, questions: [{ id: 'q1', text: 'Do you agree?', type: 'checkbox' }] } }),
+    (0, swagger_1.ApiPropertyOptional)({ example: true }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateConsentTemplateDto.prototype, "noExpiry", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: client_1.TargetUserCategory, isArray: true }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsEnum)(client_1.TargetUserCategory, { each: true }),
+    __metadata("design:type", Array)
+], CreateConsentTemplateDto.prototype, "targetUserCategory", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 18 }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CreateConsentTemplateDto.prototype, "ageThreshold", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: client_1.ConsentGivenBy }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(client_1.ConsentGivenBy),
+    __metadata("design:type", String)
+], CreateConsentTemplateDto.prototype, "consentGivenBy", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: client_1.ConsentMechanism }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(client_1.ConsentMechanism),
+    __metadata("design:type", String)
+], CreateConsentTemplateDto.prototype, "mechanism", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateConsentTemplateDto.prototype, "separateConsents", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: true }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateConsentTemplateDto.prototype, "withdrawVisible", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateConsentTemplateDto.prototype, "dataSharing", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateConsentTemplateDto.prototype, "privacyNoticeRef", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: true }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateConsentTemplateDto.prototype, "auditTrailEnabled", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'en' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateConsentTemplateDto.prototype, "defaultLanguage", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ isArray: true, example: ['en'] }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsString)({ each: true }),
+    __metadata("design:type", Array)
+], CreateConsentTemplateDto.prototype, "supportedLanguages", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: { questions: [] } }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)

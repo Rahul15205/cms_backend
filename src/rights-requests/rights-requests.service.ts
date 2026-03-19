@@ -364,18 +364,38 @@ export class RightsRequestsService {
     });
   }
 
-  async addEvidence(id: string, dto: CreateEvidenceItemDto, userId: string) {
+  async addEvidence(id: string, dto: CreateEvidenceItemDto, userId: string, file?: Express.Multer.File) {
     const request = await this.findOne(id);
+
+    let fileName = dto.fileName;
+    let fileType = dto.fileType;
+    let size = dto.size;
+
+    if (file) {
+      fileName = file.filename || file.originalname;
+      // Extract extension from originalname if available, else fallback to mimetype
+      const parts = (file.originalname || '').split('.');
+      fileType = parts.length > 1 ? parts.pop()?.toLowerCase() : file.mimetype.split('/')[1] || 'unknown';
+      // Convert size to human readable (KB/MB)
+      const bytes = file.size;
+      const mb = bytes / (1024 * 1024);
+      if (mb >= 1) {
+        size = `${mb.toFixed(2)} MB`;
+      } else {
+        const kb = bytes / 1024;
+        size = `${Math.ceil(kb)} KB`;
+      }
+    }
 
     const evidence = await this.prisma.evidenceItem.create({
       data: {
         requestId: id,
         caseNumber: request.caseNumber,
-        fileName: dto.fileName,
-        fileType: dto.fileType,
+        fileName: fileName || 'unknown',
+        fileType: fileType || 'unknown',
         category: dto.category,
         uploadedBy: userId,
-        size: dto.size,
+        size: size || '0 KB',
         verified: dto.verified || false,
       },
     });
@@ -387,6 +407,28 @@ export class RightsRequestsService {
         action: 'Evidence added',
         performedBy: userId,
         details: `Evidence: ${dto.fileName} (${dto.category})`,
+        severity: 'INFO',
+      },
+    });
+
+    return evidence;
+  }
+
+  async verifyEvidence(requestId: string, id: string, verified: boolean, userId: string) {
+    const request = await this.findOne(requestId);
+    
+    const evidence = await this.prisma.evidenceItem.update({
+      where: { id },
+      data: { verified },
+    });
+
+    await this.prisma.rightsAuditEntry.create({
+      data: {
+        requestId,
+        caseNumber: request.caseNumber,
+        action: 'Evidence Verification Updated',
+        performedBy: userId,
+        details: `Evidence ${evidence.fileName} status changed to ${verified ? 'Verified' : 'Pending'}`,
         severity: 'INFO',
       },
     });

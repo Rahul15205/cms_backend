@@ -1,7 +1,7 @@
 export declare class CreateEvidenceItemDto {
-    fileName: string;
-    fileType: string;
+    fileName?: string;
+    fileType?: string;
     category: string;
-    size: string;
+    size?: string;
     verified?: boolean;
 }

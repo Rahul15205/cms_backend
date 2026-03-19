@@ -14,6 +14,9 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RightsRequestsController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
+const multer_1 = require("multer");
+const path_1 = require("path");
 const rights_requests_service_1 = require("./rights-requests.service");
 const create_rights_request_dto_1 = require("./dto/create-rights-request.dto");
 const update_rights_request_dto_1 = require("./dto/update-rights-request.dto");
@@ -68,8 +71,11 @@ let RightsRequestsController = class RightsRequestsController {
     getEvidence(id) {
         return this.rightsRequestsService.getEvidence(id);
     }
-    addEvidence(id, dto, req) {
-        return this.rightsRequestsService.addEvidence(id, dto, req.user.userId);
+    addEvidence(id, dto, req, file) {
+        return this.rightsRequestsService.addEvidence(id, dto, req.user.userId, file);
+    }
+    verifyEvidence(requestId, id, verified, req) {
+        return this.rightsRequestsService.verifyEvidence(requestId, id, verified, req.user.userId);
     }
     getAuditTrail(id) {
         return this.rightsRequestsService.getAuditTrail(id);
@@ -224,14 +230,37 @@ __decorate([
 __decorate([
     (0, common_1.Post)('requests/:id/evidence'),
     (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.RIGHTS_MANAGEMENT, action: 'create' }),
-    (0, swagger_1.ApiOperation)({ summary: 'Add an evidence item' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Add an evidence item (supports multipart form file uploads)' }),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
+        storage: (0, multer_1.diskStorage)({
+            destination: './uploads/evidence',
+            filename: (req, file, cb) => {
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+                const ext = (0, path_1.extname)(file.originalname);
+                cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+            },
+        }),
+    })),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Request)()),
+    __param(3, (0, common_1.UploadedFile)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, create_evidence_item_dto_1.CreateEvidenceItemDto, Object]),
+    __metadata("design:paramtypes", [String, create_evidence_item_dto_1.CreateEvidenceItemDto, Object, Object]),
     __metadata("design:returntype", void 0)
 ], RightsRequestsController.prototype, "addEvidence", null);
+__decorate([
+    (0, common_1.Put)('requests/:requestId/evidence/:id/verify'),
+    (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.RIGHTS_MANAGEMENT, action: 'edit' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Update verification status of an evidence item' }),
+    __param(0, (0, common_1.Param)('requestId')),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)('verified')),
+    __param(3, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Boolean, Object]),
+    __metadata("design:returntype", void 0)
+], RightsRequestsController.prototype, "verifyEvidence", null);
 __decorate([
     (0, common_1.Get)('requests/:id/audit'),
     (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.RIGHTS_MANAGEMENT, action: 'view' }),

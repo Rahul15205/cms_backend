@@ -22,10 +22,29 @@ export declare class AuditLogsService {
         createdAt: Date;
         tenantId: string | null;
         userId: string | null;
-        ipAddress: string | null;
         category: import("@prisma/client").$Enums.AuditCategory;
         severity: import("@prisma/client").$Enums.AuditSeverity;
         action: string;
         details: import("@prisma/client/runtime/client").JsonValue | null;
+        ipAddress: string | null;
     })[]>;
+    create(data: {
+        userId?: string;
+        action: string;
+        category: AuditCategory;
+        details?: any;
+        ipAddress?: string;
+        severity?: AuditSeverity;
+        tenantId?: string;
+    }): Promise<{
+        id: string;
+        createdAt: Date;
+        tenantId: string | null;
+        userId: string | null;
+        category: import("@prisma/client").$Enums.AuditCategory;
+        severity: import("@prisma/client").$Enums.AuditSeverity;
+        action: string;
+        details: import("@prisma/client/runtime/client").JsonValue | null;
+        ipAddress: string | null;
+    }>;
 }

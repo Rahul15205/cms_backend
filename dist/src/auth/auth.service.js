@@ -49,12 +49,15 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const client_1 = require("@prisma/client");
 const bcrypt = __importStar(require("bcrypt"));
 const crypto = __importStar(require("crypto"));
+const audit_logs_service_1 = require("../audit-logs/audit-logs.service");
 let AuthService = class AuthService {
     prisma;
     jwtService;
-    constructor(prisma, jwtService) {
+    auditLogsService;
+    constructor(prisma, jwtService, auditLogsService) {
         this.prisma = prisma;
         this.jwtService = jwtService;
+        this.auditLogsService = auditLogsService;
     }
     async login(loginDto) {
         const { email, password } = loginDto;
@@ -66,18 +69,46 @@ let AuthService = class AuthService {
             }
         });
         if (!user) {
+            await this.auditLogsService.create({
+                action: 'Failed Login: User Not Found',
+                category: 'SECURITY',
+                severity: 'WARNING',
+                details: { email },
+            });
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
         if (user.status !== client_1.UserStatus.ACTIVE) {
+            await this.auditLogsService.create({
+                userId: user.id,
+                action: 'Failed Login: Inactive User',
+                category: 'SECURITY',
+                severity: 'WARNING',
+                tenantId: user.tenantId,
+                details: { status: user.status }
+            });
             throw new common_1.UnauthorizedException('User account is not active');
         }
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
+            await this.auditLogsService.create({
+                userId: user.id,
+                action: 'Failed Login: Invalid Password',
+                category: 'SECURITY',
+                severity: 'WARNING',
+                tenantId: user.tenantId,
+            });
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
         await this.prisma.user.update({
             where: { id: user.id },
             data: { lastLogin: new Date() }
+        });
+        await this.auditLogsService.create({
+            userId: user.id,
+            action: 'Successful Login',
+            category: 'SECURITY',
+            severity: 'INFO',
+            tenantId: user.tenantId,
         });
         const refreshToken = crypto.randomUUID();
         await this.prisma.session.create({
@@ -232,6 +263,7 @@ exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        jwt_1.JwtService])
+        jwt_1.JwtService,
+        audit_logs_service_1.AuditLogsService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

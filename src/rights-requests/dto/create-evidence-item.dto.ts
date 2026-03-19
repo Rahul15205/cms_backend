@@ -2,25 +2,25 @@ import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateEvidenceItemDto {
-  @ApiProperty({ example: 'deletion_certificate.pdf' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: 'deletion_certificate.pdf' })
+  @IsOptional()
   @IsString()
-  fileName!: string;
+  fileName?: string;
 
-  @ApiProperty({ example: 'pdf' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: 'pdf' })
+  @IsOptional()
   @IsString()
-  fileType!: string;
+  fileType?: string;
 
   @ApiProperty({ example: 'Deletion Cert' })
   @IsNotEmpty()
   @IsString()
   category!: string;
 
-  @ApiProperty({ example: '1.2 MB' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: '1.2 MB' })
+  @IsOptional()
   @IsString()
-  size!: string;
+  size?: string;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()

@@ -1,17 +1,19 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
-import { UserStatus } from '@prisma/client';
+import { UserStatus, AuditSeverity, AuditCategory } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
-    private jwtService: JwtService
+    private jwtService: JwtService,
+    private auditLogsService: AuditLogsService
   ) {}
 
   async login(loginDto: LoginDto) {
@@ -26,22 +28,53 @@ export class AuthService {
     });
 
     if (!user) {
+      // Log failed attempt
+      await this.auditLogsService.create({
+        action: 'Failed Login: User Not Found',
+        category: 'SECURITY',
+        severity: 'WARNING',
+        details: { email },
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
 
     if (user.status !== UserStatus.ACTIVE) {
+      await this.auditLogsService.create({
+        userId: user.id,
+        action: 'Failed Login: Inactive User',
+        category: 'SECURITY',
+        severity: 'WARNING',
+        tenantId: user.tenantId,
+        details: { status: user.status }
+      });
       throw new UnauthorizedException('User account is not active');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     
     if (!isPasswordValid) {
+      await this.auditLogsService.create({
+        userId: user.id,
+        action: 'Failed Login: Invalid Password',
+        category: 'SECURITY',
+        severity: 'WARNING',
+        tenantId: user.tenantId,
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
 
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLogin: new Date() }
+    });
+
+    // Log successful login
+    await this.auditLogsService.create({
+      userId: user.id,
+      action: 'Successful Login',
+      category: 'SECURITY',
+      severity: 'INFO',
+      tenantId: user.tenantId,
     });
 
     const refreshToken = crypto.randomUUID();

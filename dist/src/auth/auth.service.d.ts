@@ -2,10 +2,12 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 export declare class AuthService {
     private prisma;
     private jwtService;
-    constructor(prisma: PrismaService, jwtService: JwtService);
+    private auditLogsService;
+    constructor(prisma: PrismaService, jwtService: JwtService, auditLogsService: AuditLogsService);
     login(loginDto: LoginDto): Promise<{
         accessToken: string;
         refreshToken: `${string}-${string}-${string}-${string}-${string}`;

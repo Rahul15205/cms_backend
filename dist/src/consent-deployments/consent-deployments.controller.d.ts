@@ -77,17 +77,17 @@ export declare class ConsentDeploymentsController {
             createdAt: Date;
             content: string;
             versionNumber: number;
-            templateId: string;
             changeSummary: string | null;
             changedFields: string[];
             changeReason: string | null;
-            effectiveFrom: Date | null;
-            effectiveTo: Date | null;
-            reconsentTriggered: boolean;
             approvedBy: string | null;
             approvalTimestamp: Date | null;
+            effectiveFrom: Date | null;
+            effectiveTo: Date | null;
             usersImpacted: number;
+            reconsentTriggered: boolean;
             publishedAt: Date;
+            templateId: string;
             publishedBy: string;
         };
         logs: {

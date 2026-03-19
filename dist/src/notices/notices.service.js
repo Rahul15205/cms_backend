@@ -17,14 +17,26 @@ let NoticesService = class NoticesService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    create(dto, userId) {
-        return this.prisma.notice.create({
+    async create(dto, userId) {
+        const notice = await this.prisma.notice.create({
             data: {
                 ...dto,
                 createdBy: userId,
+                currentVersion: 1,
             },
             include: { type: true },
         });
+        await this.prisma.noticeVersion.create({
+            data: {
+                noticeId: notice.id,
+                version: 1,
+                title: notice.title,
+                content: notice.content || '',
+                changes: 'Initial version',
+                author: userId,
+            },
+        });
+        return notice;
     }
     async findAll(filters) {
         const where = {};

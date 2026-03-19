@@ -21,14 +21,14 @@ class CreateEvidenceItemDto {
 }
 exports.CreateEvidenceItemDto = CreateEvidenceItemDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: 'deletion_certificate.pdf' }),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, swagger_1.ApiPropertyOptional)({ example: 'deletion_certificate.pdf' }),
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateEvidenceItemDto.prototype, "fileName", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: 'pdf' }),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, swagger_1.ApiPropertyOptional)({ example: 'pdf' }),
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateEvidenceItemDto.prototype, "fileType", void 0);
@@ -39,8 +39,8 @@ __decorate([
     __metadata("design:type", String)
 ], CreateEvidenceItemDto.prototype, "category", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: '1.2 MB' }),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, swagger_1.ApiPropertyOptional)({ example: '1.2 MB' }),
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateEvidenceItemDto.prototype, "size", void 0);

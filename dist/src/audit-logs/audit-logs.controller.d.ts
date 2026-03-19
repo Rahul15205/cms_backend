@@ -13,10 +13,10 @@ export declare class AuditLogsController {
         createdAt: Date;
         tenantId: string | null;
         userId: string | null;
-        ipAddress: string | null;
         category: import("@prisma/client").$Enums.AuditCategory;
         severity: import("@prisma/client").$Enums.AuditSeverity;
         action: string;
         details: import("@prisma/client/runtime/client").JsonValue | null;
+        ipAddress: string | null;
     })[]>;
 }

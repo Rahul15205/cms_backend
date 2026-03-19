@@ -47,6 +47,25 @@ export declare class ConsentTemplatesService {
                 name: string;
                 email: string;
             };
+            versions: {
+                id: string;
+                status: import("@prisma/client").$Enums.ConsentVersionStatus;
+                createdAt: Date;
+                content: string;
+                versionNumber: number;
+                changeSummary: string | null;
+                changedFields: string[];
+                changeReason: string | null;
+                approvedBy: string | null;
+                approvalTimestamp: Date | null;
+                effectiveFrom: Date | null;
+                effectiveTo: Date | null;
+                usersImpacted: number;
+                reconsentTriggered: boolean;
+                publishedAt: Date;
+                templateId: string;
+                publishedBy: string;
+            }[];
         } & {
             id: string;
             status: import("@prisma/client").$Enums.TemplateStatus;
@@ -86,17 +105,17 @@ export declare class ConsentTemplatesService {
             createdAt: Date;
             content: string;
             versionNumber: number;
-            templateId: string;
             changeSummary: string | null;
             changedFields: string[];
             changeReason: string | null;
-            effectiveFrom: Date | null;
-            effectiveTo: Date | null;
-            reconsentTriggered: boolean;
             approvedBy: string | null;
             approvalTimestamp: Date | null;
+            effectiveFrom: Date | null;
+            effectiveTo: Date | null;
             usersImpacted: number;
+            reconsentTriggered: boolean;
             publishedAt: Date;
+            templateId: string;
             publishedBy: string;
         }[];
     } & {

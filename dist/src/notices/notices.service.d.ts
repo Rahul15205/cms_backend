@@ -6,7 +6,7 @@ import { NoticeStatus } from '@prisma/client';
 export declare class NoticesService {
     private prisma;
     constructor(prisma: PrismaService);
-    create(dto: CreateNoticeDto, userId?: string): import("@prisma/client").Prisma.Prisma__NoticeClient<{
+    create(dto: CreateNoticeDto, userId?: string): Promise<{
         type: {
             id: string;
             name: string;
@@ -27,7 +27,7 @@ export declare class NoticesService {
         content: string | null;
         typeId: string | null;
         currentVersion: number;
-    }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    }>;
     findAll(filters: {
         status?: NoticeStatus;
         typeId?: string;

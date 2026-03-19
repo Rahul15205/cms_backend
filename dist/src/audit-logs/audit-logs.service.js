@@ -46,6 +46,9 @@ let AuditLogsService = class AuditLogsService {
             }
         });
     }
+    async create(data) {
+        return this.prisma.auditLog.create({ data });
+    }
 };
 exports.AuditLogsService = AuditLogsService;
 exports.AuditLogsService = AuditLogsService = __decorate([

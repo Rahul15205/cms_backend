@@ -39,9 +39,29 @@ let ConsentRecordsService = class ConsentRecordsService {
         if (recordPayload.status === client_1.ConsentStatus.REVOKED) {
             recordPayload.revokedAt = new Date();
         }
-        return this.prisma.consentRecord.create({
-            data: recordPayload
+        const record = await this.prisma.consentRecord.create({
+            data: recordPayload,
+            include: {
+                version: { include: { template: true } },
+                application: true
+            }
         });
+        if (record.status === client_1.ConsentStatus.GRANTED) {
+            await this.prisma.consentUsageRecord.create({
+                data: {
+                    userIdentifier: record.userId || record.endUserEmail || 'anonymous',
+                    templateId: record.version.templateId,
+                    version: record.version.versionNumber.toString(),
+                    purposeMapped: record.version.template.title || 'General',
+                    systemApp: record.application.name,
+                    consentDateTime: record.grantedAt,
+                    consentStatus: 'ACTIVE',
+                }
+            }).catch(err => {
+                console.error('Failed to create automated usage record:', err);
+            });
+        }
+        return record;
     }
     async findAll(status, versionId, applicationId, userId, email, limit, offset) {
         const where = {};

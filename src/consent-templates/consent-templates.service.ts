@@ -45,7 +45,10 @@ export class ConsentTemplatesService {
         take,
         skip,
         orderBy: { createdAt: 'desc' },
-        include: { creator: { select: { name: true, email: true } } }
+        include: { 
+          creator: { select: { name: true, email: true } },
+          versions: { orderBy: { versionNumber: 'desc' }, take: 1 }
+        }
       })
     ]);
 

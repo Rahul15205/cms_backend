@@ -16,7 +16,8 @@ exports.AuditLogsModule = AuditLogsModule;
 exports.AuditLogsModule = AuditLogsModule = __decorate([
     (0, common_1.Module)({
         controllers: [audit_logs_controller_1.AuditLogsController],
-        providers: [audit_logs_service_1.AuditLogsService]
+        providers: [audit_logs_service_1.AuditLogsService],
+        exports: [audit_logs_service_1.AuditLogsService]
     })
 ], AuditLogsModule);
 //# sourceMappingURL=audit-logs.module.js.map
