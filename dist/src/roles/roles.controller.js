@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RolesController = void 0;
 const common_1 = require("@nestjs/common");
+const cache_manager_1 = require("@nestjs/cache-manager");
 const roles_service_1 = require("./roles.service");
 const create_role_dto_1 = require("./dto/create-role.dto");
 const update_role_dto_1 = require("./dto/update-role.dto");
@@ -56,6 +57,8 @@ __decorate([
 ], RolesController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
+    (0, common_1.UseInterceptors)(cache_manager_1.CacheInterceptor),
+    (0, cache_manager_1.CacheTTL)(60),
     (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.USER_SETUP, action: 'view' }),
     (0, swagger_1.ApiOperation)({ summary: 'List all roles and their permissions' }),
     __metadata("design:type", Function),
@@ -94,7 +97,7 @@ exports.RolesController = RolesController = __decorate([
     (0, swagger_1.ApiTags)('Roles'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/roles'),
+    (0, common_1.Controller)('api/v1/roles'),
     __metadata("design:paramtypes", [roles_service_1.RolesService])
 ], RolesController);
 //# sourceMappingURL=roles.controller.js.map

@@ -32,31 +32,26 @@ export declare class SlaRulesService {
         tenantId?: string;
         limit?: number;
         offset?: number;
-    }): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: {
-            id: string;
-            name: string;
-            status: import("@prisma/client").$Enums.SLARuleStatus;
-            createdAt: Date;
-            updatedAt: Date;
-            tenantId: string | null;
-            regulation: import("@prisma/client").$Enums.Regulation | null;
-            priority: string | null;
-            category: string | null;
-            version: number;
-            rightType: import("@prisma/client").$Enums.RightsRequestType | null;
-            duration: number;
-            durationUnit: import("@prisma/client").$Enums.SLADurationUnit;
-            dayType: import("@prisma/client").$Enums.SLADayType;
-            scope: import("@prisma/client").$Enums.SLAScope;
-            pauseConditions: string[];
-            autoCloseEnabled: boolean;
-            breachActions: string[];
-        }[];
-    }>;
+    }): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.SLARuleStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        regulation: import("@prisma/client").$Enums.Regulation | null;
+        priority: string | null;
+        category: string | null;
+        version: number;
+        rightType: import("@prisma/client").$Enums.RightsRequestType | null;
+        duration: number;
+        durationUnit: import("@prisma/client").$Enums.SLADurationUnit;
+        dayType: import("@prisma/client").$Enums.SLADayType;
+        scope: import("@prisma/client").$Enums.SLAScope;
+        pauseConditions: string[];
+        autoCloseEnabled: boolean;
+        breachActions: string[];
+    }>>;
     findOne(id: string): Promise<{
         id: string;
         name: string;

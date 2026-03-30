@@ -13,7 +13,7 @@ import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 @ApiTags('Consent Templates')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/consent-templates')
+@Controller('api/v1/consent-templates')
 export class ConsentTemplatesController {
   constructor(private readonly consentTemplatesService: ConsentTemplatesService) {}
 

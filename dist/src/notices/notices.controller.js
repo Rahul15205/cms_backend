@@ -40,6 +40,12 @@ let NoticesController = class NoticesController {
     createLanguage(dto) {
         return this.noticesService.createLanguage(dto);
     }
+    updateLanguage(id, dto) {
+        return this.noticesService.updateLanguage(id, dto);
+    }
+    deleteLanguage(id) {
+        return this.noticesService.deleteLanguage(id);
+    }
     getTypes(tenantId) {
         return this.noticesService.getTypes(tenantId);
     }
@@ -110,6 +116,25 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], NoticesController.prototype, "createLanguage", null);
 __decorate([
+    (0, common_1.Put)('languages/:id'),
+    (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.NOTICES, action: 'edit' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Update a notice language' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], NoticesController.prototype, "updateLanguage", null);
+__decorate([
+    (0, common_1.Delete)('languages/:id'),
+    (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.NOTICES, action: 'edit' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Delete a notice language' }),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], NoticesController.prototype, "deleteLanguage", null);
+__decorate([
     (0, common_1.Get)('types'),
     (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.NOTICES, action: 'view' }),
     (0, swagger_1.ApiOperation)({ summary: 'List notice types (e.g., Privacy Policy, Terms of Service)' }),
@@ -169,7 +194,7 @@ exports.NoticesController = NoticesController = __decorate([
     (0, swagger_1.ApiTags)('Notices'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/notices'),
+    (0, common_1.Controller)('api/v1/notices'),
     __metadata("design:paramtypes", [notices_service_1.NoticesService])
 ], NoticesController);
 //# sourceMappingURL=notices.controller.js.map

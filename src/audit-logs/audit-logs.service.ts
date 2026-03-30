@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditCategory, AuditSeverity } from '@prisma/client';
+import { maskObjectPii } from '../common/utils/masking.utils';
 
 @Injectable()
 export class AuditLogsService {
   constructor(private prisma: PrismaService) {}
 
-  findAll(filters?: { 
+  async findAll(filters?: { 
     tenantId?: string; 
     userId?: string; 
     category?: AuditCategory;
@@ -14,7 +15,8 @@ export class AuditLogsService {
     startDate?: string;
     endDate?: string;
     limit?: number;
-    offset?: number;
+    page?: number;
+    anonymize?: boolean;
   }) {
     const where: any = {};
     if (filters?.tenantId) where.tenantId = filters.tenantId;
@@ -27,18 +29,35 @@ export class AuditLogsService {
       if (filters.endDate) where.createdAt.lte = new Date(filters.endDate);
     }
 
-    const take = filters?.limit ? Number(filters.limit) : 50;
-    const skip = filters?.offset ? Number(filters.offset) : 0;
+    const take = filters?.limit ? Number(filters.limit) : 10;
+    const page = filters?.page ? Number(filters.page) : 1;
+    const skip = (page - 1) * take;
 
-    return this.prisma.auditLog.findMany({
-      where,
-      take,
-      skip,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        user: { select: { name: true, email: true } }
-      }
-    });
+    const [data, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        take,
+        skip,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { name: true, email: true } }
+        }
+      }),
+      this.prisma.auditLog.count({ where })
+    ]);
+
+    const returnedData = filters?.anonymize 
+      ? data.map(log => ({
+          ...log,
+          user: log.user ? {
+            ...log.user,
+            email: log.user.email ? log.user.email.includes('@') ? log.user.email[0] + '***@' + log.user.email.split('@')[1] : log.user.email : undefined
+          } : undefined,
+          details: maskObjectPii(log.details)
+        }))
+      : data;
+
+    return { data: returnedData, total };
   }
 
   async create(data: {

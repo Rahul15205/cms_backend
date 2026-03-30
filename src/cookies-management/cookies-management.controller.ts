@@ -17,7 +17,7 @@ import { CreateScannedWebsiteDto } from './dto/create-scanned-website.dto';
 import { CreateCookieBannerDto } from './dto/create-cookie-banner.dto';
 import { CreateCookieConsentLogDto } from './dto/create-cookie-consent-log.dto';
 
-@Controller('api/cookies')
+@Controller('api/v1/cookies')
 @UseGuards(JwtAuthGuard)
 export class CookiesManagementController {
   constructor(private readonly cookiesManagementService: CookiesManagementService) {}

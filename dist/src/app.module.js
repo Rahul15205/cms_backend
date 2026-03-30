@@ -9,8 +9,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
-const serve_static_1 = require("@nestjs/serve-static");
-const path_1 = require("path");
+const throttler_1 = require("@nestjs/throttler");
+const core_1 = require("@nestjs/core");
+const http_exception_filter_1 = require("./common/filters/http-exception.filter");
+const logging_interceptor_1 = require("./common/interceptors/logging.interceptor");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 const prisma_module_1 = require("./prisma/prisma.module");
@@ -51,6 +53,16 @@ const system_logs_module_1 = require("./system-logs/system-logs.module");
 const security_module_1 = require("./security/security.module");
 const settings_module_1 = require("./settings/settings.module");
 const languages_module_1 = require("./languages/languages.module");
+const logger_module_1 = require("./common/logger/logger.module");
+const health_module_1 = require("./health/health.module");
+const mailer_module_1 = require("./common/mailer/mailer.module");
+const notifications_module_1 = require("./notifications/notifications.module");
+const bullmq_1 = require("@nestjs/bullmq");
+const storage_module_1 = require("./common/storage/storage.module");
+const aadhaar_module_1 = require("./aadhaar/aadhaar.module");
+const cache_manager_1 = require("@nestjs/cache-manager");
+const cache_manager_redis_yet_1 = require("cache-manager-redis-yet");
+const audit_interceptor_1 = require("./common/interceptors/audit.interceptor");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -58,9 +70,38 @@ exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
             config_1.ConfigModule.forRoot({ isGlobal: true }),
-            serve_static_1.ServeStaticModule.forRoot({
-                rootPath: (0, path_1.join)(process.cwd(), 'uploads'),
-                serveRoot: '/uploads',
+            throttler_1.ThrottlerModule.forRootAsync({
+                imports: [config_1.ConfigModule],
+                useFactory: (config) => ([
+                    {
+                        ttl: config.get('THROTTLE_TTL', 60000),
+                        limit: config.get('THROTTLE_LIMIT', 100),
+                    },
+                ]),
+                inject: [config_1.ConfigService],
+            }),
+            bullmq_1.BullModule.forRootAsync({
+                imports: [config_1.ConfigModule],
+                useFactory: async (config) => ({
+                    connection: {
+                        host: config.get('REDIS_HOST', 'localhost'),
+                        port: config.get('REDIS_PORT', 6379),
+                    },
+                }),
+                inject: [config_1.ConfigService],
+            }),
+            cache_manager_1.CacheModule.registerAsync({
+                isGlobal: true,
+                imports: [config_1.ConfigModule],
+                useFactory: async (config) => ({
+                    store: await (0, cache_manager_redis_yet_1.redisStore)({
+                        socket: {
+                            host: config.get('REDIS_HOST', 'localhost'),
+                            port: config.get('REDIS_PORT', 6379),
+                        }
+                    }),
+                }),
+                inject: [config_1.ConfigService],
             }),
             prisma_module_1.PrismaModule,
             auth_module_1.AuthModule,
@@ -100,9 +141,33 @@ exports.AppModule = AppModule = __decorate([
             security_module_1.SecurityModule,
             settings_module_1.SettingsModule,
             languages_module_1.LanguagesModule,
+            logger_module_1.AppLoggerModule,
+            health_module_1.HealthModule,
+            mailer_module_1.AppMailerModule,
+            notifications_module_1.NotificationsModule,
+            storage_module_1.StorageModule,
+            aadhaar_module_1.AadhaarModule,
         ],
         controllers: [app_controller_1.AppController],
-        providers: [app_service_1.AppService],
+        providers: [
+            app_service_1.AppService,
+            {
+                provide: core_1.APP_GUARD,
+                useClass: throttler_1.ThrottlerGuard,
+            },
+            {
+                provide: core_1.APP_FILTER,
+                useClass: http_exception_filter_1.AllExceptionsFilter,
+            },
+            {
+                provide: core_1.APP_INTERCEPTOR,
+                useClass: logging_interceptor_1.LoggingInterceptor,
+            },
+            {
+                provide: core_1.APP_INTERCEPTOR,
+                useClass: audit_interceptor_1.AuditInterceptor,
+            },
+        ],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

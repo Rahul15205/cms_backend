@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { paginate } from '../common/dto/paginated-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsentTemplateDto } from './dto/create-consent-template.dto';
 import { UpdateConsentTemplateDto } from './dto/update-consent-template.dto';
@@ -52,12 +53,7 @@ export class ConsentTemplatesService {
       })
     ]);
 
-    return {
-      total,
-      page: Math.floor(skip / take) + 1,
-      limit: take,
-      data
-    };
+    return paginate(data, total, Math.floor(skip / take) + 1, take);
   }
 
   async findOne(id: string) {

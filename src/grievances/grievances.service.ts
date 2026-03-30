@@ -1,13 +1,21 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { paginate } from '../common/dto/paginated-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGrievanceDto } from './dto/create-grievance.dto';
 import { UpdateGrievanceDto } from './dto/update-grievance.dto';
 import { CreateGrievanceCommentDto } from './dto/create-grievance-comment.dto';
 import { GrievanceStatus } from '@prisma/client';
 
+import { EncryptionService } from '../encryption/encryption.service';
+import { NotificationsService } from '../notifications/notifications.service';
+
 @Injectable()
 export class GrievancesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private encryptionService: EncryptionService,
+    private notificationsService: NotificationsService
+  ) {}
 
   async create(dto: CreateGrievanceDto) {
     const { tenantId, ...rest } = dto;
@@ -19,9 +27,29 @@ export class GrievancesService {
     });
     const caseNumber = `GRV-${year}-${String(count + 1).padStart(4, '0')}`;
 
-    return this.prisma.grievance.create({
-      data: { ...rest, caseNumber, tenantId },
+    const encryptedEmail = rest.userEmail ? this.encryptionService.encrypt(rest.userEmail) : null;
+    const emailHash = rest.userEmail ? this.encryptionService.generateHash(rest.userEmail) : null;
+
+    const grievance = await this.prisma.grievance.create({
+      data: { 
+        ...rest, 
+        userEmail: encryptedEmail,
+        userEmailHash: emailHash,
+        caseNumber, 
+        tenantId 
+      },
     });
+
+    if (rest.userEmail) {
+      this.notificationsService.sendGrievanceConfirmation(
+        rest.userEmail!,
+        rest.userName || 'User',
+        caseNumber,
+        rest.subject
+      );
+    }
+
+    return grievance;
   }
 
   async findAll(filters: {
@@ -41,10 +69,12 @@ export class GrievancesService {
     if (filters.assignedTo) where.assignedTo = filters.assignedTo;
     if (filters.tenantId) where.tenantId = filters.tenantId;
     if (filters.search) {
+      const searchHash = this.encryptionService.generateHash(filters.search);
       where.OR = [
         { caseNumber: { contains: filters.search, mode: 'insensitive' } },
         { subject: { contains: filters.search, mode: 'insensitive' } },
         { userName: { contains: filters.search, mode: 'insensitive' } },
+        { userEmailHash: searchHash }, // Exact match via blind index
       ];
     }
 
@@ -62,7 +92,8 @@ export class GrievancesService {
       }),
     ]);
 
-    return { total, page: Math.floor(skip / take) + 1, limit: take, data };
+    const enriched = data.map((g) => this.decryptGrievance(g));
+    return paginate(enriched, total, Math.floor(skip / take) + 1, take);
   }
 
   async findOne(id: string) {
@@ -74,7 +105,15 @@ export class GrievancesService {
       },
     });
     if (!grievance) throw new NotFoundException('Grievance not found');
-    return grievance;
+    return this.decryptGrievance(grievance);
+  }
+
+  private decryptGrievance(grievance: any) {
+    if (!grievance) return grievance;
+    return {
+      ...grievance,
+      userEmail: grievance.userEmail ? this.encryptionService.decrypt(grievance.userEmail) : null,
+    };
   }
 
   async update(id: string, dto: UpdateGrievanceDto) {
@@ -98,6 +137,17 @@ export class GrievancesService {
       where: { id },
       data: { updatedAt: new Date() },
     });
+
+    // Trigger Notification if comment is public (not internal-only logic here, assuming all comments notify for now)
+    if (grievance.userEmail) {
+      this.notificationsService.sendGrievanceUpdateAlert(
+        grievance.userEmail!,
+        grievance.userName || 'User',
+        grievance.caseNumber,
+        grievance.status,
+        dto.content
+      );
+    }
 
     return comment;
   }
@@ -128,6 +178,17 @@ export class GrievancesService {
         createdBy: userId,
       },
     });
+
+    // Trigger Notification
+    if (grievance.userEmail) {
+      this.notificationsService.sendGrievanceUpdateAlert(
+        grievance.userEmail!,
+        grievance.userName || 'User',
+        grievance.caseNumber,
+        GrievanceStatus.ESCALATED,
+        `Grievance has been escalated for priority review.`
+      );
+    }
 
     return updated;
   }
@@ -200,7 +261,7 @@ export class GrievancesService {
       { name: "< 24 hours", value: distribution.under24h, color: "hsl(142, 76%, 36%)" },
       { name: "1-3 days", value: distribution.days1_3, color: "hsl(199, 89%, 48%)" },
       { name: "3-7 days", value: distribution.days3_7, color: "hsl(38, 92%, 50%)" },
-      { name: "> 7 days", value: distribution.over7d, color: "hsl(0, 72%, 51%)" },
+      { name: " > 7 days", value: distribution.over7d, color: "hsl(0, 72%, 51%)" },
     ];
 
     return {

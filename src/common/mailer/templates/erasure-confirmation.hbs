@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .email-container {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .header {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #007bff;
+            border-radius: 8px 8px 0 0;
+        }
+        .content {
+            padding: 20px;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #777;
+            text-align: center;
+        }
+        .case-pill {
+            display: inline-block;
+            background-color: #e9ecef;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-weight: bold;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h2>Data Erasure Confirmation</h2>
+        </div>
+        <div class="content">
+            <p>Dear {{name}},</p>
+            <p>This is to confirm that your Right to Erasure (Right to be Forgotten) request has been successfully fulfilled.</p>
+            
+            <p><strong>Request Details:</strong></p>
+            <ul>
+                <li>Request ID: <span class="case-pill">{{caseId}}</span></li>
+                <li>Completed On: {{completionDate}}</li>
+            </ul>
+
+            <p>In accordance with privacy regulations, we have permanently anonymized and scrubbed your personal data from our active processing systems, including your consent records and associated grievances.</p>
+            
+            <p>Please note that some data may persist in our immutable audit logs and system logs for regulatory compliance purposes, but it has been stripped of direct identifiers where possible.</p>
+
+            <p>Thank you for choosing Proteccio for your privacy management.</p>
+        </div>
+        <div class="footer">
+            <p>This is an automated notification from the Proteccio Consent Management System.</p>
+        </div>
+    </div>
+</body>
+</html>

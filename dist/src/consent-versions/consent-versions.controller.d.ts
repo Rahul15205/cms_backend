@@ -1,5 +1,6 @@
 import { ConsentVersionsService } from './consent-versions.service';
 import { CreateConsentVersionDto } from './dto/create-consent-version.dto';
+import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 export declare class ConsentVersionsController {
     private readonly consentVersionsService;
     constructor(consentVersionsService: ConsentVersionsService);
@@ -22,37 +23,33 @@ export declare class ConsentVersionsController {
         templateId: string;
         publishedBy: string;
     }>;
-    findAll(templateId?: string, limit?: number, offset?: number): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: ({
-            publisher: {
-                name: string;
-                email: string;
-            };
-        } & {
-            id: string;
-            status: import("@prisma/client").$Enums.ConsentVersionStatus;
-            createdAt: Date;
-            content: string;
-            versionNumber: number;
-            changeSummary: string | null;
-            changedFields: string[];
-            changeReason: string | null;
-            approvedBy: string | null;
-            approvalTimestamp: Date | null;
-            effectiveFrom: Date | null;
-            effectiveTo: Date | null;
-            usersImpacted: number;
-            reconsentTriggered: boolean;
-            publishedAt: Date;
-            templateId: string;
-            publishedBy: string;
-        })[];
-    }>;
+    findAll(templateId?: string, limit?: number, offset?: number): Promise<PaginatedResponseDto<{
+        publisher: {
+            name: string;
+            email: string;
+        };
+    } & {
+        id: string;
+        status: import("@prisma/client").$Enums.ConsentVersionStatus;
+        createdAt: Date;
+        content: string;
+        versionNumber: number;
+        changeSummary: string | null;
+        changedFields: string[];
+        changeReason: string | null;
+        approvedBy: string | null;
+        approvalTimestamp: Date | null;
+        effectiveFrom: Date | null;
+        effectiveTo: Date | null;
+        usersImpacted: number;
+        reconsentTriggered: boolean;
+        publishedAt: Date;
+        templateId: string;
+        publishedBy: string;
+    }>>;
     findOne(id: string): Promise<{
         template: {
+            type: import("@prisma/client").$Enums.ConsentType;
             id: string;
             status: import("@prisma/client").$Enums.TemplateStatus;
             createdAt: Date;
@@ -60,7 +57,6 @@ export declare class ConsentVersionsController {
             description: string | null;
             tenantId: string;
             title: string;
-            type: import("@prisma/client").$Enums.ConsentType;
             regulations: import("@prisma/client").$Enums.Regulation[];
             wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
             validityStart: Date | null;

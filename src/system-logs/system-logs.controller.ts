@@ -9,7 +9,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 @ApiTags('System Logs')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/logs')
+@Controller('api/v1/logs')
 export class SystemLogsController {
   constructor(private readonly systemLogsService: SystemLogsService) {}
 

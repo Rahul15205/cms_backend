@@ -11,7 +11,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 @ApiTags('Third Parties')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/third-parties')
+@Controller('api/v1/third-parties')
 export class ThirdPartiesController {
   constructor(private readonly thirdPartiesService: ThirdPartiesService) {}
 

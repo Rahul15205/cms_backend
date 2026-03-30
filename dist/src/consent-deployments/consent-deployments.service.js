@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConsentDeploymentsService = void 0;
 const common_1 = require("@nestjs/common");
+const paginated_response_dto_1 = require("../common/dto/paginated-response.dto");
 const prisma_service_1 = require("../prisma/prisma.service");
 const client_1 = require("@prisma/client");
 let ConsentDeploymentsService = class ConsentDeploymentsService {
@@ -78,12 +79,7 @@ let ConsentDeploymentsService = class ConsentDeploymentsService {
                 }
             })
         ]);
-        return {
-            total,
-            page: Math.floor(skip / take) + 1,
-            limit: take,
-            data
-        };
+        return (0, paginated_response_dto_1.paginate)(data, total, Math.floor(skip / take) + 1, take);
     }
     async findOne(id) {
         const deployment = await this.prisma.consentDeployment.findUnique({

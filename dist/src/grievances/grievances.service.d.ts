@@ -3,9 +3,13 @@ import { CreateGrievanceDto } from './dto/create-grievance.dto';
 import { UpdateGrievanceDto } from './dto/update-grievance.dto';
 import { CreateGrievanceCommentDto } from './dto/create-grievance-comment.dto';
 import { GrievanceStatus } from '@prisma/client';
+import { EncryptionService } from '../encryption/encryption.service';
+import { NotificationsService } from '../notifications/notifications.service';
 export declare class GrievancesService {
     private prisma;
-    constructor(prisma: PrismaService);
+    private encryptionService;
+    private notificationsService;
+    constructor(prisma: PrismaService, encryptionService: EncryptionService, notificationsService: NotificationsService);
     create(dto: CreateGrievanceDto): Promise<{
         id: string;
         status: import("@prisma/client").$Enums.GrievanceStatus;
@@ -16,12 +20,15 @@ export declare class GrievancesService {
         userId: string;
         caseNumber: string;
         priority: import("@prisma/client").$Enums.GrievancePriority;
+        nearBreachAlertSent: boolean;
+        slaAlertSent: boolean;
         assignedTo: string | null;
         assignedTeam: string | null;
         category: import("@prisma/client").$Enums.GrievanceCategory;
         subject: string;
         userName: string | null;
         userEmail: string | null;
+        userEmailHash: string | null;
         resolvedAt: Date | null;
         escalatedAt: Date | null;
     }>;
@@ -34,64 +41,9 @@ export declare class GrievancesService {
         tenantId?: string;
         limit?: number;
         offset?: number;
-    }): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: ({
-            _count: {
-                comments: number;
-            };
-        } & {
-            id: string;
-            status: import("@prisma/client").$Enums.GrievanceStatus;
-            createdAt: Date;
-            updatedAt: Date;
-            description: string | null;
-            tenantId: string | null;
-            userId: string;
-            caseNumber: string;
-            priority: import("@prisma/client").$Enums.GrievancePriority;
-            assignedTo: string | null;
-            assignedTeam: string | null;
-            category: import("@prisma/client").$Enums.GrievanceCategory;
-            subject: string;
-            userName: string | null;
-            userEmail: string | null;
-            resolvedAt: Date | null;
-            escalatedAt: Date | null;
-        })[];
-    }>;
-    findOne(id: string): Promise<{
-        comments: {
-            id: string;
-            createdAt: Date;
-            createdBy: string;
-            content: string;
-            grievanceId: string;
-        }[];
-        _count: {
-            comments: number;
-        };
-    } & {
-        id: string;
-        status: import("@prisma/client").$Enums.GrievanceStatus;
-        createdAt: Date;
-        updatedAt: Date;
-        description: string | null;
-        tenantId: string | null;
-        userId: string;
-        caseNumber: string;
-        priority: import("@prisma/client").$Enums.GrievancePriority;
-        assignedTo: string | null;
-        assignedTeam: string | null;
-        category: import("@prisma/client").$Enums.GrievanceCategory;
-        subject: string;
-        userName: string | null;
-        userEmail: string | null;
-        resolvedAt: Date | null;
-        escalatedAt: Date | null;
-    }>;
+    }): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<any>>;
+    findOne(id: string): Promise<any>;
+    private decryptGrievance;
     update(id: string, dto: UpdateGrievanceDto): Promise<{
         id: string;
         status: import("@prisma/client").$Enums.GrievanceStatus;
@@ -102,12 +54,15 @@ export declare class GrievancesService {
         userId: string;
         caseNumber: string;
         priority: import("@prisma/client").$Enums.GrievancePriority;
+        nearBreachAlertSent: boolean;
+        slaAlertSent: boolean;
         assignedTo: string | null;
         assignedTeam: string | null;
         category: import("@prisma/client").$Enums.GrievanceCategory;
         subject: string;
         userName: string | null;
         userEmail: string | null;
+        userEmailHash: string | null;
         resolvedAt: Date | null;
         escalatedAt: Date | null;
     }>;
@@ -128,12 +83,15 @@ export declare class GrievancesService {
         userId: string;
         caseNumber: string;
         priority: import("@prisma/client").$Enums.GrievancePriority;
+        nearBreachAlertSent: boolean;
+        slaAlertSent: boolean;
         assignedTo: string | null;
         assignedTeam: string | null;
         category: import("@prisma/client").$Enums.GrievanceCategory;
         subject: string;
         userName: string | null;
         userEmail: string | null;
+        userEmailHash: string | null;
         resolvedAt: Date | null;
         escalatedAt: Date | null;
     }>;

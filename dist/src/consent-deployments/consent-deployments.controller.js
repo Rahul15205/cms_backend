@@ -133,7 +133,7 @@ exports.ConsentDeploymentsController = ConsentDeploymentsController = __decorate
     (0, swagger_1.ApiTags)('Consent Deployments'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/consent-deployments'),
+    (0, common_1.Controller)('api/v1/consent-deployments'),
     __metadata("design:paramtypes", [consent_deployments_service_1.ConsentDeploymentsService])
 ], ConsentDeploymentsController);
 //# sourceMappingURL=consent-deployments.controller.js.map

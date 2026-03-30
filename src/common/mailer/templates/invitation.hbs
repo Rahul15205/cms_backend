@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f6f9fc; color: #333; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .logo { color: #1a56db; font-size: 24px; font-weight: bold; margin-bottom: 20px; text-decoration: none; }
+    .btn { display: inline-block; background-color: #1a56db; color: white !important; font-weight: 500; font-size: 16px; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin-top: 20px; }
+    .footer { font-size: 12px; color: #888; margin-top: 30px; text-align: center; border-top: 1px solid #eaeaea; padding-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">Proteccio CMS</div>
+    
+    <h2 style="color: #111827; margin-top: 0;">You've been invited!</h2>
+    
+    <p>Hi there,</p>
+    <p>You have been invited to join the <strong>Consent Management System</strong> ecosystem by an administrator.</p>
+    
+    {{#if role}}
+    <p><strong>Assigned Role:</strong> {{role}}</p>
+    {{/if}}
+
+    <p>Click the button below to accept the invitation and set up your account. This link will expire in exactly 48 hours.</p>
+
+    <a href="{{inviteUrl}}" class="btn">Accept Invitation</a>
+
+    <p style="margin-top: 30px;">If this wasn't you or you believe this was sent by mistake, please ignore this email or contact support.</p>
+
+    <div class="footer">
+      &copy; {{year}} Proteccio Data Privacy. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>

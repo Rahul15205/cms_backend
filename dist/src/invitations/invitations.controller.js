@@ -82,7 +82,7 @@ exports.InvitationsController = InvitationsController = __decorate([
     (0, swagger_1.ApiTags)('Invitations'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/invitations'),
+    (0, common_1.Controller)('api/v1/invitations'),
     __metadata("design:paramtypes", [invitations_service_1.InvitationsService])
 ], InvitationsController);
 //# sourceMappingURL=invitations.controller.js.map

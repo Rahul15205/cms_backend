@@ -96,7 +96,7 @@ exports.AccessRulesController = AccessRulesController = __decorate([
     (0, swagger_1.ApiTags)('Access Rules'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/access-rules'),
+    (0, common_1.Controller)('api/v1/access-rules'),
     __metadata("design:paramtypes", [access_rules_service_1.AccessRulesService])
 ], AccessRulesController);
 //# sourceMappingURL=access-rules.controller.js.map

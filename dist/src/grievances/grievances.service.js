@@ -11,12 +11,19 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GrievancesService = void 0;
 const common_1 = require("@nestjs/common");
+const paginated_response_dto_1 = require("../common/dto/paginated-response.dto");
 const prisma_service_1 = require("../prisma/prisma.service");
 const client_1 = require("@prisma/client");
+const encryption_service_1 = require("../encryption/encryption.service");
+const notifications_service_1 = require("../notifications/notifications.service");
 let GrievancesService = class GrievancesService {
     prisma;
-    constructor(prisma) {
+    encryptionService;
+    notificationsService;
+    constructor(prisma, encryptionService, notificationsService) {
         this.prisma = prisma;
+        this.encryptionService = encryptionService;
+        this.notificationsService = notificationsService;
     }
     async create(dto) {
         const { tenantId, ...rest } = dto;
@@ -25,9 +32,21 @@ let GrievancesService = class GrievancesService {
             where: { caseNumber: { startsWith: `GRV-${year}-` } },
         });
         const caseNumber = `GRV-${year}-${String(count + 1).padStart(4, '0')}`;
-        return this.prisma.grievance.create({
-            data: { ...rest, caseNumber, tenantId },
+        const encryptedEmail = rest.userEmail ? this.encryptionService.encrypt(rest.userEmail) : null;
+        const emailHash = rest.userEmail ? this.encryptionService.generateHash(rest.userEmail) : null;
+        const grievance = await this.prisma.grievance.create({
+            data: {
+                ...rest,
+                userEmail: encryptedEmail,
+                userEmailHash: emailHash,
+                caseNumber,
+                tenantId
+            },
         });
+        if (rest.userEmail) {
+            this.notificationsService.sendGrievanceConfirmation(rest.userEmail, rest.userName || 'User', caseNumber, rest.subject);
+        }
+        return grievance;
     }
     async findAll(filters) {
         const where = {};
@@ -42,10 +61,12 @@ let GrievancesService = class GrievancesService {
         if (filters.tenantId)
             where.tenantId = filters.tenantId;
         if (filters.search) {
+            const searchHash = this.encryptionService.generateHash(filters.search);
             where.OR = [
                 { caseNumber: { contains: filters.search, mode: 'insensitive' } },
                 { subject: { contains: filters.search, mode: 'insensitive' } },
                 { userName: { contains: filters.search, mode: 'insensitive' } },
+                { userEmailHash: searchHash },
             ];
         }
         const take = filters.limit ? Number(filters.limit) : 50;
@@ -60,7 +81,8 @@ let GrievancesService = class GrievancesService {
                 include: { _count: { select: { comments: true } } },
             }),
         ]);
-        return { total, page: Math.floor(skip / take) + 1, limit: take, data };
+        const enriched = data.map((g) => this.decryptGrievance(g));
+        return (0, paginated_response_dto_1.paginate)(enriched, total, Math.floor(skip / take) + 1, take);
     }
     async findOne(id) {
         const grievance = await this.prisma.grievance.findUnique({
@@ -72,7 +94,15 @@ let GrievancesService = class GrievancesService {
         });
         if (!grievance)
             throw new common_1.NotFoundException('Grievance not found');
-        return grievance;
+        return this.decryptGrievance(grievance);
+    }
+    decryptGrievance(grievance) {
+        if (!grievance)
+            return grievance;
+        return {
+            ...grievance,
+            userEmail: grievance.userEmail ? this.encryptionService.decrypt(grievance.userEmail) : null,
+        };
     }
     async update(id, dto) {
         await this.findOne(id);
@@ -91,6 +121,9 @@ let GrievancesService = class GrievancesService {
             where: { id },
             data: { updatedAt: new Date() },
         });
+        if (grievance.userEmail) {
+            this.notificationsService.sendGrievanceUpdateAlert(grievance.userEmail, grievance.userName || 'User', grievance.caseNumber, grievance.status, dto.content);
+        }
         return comment;
     }
     async escalate(id, userId) {
@@ -115,6 +148,9 @@ let GrievancesService = class GrievancesService {
                 createdBy: userId,
             },
         });
+        if (grievance.userEmail) {
+            this.notificationsService.sendGrievanceUpdateAlert(grievance.userEmail, grievance.userName || 'User', grievance.caseNumber, client_1.GrievanceStatus.ESCALATED, `Grievance has been escalated for priority review.`);
+        }
         return updated;
     }
     async getMetrics() {
@@ -179,7 +215,7 @@ let GrievancesService = class GrievancesService {
             { name: "< 24 hours", value: distribution.under24h, color: "hsl(142, 76%, 36%)" },
             { name: "1-3 days", value: distribution.days1_3, color: "hsl(199, 89%, 48%)" },
             { name: "3-7 days", value: distribution.days3_7, color: "hsl(38, 92%, 50%)" },
-            { name: "> 7 days", value: distribution.over7d, color: "hsl(0, 72%, 51%)" },
+            { name: " > 7 days", value: distribution.over7d, color: "hsl(0, 72%, 51%)" },
         ];
         return {
             total,
@@ -198,6 +234,8 @@ let GrievancesService = class GrievancesService {
 exports.GrievancesService = GrievancesService;
 exports.GrievancesService = GrievancesService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        encryption_service_1.EncryptionService,
+        notifications_service_1.NotificationsService])
 ], GrievancesService);
 //# sourceMappingURL=grievances.service.js.map

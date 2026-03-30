@@ -26,6 +26,7 @@ export declare class SubProcessorsController {
     }[]>;
     findOne(id: string): Promise<{
         template: {
+            type: import("@prisma/client").$Enums.ConsentType;
             id: string;
             status: import("@prisma/client").$Enums.TemplateStatus;
             createdAt: Date;
@@ -33,7 +34,6 @@ export declare class SubProcessorsController {
             description: string | null;
             tenantId: string;
             title: string;
-            type: import("@prisma/client").$Enums.ConsentType;
             regulations: import("@prisma/client").$Enums.Regulation[];
             wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
             validityStart: Date | null;

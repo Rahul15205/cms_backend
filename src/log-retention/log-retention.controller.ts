@@ -10,7 +10,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 @ApiTags('Config - Log Retention')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/config/log-retention')
+@Controller('api/v1/config/log-retention')
 export class LogRetentionController {
   constructor(private readonly logRetentionService: LogRetentionService) {}
 

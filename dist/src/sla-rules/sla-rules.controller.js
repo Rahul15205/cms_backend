@@ -105,7 +105,7 @@ exports.SlaRulesController = SlaRulesController = __decorate([
     (0, swagger_1.ApiTags)('SLA Rules'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/config/sla-rules'),
+    (0, common_1.Controller)('api/v1/config/sla-rules'),
     __metadata("design:paramtypes", [sla_rules_service_1.SlaRulesService])
 ], SlaRulesController);
 //# sourceMappingURL=sla-rules.controller.js.map

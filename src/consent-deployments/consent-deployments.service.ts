@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { paginate } from '../common/dto/paginated-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsentDeploymentDto } from './dto/create-consent-deployment.dto';
 import { UpdateConsentDeploymentDto } from './dto/update-consent-deployment.dto';
@@ -79,12 +80,7 @@ export class ConsentDeploymentsService {
       })
     ]);
 
-    return {
-      total,
-      page: Math.floor(skip / take) + 1,
-      limit: take,
-      data
-    };
+    return paginate(data, total, Math.floor(skip / take) + 1, take);
   }
 
   async findOne(id: string) {

@@ -16,43 +16,19 @@ export declare class GrievancesController {
         userId: string;
         caseNumber: string;
         priority: import("@prisma/client").$Enums.GrievancePriority;
+        nearBreachAlertSent: boolean;
+        slaAlertSent: boolean;
         assignedTo: string | null;
         assignedTeam: string | null;
         category: import("@prisma/client").$Enums.GrievanceCategory;
         subject: string;
         userName: string | null;
         userEmail: string | null;
+        userEmailHash: string | null;
         resolvedAt: Date | null;
         escalatedAt: Date | null;
     }>;
-    findAll(status?: GrievanceStatus, category?: string, priority?: string, assignedTo?: string, search?: string, tenantId?: string, limit?: number, offset?: number): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: ({
-            _count: {
-                comments: number;
-            };
-        } & {
-            id: string;
-            status: import("@prisma/client").$Enums.GrievanceStatus;
-            createdAt: Date;
-            updatedAt: Date;
-            description: string | null;
-            tenantId: string | null;
-            userId: string;
-            caseNumber: string;
-            priority: import("@prisma/client").$Enums.GrievancePriority;
-            assignedTo: string | null;
-            assignedTeam: string | null;
-            category: import("@prisma/client").$Enums.GrievanceCategory;
-            subject: string;
-            userName: string | null;
-            userEmail: string | null;
-            resolvedAt: Date | null;
-            escalatedAt: Date | null;
-        })[];
-    }>;
+    findAll(status?: GrievanceStatus, category?: string, priority?: string, assignedTo?: string, search?: string, tenantId?: string, limit?: number, offset?: number): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<any>>;
     getMetrics(): Promise<{
         total: number;
         open: number;
@@ -76,36 +52,7 @@ export declare class GrievancesController {
             [k: string]: number;
         };
     }>;
-    findOne(id: string): Promise<{
-        comments: {
-            id: string;
-            createdAt: Date;
-            createdBy: string;
-            content: string;
-            grievanceId: string;
-        }[];
-        _count: {
-            comments: number;
-        };
-    } & {
-        id: string;
-        status: import("@prisma/client").$Enums.GrievanceStatus;
-        createdAt: Date;
-        updatedAt: Date;
-        description: string | null;
-        tenantId: string | null;
-        userId: string;
-        caseNumber: string;
-        priority: import("@prisma/client").$Enums.GrievancePriority;
-        assignedTo: string | null;
-        assignedTeam: string | null;
-        category: import("@prisma/client").$Enums.GrievanceCategory;
-        subject: string;
-        userName: string | null;
-        userEmail: string | null;
-        resolvedAt: Date | null;
-        escalatedAt: Date | null;
-    }>;
+    findOne(id: string): Promise<any>;
     update(id: string, dto: UpdateGrievanceDto): Promise<{
         id: string;
         status: import("@prisma/client").$Enums.GrievanceStatus;
@@ -116,12 +63,15 @@ export declare class GrievancesController {
         userId: string;
         caseNumber: string;
         priority: import("@prisma/client").$Enums.GrievancePriority;
+        nearBreachAlertSent: boolean;
+        slaAlertSent: boolean;
         assignedTo: string | null;
         assignedTeam: string | null;
         category: import("@prisma/client").$Enums.GrievanceCategory;
         subject: string;
         userName: string | null;
         userEmail: string | null;
+        userEmailHash: string | null;
         resolvedAt: Date | null;
         escalatedAt: Date | null;
     }>;
@@ -142,12 +92,15 @@ export declare class GrievancesController {
         userId: string;
         caseNumber: string;
         priority: import("@prisma/client").$Enums.GrievancePriority;
+        nearBreachAlertSent: boolean;
+        slaAlertSent: boolean;
         assignedTo: string | null;
         assignedTeam: string | null;
         category: import("@prisma/client").$Enums.GrievanceCategory;
         subject: string;
         userName: string | null;
         userEmail: string | null;
+        userEmailHash: string | null;
         resolvedAt: Date | null;
         escalatedAt: Date | null;
     }>;

@@ -1,3 +1,5 @@
+import { OnModuleInit } from '@nestjs/common';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRightsRequestDto } from './dto/create-rights-request.dto';
 import { UpdateRightsRequestDto } from './dto/update-rights-request.dto';
@@ -7,9 +9,20 @@ import { CreateCaseNoteDto } from './dto/create-case-note.dto';
 import { CreateCaseAttachmentDto } from './dto/create-case-attachment.dto';
 import { CreateEvidenceItemDto } from './dto/create-evidence-item.dto';
 import { RightsRequestStatus } from '@prisma/client';
-export declare class RightsRequestsService {
+import { StorageService } from '../common/storage/storage.service';
+import { EncryptionService } from '../encryption/encryption.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ReportsService } from '../reports/reports.service';
+export declare class RightsRequestsService implements OnModuleInit {
     private prisma;
-    constructor(prisma: PrismaService);
+    private storageService;
+    private encryptionService;
+    private notificationsService;
+    private reportsService;
+    private slaQueue;
+    private erasureQueue;
+    constructor(prisma: PrismaService, storageService: StorageService, encryptionService: EncryptionService, notificationsService: NotificationsService, reportsService: ReportsService, slaQueue: Queue, erasureQueue: Queue);
+    onModuleInit(): Promise<void>;
     create(dto: CreateRightsRequestDto, userId: string): Promise<any>;
     findAll(filters: {
         status?: RightsRequestStatus;
@@ -20,21 +33,18 @@ export declare class RightsRequestsService {
         tenantId?: string;
         limit?: number;
         offset?: number;
-    }): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: any[];
-    }>;
+    }): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<any>>;
     findOne(id: string): Promise<any>;
     update(id: string, dto: UpdateRightsRequestDto): Promise<{
+        type: import("@prisma/client").$Enums.RightsRequestType;
         id: string;
         status: import("@prisma/client").$Enums.RightsRequestStatus;
         createdAt: Date;
         updatedAt: Date;
         description: string;
         tenantId: string | null;
-        type: import("@prisma/client").$Enums.RightsRequestType;
+        aadhaarNumber: string | null;
+        aadhaarHash: string | null;
         dataCategories: string[];
         caseNumber: string;
         regulation: import("@prisma/client").$Enums.Regulation;
@@ -42,7 +52,9 @@ export declare class RightsRequestsService {
         requesterId: string;
         requesterName: string;
         requesterEmail: string;
+        requesterEmailHash: string | null;
         requesterPhone: string | null;
+        requesterPhoneHash: string | null;
         isAuthorizedRep: boolean;
         authorizedRepDetails: import("@prisma/client/runtime/client").JsonValue | null;
         verificationStatus: import("@prisma/client").$Enums.VerificationStatus;
@@ -56,18 +68,22 @@ export declare class RightsRequestsService {
         acknowledgedAt: Date | null;
         closedAt: Date | null;
         dueDate: Date | null;
+        nearBreachAlertSent: boolean;
+        slaAlertSent: boolean;
         assignedTo: string | null;
         assignedTeam: string | null;
         currentStep: string | null;
     }>;
     updateStatus(id: string, dto: UpdateStatusDto, userId: string): Promise<{
+        type: import("@prisma/client").$Enums.RightsRequestType;
         id: string;
         status: import("@prisma/client").$Enums.RightsRequestStatus;
         createdAt: Date;
         updatedAt: Date;
         description: string;
         tenantId: string | null;
-        type: import("@prisma/client").$Enums.RightsRequestType;
+        aadhaarNumber: string | null;
+        aadhaarHash: string | null;
         dataCategories: string[];
         caseNumber: string;
         regulation: import("@prisma/client").$Enums.Regulation;
@@ -75,7 +91,9 @@ export declare class RightsRequestsService {
         requesterId: string;
         requesterName: string;
         requesterEmail: string;
+        requesterEmailHash: string | null;
         requesterPhone: string | null;
+        requesterPhoneHash: string | null;
         isAuthorizedRep: boolean;
         authorizedRepDetails: import("@prisma/client/runtime/client").JsonValue | null;
         verificationStatus: import("@prisma/client").$Enums.VerificationStatus;
@@ -89,18 +107,22 @@ export declare class RightsRequestsService {
         acknowledgedAt: Date | null;
         closedAt: Date | null;
         dueDate: Date | null;
+        nearBreachAlertSent: boolean;
+        slaAlertSent: boolean;
         assignedTo: string | null;
         assignedTeam: string | null;
         currentStep: string | null;
     }>;
     assign(id: string, dto: AssignRequestDto, userId: string): Promise<{
+        type: import("@prisma/client").$Enums.RightsRequestType;
         id: string;
         status: import("@prisma/client").$Enums.RightsRequestStatus;
         createdAt: Date;
         updatedAt: Date;
         description: string;
         tenantId: string | null;
-        type: import("@prisma/client").$Enums.RightsRequestType;
+        aadhaarNumber: string | null;
+        aadhaarHash: string | null;
         dataCategories: string[];
         caseNumber: string;
         regulation: import("@prisma/client").$Enums.Regulation;
@@ -108,7 +130,9 @@ export declare class RightsRequestsService {
         requesterId: string;
         requesterName: string;
         requesterEmail: string;
+        requesterEmailHash: string | null;
         requesterPhone: string | null;
+        requesterPhoneHash: string | null;
         isAuthorizedRep: boolean;
         authorizedRepDetails: import("@prisma/client/runtime/client").JsonValue | null;
         verificationStatus: import("@prisma/client").$Enums.VerificationStatus;
@@ -122,6 +146,8 @@ export declare class RightsRequestsService {
         acknowledgedAt: Date | null;
         closedAt: Date | null;
         dueDate: Date | null;
+        nearBreachAlertSent: boolean;
+        slaAlertSent: boolean;
         assignedTo: string | null;
         assignedTeam: string | null;
         currentStep: string | null;
@@ -131,26 +157,26 @@ export declare class RightsRequestsService {
         name: string;
         status: import("@prisma/client").$Enums.WorkflowStepStatus;
         notes: string | null;
+        completedAt: Date | null;
         order: number;
         requestId: string;
         assignedRole: string | null;
         slaHours: number | null;
-        completedAt: Date | null;
         completedBy: string | null;
     }[]>;
     getNotes(id: string): Promise<{
+        type: import("@prisma/client").$Enums.CaseNoteType;
         id: string;
         createdAt: Date;
-        type: import("@prisma/client").$Enums.CaseNoteType;
         createdBy: string;
         attachments: string[];
         content: string;
         requestId: string;
     }[]>;
     addNote(id: string, dto: CreateCaseNoteDto, userId: string): Promise<{
+        type: import("@prisma/client").$Enums.CaseNoteType;
         id: string;
         createdAt: Date;
-        type: import("@prisma/client").$Enums.CaseNoteType;
         createdBy: string;
         attachments: string[];
         content: string;
@@ -320,4 +346,5 @@ export declare class RightsRequestsService {
         abuseIndicators: never[];
     }>;
     private enrichWithSla;
+    private decryptRequest;
 }

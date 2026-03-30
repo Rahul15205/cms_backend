@@ -5,16 +5,24 @@ export declare class AuthController {
     private readonly authService;
     constructor(authService: AuthService);
     login(loginDto: LoginDto): Promise<{
+        mfaRequired: boolean;
+        message: string;
+        accessToken?: undefined;
+        refreshToken?: undefined;
+        user?: undefined;
+    } | {
         accessToken: string;
         refreshToken: `${string}-${string}-${string}-${string}-${string}`;
         user: {
-            id: string;
-            name: string;
+            id: any;
+            name: any;
             email: string;
-            roles: string[];
+            roles: any;
             permissions: any;
-            tenant: string;
+            tenant: any;
         };
+        mfaRequired?: undefined;
+        message?: undefined;
     }>;
     refresh(refreshDto: RefreshDto): Promise<{
         accessToken: string;
@@ -31,21 +39,31 @@ export declare class AuthController {
     logout(req: any): Promise<{
         message: string;
     }>;
+    generateMfa(req: any): Promise<{
+        secret: any;
+        qrCodeUrl: string;
+    }>;
+    verifyMfa(req: any, body: {
+        token: string;
+    }): Promise<{
+        message: string;
+    }>;
     getProfile(req: any): Promise<{
-        id: string;
-        name: string;
+        id: any;
+        name: any;
         email: string;
         phone: string | null;
-        status: import("@prisma/client").$Enums.UserStatus;
-        accountType: import("@prisma/client").$Enums.AccountType;
-        department: string | null;
-        mfaEnabled: boolean;
-        lastLogin: Date | null;
-        roles: string[];
+        status: any;
+        accountType: any;
+        department: any;
+        mfaEnabled: any;
+        aadhaarVerified: any;
+        lastLogin: any;
+        roles: any;
         permissions: any;
         tenant: {
-            id: string;
-            name: string;
+            id: any;
+            name: any;
         };
     }>;
 }

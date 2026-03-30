@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, UseGuards, Query, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Query, Request } from '@nestjs/common';
 import { NoticesService } from './notices.service';
 import { CreateNoticeDto } from './dto/create-notice.dto';
 import { UpdateNoticeDto } from './dto/update-notice.dto';
@@ -12,7 +12,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 @ApiTags('Notices')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/notices')
+@Controller('api/v1/notices')
 export class NoticesController {
   constructor(private readonly noticesService: NoticesService) {}
 
@@ -60,6 +60,20 @@ export class NoticesController {
   @ApiOperation({ summary: 'Add a new notice language' })
   createLanguage(@Body() dto: { code: string; name: string; isDefault?: boolean; tenantId?: string }) {
     return this.noticesService.createLanguage(dto);
+  }
+
+  @Put('languages/:id')
+  @Permissions({ module: ModuleName.NOTICES, action: 'edit' })
+  @ApiOperation({ summary: 'Update a notice language' })
+  updateLanguage(@Param('id') id: string, @Body() dto: { isDefault?: boolean; completion?: number; name?: string }) {
+    return this.noticesService.updateLanguage(id, dto);
+  }
+
+  @Delete('languages/:id')
+  @Permissions({ module: ModuleName.NOTICES, action: 'edit' })
+  @ApiOperation({ summary: 'Delete a notice language' })
+  deleteLanguage(@Param('id') id: string) {
+    return this.noticesService.deleteLanguage(id);
   }
 
   @Get('types')

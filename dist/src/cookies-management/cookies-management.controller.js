@@ -267,7 +267,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], CookiesManagementController.prototype, "getComplianceMetrics", null);
 exports.CookiesManagementController = CookiesManagementController = __decorate([
-    (0, common_1.Controller)('api/cookies'),
+    (0, common_1.Controller)('api/v1/cookies'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __metadata("design:paramtypes", [cookies_management_service_1.CookiesManagementService])
 ], CookiesManagementController);

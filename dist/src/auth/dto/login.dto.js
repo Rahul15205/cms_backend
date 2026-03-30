@@ -15,6 +15,7 @@ const swagger_1 = require("@nestjs/swagger");
 class LoginDto {
     email;
     password;
+    mfaToken;
 }
 exports.LoginDto = LoginDto;
 __decorate([
@@ -28,4 +29,10 @@ __decorate([
     (0, class_validator_1.MinLength)(6),
     __metadata("design:type", String)
 ], LoginDto.prototype, "password", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: '123456' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], LoginDto.prototype, "mfaToken", void 0);
 //# sourceMappingURL=login.dto.js.map

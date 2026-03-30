@@ -9,7 +9,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 @ApiTags('Consent Analytics')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/consent')
+@Controller('api/v1/consent')
 export class ConsentAnalyticsController {
   constructor(private readonly consentAnalyticsService: ConsentAnalyticsService) {}
 

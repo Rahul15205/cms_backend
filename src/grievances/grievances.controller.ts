@@ -12,7 +12,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 @ApiTags('Grievances')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/grievances')
+@Controller('api/v1/grievances')
 export class GrievancesController {
   constructor(private readonly grievancesService: GrievancesService) {}
 

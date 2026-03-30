@@ -8,14 +8,21 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CookiesManagementService = void 0;
 const common_1 = require("@nestjs/common");
+const bullmq_1 = require("@nestjs/bullmq");
+const bullmq_2 = require("bullmq");
 const prisma_service_1 = require("../prisma/prisma.service");
 let CookiesManagementService = class CookiesManagementService {
     prisma;
-    constructor(prisma) {
+    cookieScannerQueue;
+    constructor(prisma, cookieScannerQueue) {
         this.prisma = prisma;
+        this.cookieScannerQueue = cookieScannerQueue;
     }
     async createCategory(dto, tenantId) {
         return this.prisma.cookieCategory.create({
@@ -124,10 +131,11 @@ let CookiesManagementService = class CookiesManagementService {
         if (!website || website.tenantId !== tenantId) {
             throw new common_1.NotFoundException('Website not found');
         }
+        await this.cookieScannerQueue.add('scan-website', { websiteId: id });
         return this.prisma.scannedWebsite.update({
             where: { id },
             data: {
-                status: 'IN_PROGRESS',
+                status: 'PENDING',
                 lastScan: new Date(),
             },
         });
@@ -224,6 +232,8 @@ let CookiesManagementService = class CookiesManagementService {
 exports.CookiesManagementService = CookiesManagementService;
 exports.CookiesManagementService = CookiesManagementService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __param(1, (0, bullmq_1.InjectQueue)('cookie-scanner')),
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        bullmq_2.Queue])
 ], CookiesManagementService);
 //# sourceMappingURL=cookies-management.service.js.map

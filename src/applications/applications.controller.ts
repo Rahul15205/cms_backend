@@ -13,7 +13,7 @@ import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 @ApiTags('Applications')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/applications')
+@Controller('api/v1/applications')
 export class ApplicationsController {
   constructor(private readonly applicationsService: ApplicationsService) {}
 

@@ -22,6 +22,11 @@ export class CreateUserDto {
   @IsString()
   phone?: string;
 
+  @ApiPropertyOptional({ example: '1234-5678-9012' })
+  @IsOptional()
+  @IsString()
+  aadhaarNumber?: string;
+
   @ApiProperty({ enum: UserStatus, example: UserStatus.ACTIVE })
   @IsEnum(UserStatus)
   status!: UserStatus;

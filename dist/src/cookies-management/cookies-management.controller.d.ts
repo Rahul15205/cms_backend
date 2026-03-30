@@ -237,9 +237,9 @@ export declare class CookiesManagementController {
         updatedAt: Date;
         tenantId: string | null;
         userId: string | null;
+        date: Date;
         region: string | null;
         categories: string[];
-        date: Date;
     }>;
     getConsentLogs(req: any): Promise<{
         id: string;
@@ -248,9 +248,9 @@ export declare class CookiesManagementController {
         updatedAt: Date;
         tenantId: string | null;
         userId: string | null;
+        date: Date;
         region: string | null;
         categories: string[];
-        date: Date;
     }[]>;
     getComplianceMetrics(req: any): Promise<{
         banners: {

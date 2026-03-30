@@ -11,7 +11,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 @ApiTags('Escalation Rules')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/config/escalation-rules')
+@Controller('api/v1/config/escalation-rules')
 export class EscalationRulesController {
   constructor(private readonly escalationRulesService: EscalationRulesService) {}
 

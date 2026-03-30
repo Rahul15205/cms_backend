@@ -18,6 +18,7 @@ class CreateUserDto {
     password;
     name;
     phone;
+    aadhaarNumber;
     status;
     accountType;
     department;
@@ -50,6 +51,12 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateUserDto.prototype, "phone", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: '1234-5678-9012' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateUserDto.prototype, "aadhaarNumber", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ enum: client_1.UserStatus, example: client_1.UserStatus.ACTIVE }),
     (0, class_validator_1.IsEnum)(client_1.UserStatus),

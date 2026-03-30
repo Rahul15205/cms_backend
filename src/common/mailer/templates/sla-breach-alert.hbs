@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f6f9fc; color: #333; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .logo { color: #1a56db; font-size: 24px; font-weight: bold; margin-bottom: 20px; text-decoration: none; }
+    .footer { font-size: 12px; color: #888; margin-top: 30px; text-align: center; border-top: 1px solid #eaeaea; padding-top: 20px; }
+    .priority-critical { color: #e53e3e; font-weight: bold; }
+    .priority-urgent { color: #dd6b20; font-weight: bold; }
+    .alert-banner { background-color: #fff5f5; border: 1px solid #feb2b2; color: #c53030; padding: 15px; border-radius: 4px; margin-bottom: 20px; font-weight: 600; text-align: center; }
+    .btn { display: inline-block; background-color: #1a56db; color: white !important; font-weight: 500; font-size: 16px; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">Proteccio CMS - SLA ALERT</div>
+    
+    <div class="alert-banner">
+      {{#if isNearBreach}}
+        ACTION REQUIRED: Request approaching SLA breach
+      {{else}}
+        CRITICAL: SLA breached for Case {{caseNumber}}
+      {{/if}}
+    </div>
+    
+    <p>This is an automated alert regarding a <strong>{{requestType}}</strong> request.</p>
+    
+    <div style="background-color: #f9fafb; padding: 15px; border-radius: 4px; border: 1px solid #f3f4f6; margin: 15px 0;">
+      <p><strong>Case Number:</strong> {{caseNumber}}</p>
+      <p><strong>Due Date:</strong> {{dueDate}}</p>
+      <p><strong>Status:</strong> {{status}}</p>
+      <p><strong>Time Remaining:</strong> {{daysRemaining}} day(s)</p>
+      <p><strong>Priority:</strong> <span class="priority-{{priority}}">{{priority}}</span></p>
+    </div>
+
+    <p>Please address this request immediately to ensure compliance with our data privacy obligations.</p>
+
+    <a href="{{dashboardUrl}}" class="btn">Take Action Now</a>
+
+    <div class="footer">
+      &copy; {{year}} Proteccio Data Privacy. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>

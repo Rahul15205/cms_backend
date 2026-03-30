@@ -10,7 +10,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 @ApiTags('Config - Encryption')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/config/encryption')
+@Controller('api/v1/config/encryption')
 export class EncryptionController {
   constructor(private readonly encryptionService: EncryptionService) {}
 

@@ -11,7 +11,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 @ApiTags('Sub Processors')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/sub-processors')
+@Controller('api/v1/sub-processors')
 export class SubProcessorsController {
   constructor(private readonly subProcessorsService: SubProcessorsService) {}
 

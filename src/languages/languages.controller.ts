@@ -9,7 +9,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 @ApiTags('Languages')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/languages')
+@Controller('api/v1/languages')
 export class LanguagesController {
   constructor(private readonly languagesService: LanguagesService) {}
 

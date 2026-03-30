@@ -121,7 +121,7 @@ exports.ApplicationsController = ApplicationsController = __decorate([
     (0, swagger_1.ApiTags)('Applications'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/applications'),
+    (0, common_1.Controller)('api/v1/applications'),
     __metadata("design:paramtypes", [applications_service_1.ApplicationsService])
 ], ApplicationsController);
 //# sourceMappingURL=applications.controller.js.map

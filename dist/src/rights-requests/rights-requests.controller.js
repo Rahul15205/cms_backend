@@ -15,8 +15,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RightsRequestsController = void 0;
 const common_1 = require("@nestjs/common");
 const platform_express_1 = require("@nestjs/platform-express");
-const multer_1 = require("multer");
-const path_1 = require("path");
 const rights_requests_service_1 = require("./rights-requests.service");
 const create_rights_request_dto_1 = require("./dto/create-rights-request.dto");
 const update_rights_request_dto_1 = require("./dto/update-rights-request.dto");
@@ -231,16 +229,7 @@ __decorate([
     (0, common_1.Post)('requests/:id/evidence'),
     (0, permissions_decorator_1.Permissions)({ module: client_1.ModuleName.RIGHTS_MANAGEMENT, action: 'create' }),
     (0, swagger_1.ApiOperation)({ summary: 'Add an evidence item (supports multipart form file uploads)' }),
-    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
-        storage: (0, multer_1.diskStorage)({
-            destination: './uploads/evidence',
-            filename: (req, file, cb) => {
-                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-                const ext = (0, path_1.extname)(file.originalname);
-                cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
-            },
-        }),
-    })),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file')),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Request)()),
@@ -306,7 +295,7 @@ exports.RightsRequestsController = RightsRequestsController = __decorate([
     (0, swagger_1.ApiTags)('Rights Management'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/rights'),
+    (0, common_1.Controller)('api/v1/rights'),
     __metadata("design:paramtypes", [rights_requests_service_1.RightsRequestsService])
 ], RightsRequestsController);
 //# sourceMappingURL=rights-requests.controller.js.map

@@ -5,22 +5,22 @@ export declare class ThirdPartiesService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     create(createThirdPartyDto: CreateThirdPartyDto): Promise<{
+        role: import("@prisma/client").$Enums.ThirdPartyRole;
         id: string;
         name: string;
         createdAt: Date;
         updatedAt: Date;
-        role: import("@prisma/client").$Enums.ThirdPartyRole;
         purpose: string;
         templateId: string;
         country: string;
         crossBorderTransfer: boolean;
     }>;
     findAll(): Promise<{
+        role: import("@prisma/client").$Enums.ThirdPartyRole;
         id: string;
         name: string;
         createdAt: Date;
         updatedAt: Date;
-        role: import("@prisma/client").$Enums.ThirdPartyRole;
         purpose: string;
         templateId: string;
         country: string;
@@ -28,6 +28,7 @@ export declare class ThirdPartiesService {
     }[]>;
     findOne(id: string): Promise<{
         template: {
+            type: import("@prisma/client").$Enums.ConsentType;
             id: string;
             status: import("@prisma/client").$Enums.TemplateStatus;
             createdAt: Date;
@@ -35,7 +36,6 @@ export declare class ThirdPartiesService {
             description: string | null;
             tenantId: string;
             title: string;
-            type: import("@prisma/client").$Enums.ConsentType;
             regulations: import("@prisma/client").$Enums.Regulation[];
             wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
             validityStart: Date | null;
@@ -55,33 +55,33 @@ export declare class ThirdPartiesService {
             createdBy: string;
         };
     } & {
+        role: import("@prisma/client").$Enums.ThirdPartyRole;
         id: string;
         name: string;
         createdAt: Date;
         updatedAt: Date;
-        role: import("@prisma/client").$Enums.ThirdPartyRole;
         purpose: string;
         templateId: string;
         country: string;
         crossBorderTransfer: boolean;
     }>;
     update(id: string, updateThirdPartyDto: UpdateThirdPartyDto): Promise<{
+        role: import("@prisma/client").$Enums.ThirdPartyRole;
         id: string;
         name: string;
         createdAt: Date;
         updatedAt: Date;
-        role: import("@prisma/client").$Enums.ThirdPartyRole;
         purpose: string;
         templateId: string;
         country: string;
         crossBorderTransfer: boolean;
     }>;
     remove(id: string): Promise<{
+        role: import("@prisma/client").$Enums.ThirdPartyRole;
         id: string;
         name: string;
         createdAt: Date;
         updatedAt: Date;
-        role: import("@prisma/client").$Enums.ThirdPartyRole;
         purpose: string;
         templateId: string;
         country: string;

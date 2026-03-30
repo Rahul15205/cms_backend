@@ -13,10 +13,13 @@ exports.InvitationsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const client_1 = require("@prisma/client");
+const notifications_service_1 = require("../notifications/notifications.service");
 let InvitationsService = class InvitationsService {
     prisma;
-    constructor(prisma) {
+    notificationsService;
+    constructor(prisma, notificationsService) {
         this.prisma = prisma;
+        this.notificationsService = notificationsService;
     }
     async create(createInvitationDto, inviterId, tenantId) {
         const { email, roleId } = createInvitationDto;
@@ -32,7 +35,7 @@ let InvitationsService = class InvitationsService {
         }
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 7);
-        return this.prisma.invitation.create({
+        const invitation = await this.prisma.invitation.create({
             data: {
                 email,
                 roleId,
@@ -43,6 +46,14 @@ let InvitationsService = class InvitationsService {
             },
             include: { role: { select: { name: true } }, inviter: { select: { name: true, email: true } } }
         });
+        if (invitation.role && invitation.role.name) {
+            this.notificationsService.sendInvitationEmail({
+                to: invitation.email,
+                role: invitation.role.name,
+                inviteUrl: `http://localhost:5173/accept-invite?token=${invitation.id}`,
+            });
+        }
+        return invitation;
     }
     findAll(tenantId) {
         const where = tenantId ? { tenantId } : {};
@@ -58,10 +69,19 @@ let InvitationsService = class InvitationsService {
             throw new common_1.NotFoundException('Invitation not found');
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 7);
-        return this.prisma.invitation.update({
+        const updatedInv = await this.prisma.invitation.update({
             where: { id },
-            data: { expiresAt, status: client_1.InvitationStatus.PENDING }
+            data: { expiresAt, status: client_1.InvitationStatus.PENDING },
+            include: { role: { select: { name: true } } }
         });
+        if (updatedInv.role && updatedInv.role.name) {
+            this.notificationsService.sendInvitationEmail({
+                to: updatedInv.email,
+                role: updatedInv.role.name,
+                inviteUrl: `http://localhost:5173/accept-invite?token=${updatedInv.id}`,
+            });
+        }
+        return updatedInv;
     }
     async remove(id) {
         const inv = await this.prisma.invitation.findUnique({ where: { id } });
@@ -73,6 +93,7 @@ let InvitationsService = class InvitationsService {
 exports.InvitationsService = InvitationsService;
 exports.InvitationsService = InvitationsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        notifications_service_1.NotificationsService])
 ], InvitationsService);
 //# sourceMappingURL=invitations.service.js.map

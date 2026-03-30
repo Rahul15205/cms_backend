@@ -11,7 +11,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 @ApiTags('Access Rules')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/access-rules')
+@Controller('api/v1/access-rules')
 export class AccessRulesController {
   constructor(private readonly accessRulesService: AccessRulesService) {}
 

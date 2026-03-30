@@ -11,7 +11,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 @ApiTags('Notification Rules')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/config/notification-rules')
+@Controller('api/v1/config/notification-rules')
 export class NotificationRulesController {
   constructor(private readonly notificationRulesService: NotificationRulesService) {}
 

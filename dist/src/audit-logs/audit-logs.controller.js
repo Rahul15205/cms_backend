@@ -25,10 +25,22 @@ let AuditLogsController = class AuditLogsController {
     constructor(auditLogsService) {
         this.auditLogsService = auditLogsService;
     }
-    findAll(tenantId, userId, category, severity, startDate, endDate, limit, offset) {
-        return this.auditLogsService.findAll({
-            tenantId, userId, category, severity, startDate, endDate, limit, offset
+    async findAll(tenantId, userId, category, severity, startDate, endDate, limit, page, anonymize) {
+        const limitNum = limit ? Number(limit) : 10;
+        const pageNum = page ? Number(page) : 1;
+        const isAnonymize = anonymize === 'true' || anonymize === '1';
+        const { data, total } = await this.auditLogsService.findAll({
+            tenantId, userId, category, severity, startDate, endDate,
+            limit: limitNum,
+            page: pageNum,
+            anonymize: isAnonymize
         });
+        return {
+            total,
+            data,
+            page: pageNum,
+            limit: limitNum
+        };
     }
 };
 exports.AuditLogsController = AuditLogsController;
@@ -42,8 +54,8 @@ __decorate([
     (0, swagger_1.ApiQuery)({ name: 'severity', enum: client_1.AuditSeverity, required: false }),
     (0, swagger_1.ApiQuery)({ name: 'startDate', type: Date, required: false }),
     (0, swagger_1.ApiQuery)({ name: 'endDate', type: Date, required: false }),
-    (0, swagger_1.ApiQuery)({ name: 'limit', type: Number, required: false, description: 'Default: 50' }),
-    (0, swagger_1.ApiQuery)({ name: 'offset', type: Number, required: false, description: 'Default: 0' }),
+    (0, swagger_1.ApiQuery)({ name: 'limit', type: Number, required: false, description: 'Default: 10' }),
+    (0, swagger_1.ApiQuery)({ name: 'anonymize', type: Boolean, required: false, description: 'Anonymize/Mask PII fields in logs' }),
     __param(0, (0, common_1.Query)('tenantId')),
     __param(1, (0, common_1.Query)('userId')),
     __param(2, (0, common_1.Query)('category')),
@@ -51,16 +63,17 @@ __decorate([
     __param(4, (0, common_1.Query)('startDate')),
     __param(5, (0, common_1.Query)('endDate')),
     __param(6, (0, common_1.Query)('limit')),
-    __param(7, (0, common_1.Query)('offset')),
+    __param(7, (0, common_1.Query)('page')),
+    __param(8, (0, common_1.Query)('anonymize')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String, String, Number, Number]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [String, String, String, String, String, String, Number, Number, String]),
+    __metadata("design:returntype", Promise)
 ], AuditLogsController.prototype, "findAll", null);
 exports.AuditLogsController = AuditLogsController = __decorate([
     (0, swagger_1.ApiTags)('Audit Logs'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/audit-logs'),
+    (0, common_1.Controller)('api/v1/audit-logs'),
     __metadata("design:paramtypes", [audit_logs_service_1.AuditLogsService])
 ], AuditLogsController);
 //# sourceMappingURL=audit-logs.controller.js.map

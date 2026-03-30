@@ -1,10 +1,14 @@
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsentRecordDto } from './dto/create-consent-record.dto';
 import { UpdateConsentRecordDto } from './dto/update-consent-record.dto';
 import { ConsentStatus } from '@prisma/client';
+import { EncryptionService } from '../encryption/encryption.service';
 export declare class ConsentRecordsService {
-    private prisma;
-    constructor(prisma: PrismaService);
+    private readonly prisma;
+    private readonly encryptionService;
+    private readonly receiptQueue;
+    constructor(prisma: PrismaService, encryptionService: EncryptionService, receiptQueue: Queue);
     create(createConsentRecordDto: CreateConsentRecordDto): Promise<{
         application: {
             id: string;
@@ -17,6 +21,7 @@ export declare class ConsentRecordsService {
         };
         version: {
             template: {
+                type: import("@prisma/client").$Enums.ConsentType;
                 id: string;
                 status: import("@prisma/client").$Enums.TemplateStatus;
                 createdAt: Date;
@@ -24,7 +29,6 @@ export declare class ConsentRecordsService {
                 description: string | null;
                 tenantId: string;
                 title: string;
-                type: import("@prisma/client").$Enums.ConsentType;
                 regulations: import("@prisma/client").$Enums.Regulation[];
                 wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
                 validityStart: Date | null;
@@ -69,37 +73,38 @@ export declare class ConsentRecordsService {
         versionId: string;
         applicationId: string;
         endUserEmail: string | null;
+        endUserPhone: string | null;
         endUserIp: string | null;
         metadata: import("@prisma/client/runtime/client").JsonValue | null;
+        endUserEmailHash: string | null;
+        endUserPhoneHash: string | null;
         grantedAt: Date;
         revokedAt: Date | null;
     }>;
-    findAll(status?: ConsentStatus, versionId?: string, applicationId?: string, userId?: string, email?: string, limit?: number, offset?: number): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: ({
-            application: {
-                name: string;
+    findAll(status?: ConsentStatus, versionId?: string, applicationId?: string, userId?: string, email?: string, limit?: number, offset?: number): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<{
+        application: {
+            name: string;
+        };
+        version: {
+            template: {
+                title: string;
             };
-            version: {
-                template: {
-                    title: string;
-                };
-            };
-        } & {
-            id: string;
-            status: import("@prisma/client").$Enums.ConsentStatus;
-            userId: string | null;
-            versionId: string;
-            applicationId: string;
-            endUserEmail: string | null;
-            endUserIp: string | null;
-            metadata: import("@prisma/client/runtime/client").JsonValue | null;
-            grantedAt: Date;
-            revokedAt: Date | null;
-        })[];
-    }>;
+        };
+    } & {
+        id: string;
+        status: import("@prisma/client").$Enums.ConsentStatus;
+        userId: string | null;
+        versionId: string;
+        applicationId: string;
+        endUserEmail: string | null;
+        endUserPhone: string | null;
+        endUserIp: string | null;
+        metadata: import("@prisma/client/runtime/client").JsonValue | null;
+        endUserEmailHash: string | null;
+        endUserPhoneHash: string | null;
+        grantedAt: Date;
+        revokedAt: Date | null;
+    }>>;
     findOne(id: string): Promise<{
         application: {
             id: string;
@@ -112,6 +117,7 @@ export declare class ConsentRecordsService {
         };
         version: {
             template: {
+                type: import("@prisma/client").$Enums.ConsentType;
                 id: string;
                 status: import("@prisma/client").$Enums.TemplateStatus;
                 createdAt: Date;
@@ -119,7 +125,6 @@ export declare class ConsentRecordsService {
                 description: string | null;
                 tenantId: string;
                 title: string;
-                type: import("@prisma/client").$Enums.ConsentType;
                 regulations: import("@prisma/client").$Enums.Regulation[];
                 wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
                 validityStart: Date | null;
@@ -164,8 +169,11 @@ export declare class ConsentRecordsService {
         versionId: string;
         applicationId: string;
         endUserEmail: string | null;
+        endUserPhone: string | null;
         endUserIp: string | null;
         metadata: import("@prisma/client/runtime/client").JsonValue | null;
+        endUserEmailHash: string | null;
+        endUserPhoneHash: string | null;
         grantedAt: Date;
         revokedAt: Date | null;
     }>;
@@ -176,8 +184,11 @@ export declare class ConsentRecordsService {
         versionId: string;
         applicationId: string;
         endUserEmail: string | null;
+        endUserPhone: string | null;
         endUserIp: string | null;
         metadata: import("@prisma/client/runtime/client").JsonValue | null;
+        endUserEmailHash: string | null;
+        endUserPhoneHash: string | null;
         grantedAt: Date;
         revokedAt: Date | null;
     }>;

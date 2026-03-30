@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { paginate } from '../common/dto/paginated-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNoticeDto } from './dto/create-notice.dto';
 import { UpdateNoticeDto } from './dto/update-notice.dto';
@@ -73,7 +74,7 @@ export class NoticesService {
       }),
     ]);
 
-    return { total, page: Math.floor(skip / take) + 1, limit: take, data };
+    return paginate(data, total, Math.floor(skip / take) + 1, take);
   }
 
   async findOne(id: string) {
@@ -158,14 +159,48 @@ export class NoticesService {
   }
 
   createLanguage(dto: { code: string; name: string; isDefault?: boolean; tenantId?: string }) {
-    return this.prisma.noticeLanguage.create({
-      data: {
-        code: dto.code,
-        name: dto.name,
-        isDefault: dto.isDefault ?? false,
-        tenantId: dto.tenantId,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.isDefault) {
+        await tx.noticeLanguage.updateMany({
+          where: dto.tenantId ? { tenantId: dto.tenantId } : {},
+          data: { isDefault: false },
+        });
+      }
+
+      return tx.noticeLanguage.create({
+        data: {
+          code: dto.code,
+          name: dto.name,
+          isDefault: dto.isDefault ?? false,
+          tenantId: dto.tenantId,
+        },
+      });
     });
+  }
+
+  updateLanguage(id: string, dto: { isDefault?: boolean; completion?: number; name?: string }) {
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.noticeLanguage.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException('Notice language not found');
+
+      if (dto.isDefault) {
+        await tx.noticeLanguage.updateMany({
+          where: existing.tenantId ? { tenantId: existing.tenantId } : {},
+          data: { isDefault: false },
+        });
+      }
+
+      return tx.noticeLanguage.update({
+        where: { id },
+        data: dto,
+      });
+    });
+  }
+
+  async deleteLanguage(id: string) {
+    const existing = await this.prisma.noticeLanguage.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Notice language not found');
+    return this.prisma.noticeLanguage.delete({ where: { id } });
   }
 
   // ==========================================

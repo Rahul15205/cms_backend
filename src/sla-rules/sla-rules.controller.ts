@@ -11,7 +11,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 @ApiTags('SLA Rules')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/config/sla-rules')
+@Controller('api/v1/config/sla-rules')
 export class SlaRulesController {
   constructor(private readonly slaRulesService: SlaRulesService) {}
 

@@ -27,27 +27,22 @@ export declare class NotificationRulesService {
         tenantId?: string;
         limit?: number;
         offset?: number;
-    }): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: {
-            id: string;
-            name: string;
-            status: import("@prisma/client").$Enums.ConfigRuleStatus;
-            createdAt: Date;
-            updatedAt: Date;
-            tenantId: string | null;
-            template: string | null;
-            frequency: import("@prisma/client").$Enums.NotificationFrequency;
-            language: string;
-            triggerEvent: string;
-            channel: import("@prisma/client").$Enums.NotificationChannel;
-            recipientType: import("@prisma/client").$Enums.RecipientType;
-            retryEnabled: boolean;
-            maxRetries: number;
-        }[];
-    }>;
+    }): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.ConfigRuleStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        template: string | null;
+        frequency: import("@prisma/client").$Enums.NotificationFrequency;
+        language: string;
+        triggerEvent: string;
+        channel: import("@prisma/client").$Enums.NotificationChannel;
+        recipientType: import("@prisma/client").$Enums.RecipientType;
+        retryEnabled: boolean;
+        maxRetries: number;
+    }>>;
     findOne(id: string): Promise<{
         id: string;
         name: string;

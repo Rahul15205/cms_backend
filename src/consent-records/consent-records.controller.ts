@@ -16,7 +16,7 @@ import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 @ApiTags('Consent Records')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/consent-records')
+@Controller('api/v1/consent-records')
 export class ConsentRecordsController {
   constructor(private readonly consentRecordsService: ConsentRecordsService) {}
 

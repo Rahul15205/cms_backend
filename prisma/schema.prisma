@@ -52,6 +52,7 @@ model Tenant {
   exportConfigs    ExportConfig[]
   aadhaarConfig    AadhaarConfig?
   workflowConfigs  WorkflowConfig[]
+  generatedReports GeneratedReport[]
 }
 
 enum UserStatus {
@@ -70,13 +71,20 @@ enum AccountType {
 model User {
   id             String      @id @default(uuid())
   email          String      @unique
+  emailHash      String?     @unique // For deterministic search
   password       String
   name           String
   phone          String?
+  phoneHash      String?     // For deterministic search
+  aadhaarNumber  String?     // Encrypted Aadhaar
+  aadhaarHash    String?     // For deterministic search
+  aadhaarVerified Boolean    @default(false)
+  aadhaarVerifiedAt DateTime?
   status         UserStatus  @default(PENDING)
   accountType    AccountType @default(INTERNAL)
   department     String?
   mfaEnabled     Boolean     @default(false)
+  mfaSecret      String?
   lastLogin      DateTime?
   validFrom      DateTime?
   validUntil     DateTime?
@@ -96,6 +104,7 @@ model User {
   auditLogs         AuditLog[]
   createdTemplates  ConsentTemplate[]
   publishedVersions ConsentVersion[]
+  generatedReports  GeneratedReport[]
 }
 
 enum RoleStatus {
@@ -186,6 +195,9 @@ model Session {
   isCurrentSession Boolean     @default(true)
   sessionType      SessionType @default(WEB)
   refreshToken     String?     @unique
+
+  @@index([userId, isCurrentSession])
+  @@index([lastActivity])
 }
 
 enum InvitationStatus {
@@ -277,6 +289,10 @@ model AuditLog {
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
   createdAt DateTime @default(now())
+
+  @@index([tenantId, category])
+  @@index([createdAt])
+  @@index([userId])
 }
 
 // ==========================================
@@ -701,13 +717,24 @@ model ConsentRecord {
 
   userId       String? // If the end-user is known/logged in
   endUserEmail String? // If capturing consent for an anonymous user via email
+  endUserPhone String?
   endUserIp    String? // Traceability
+  
+  // Blind Indexes for PII Search (DSAR fulfillment)
+  endUserEmailHash String?
+  endUserPhoneHash String?
 
   status    ConsentStatus @default(GRANTED)
   grantedAt DateTime      @default(now())
   revokedAt DateTime?
 
   metadata Json? // E.g., device info, raw wizard answers
+
+  @@index([status])
+  @@index([applicationId, status])
+  @@index([grantedAt])
+  @@index([endUserEmailHash])
+  @@index([endUserPhoneHash])
 }
 
 // ==========================================
@@ -802,7 +829,11 @@ model RightsRequest {
   requesterId  String
   requesterName String
   requesterEmail String
+  requesterEmailHash String?   // For searching
   requesterPhone String?
+  requesterPhoneHash String?   // For searching
+  aadhaarNumber  String?     // Encrypted
+  aadhaarHash    String?     // For searching
 
   // Authorization
   isAuthorizedRep      Boolean @default(false)
@@ -828,6 +859,10 @@ model RightsRequest {
 
   // SLA
   dueDate DateTime? // slaBreached & daysRemaining computed at query time
+  
+  // Alert Status
+  nearBreachAlertSent Boolean @default(false)
+  slaAlertSent        Boolean @default(false)
 
   // Assignment
   assignedTo   String? // FK → User (not enforced to allow external IDs)
@@ -847,6 +882,10 @@ model RightsRequest {
   attachments   CaseAttachment[]
   evidenceItems EvidenceItem[]
   auditEntries  RightsAuditEntry[]
+
+  @@index([tenantId, status])
+  @@index([dueDate])
+  @@index([assignedTo])
 }
 
 model WorkflowStep {
@@ -961,6 +1000,7 @@ model Grievance {
   userId      String  // Requester/filer
   userName    String?
   userEmail   String?
+  userEmailHash String? // For searching
 
   category    GrievanceCategory
   priority    GrievancePriority  @default(GRV_MEDIUM)
@@ -974,6 +1014,10 @@ model Grievance {
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Alert Status
+  nearBreachAlertSent Boolean @default(false)
+  slaAlertSent        Boolean @default(false)
   resolvedAt  DateTime?
   escalatedAt DateTime?
 
@@ -1533,6 +1577,7 @@ enum ReportType {
   RIGHTS
   COMPLIANCE
   AUDIT
+  DSAR_EXPORT
 }
 
 enum ReportFormat {
@@ -1544,6 +1589,7 @@ enum ReportFormat {
 
 enum ReportStatus {
   RPT_PENDING
+  RPT_PROCESSING
   RPT_COMPLETED
   RPT_FAILED
 }
@@ -1554,16 +1600,21 @@ model GeneratedReport {
   reportType  ReportType
   format      ReportFormat @default(CSV)
   status      ReportStatus @default(RPT_PENDING)
+  
   generatedBy String       // User ID
+  user        User         @relation(fields: [generatedBy], references: [id])
+
   filePath    String?      // Path to the generated file
   fileSize    Int?         // Size in bytes
   parameters  Json?        // Filter parameters used for this report
-  errorMessage String?     // Error details if failed
-
-  tenantId String?
-
-  createdAt   DateTime  @default(now())
+  
+  error       String?      // If failed
   completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  tenantId    String?
+  tenant      Tenant? @relation(fields: [tenantId], references: [id])
 }
 
 // ==========================================

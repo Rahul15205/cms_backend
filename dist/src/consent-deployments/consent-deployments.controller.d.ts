@@ -1,6 +1,7 @@
 import { ConsentDeploymentsService } from './consent-deployments.service';
 import { CreateConsentDeploymentDto } from './dto/create-consent-deployment.dto';
 import { UpdateConsentDeploymentDto } from './dto/update-consent-deployment.dto';
+import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 export declare class ConsentDeploymentsController {
     private readonly consentDeploymentsService;
     constructor(consentDeploymentsService: ConsentDeploymentsService);
@@ -24,39 +25,34 @@ export declare class ConsentDeploymentsController {
         affectedUsers: number;
         deployedAt: Date;
     }>;
-    findAll(applicationId?: string, versionId?: string, limit?: number, offset?: number): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: ({
-            application: {
-                name: string;
-            };
-            version: {
-                versionNumber: number;
-                templateId: string;
-            };
-        } & {
-            id: string;
-            status: import("@prisma/client").$Enums.DeploymentStatus;
-            approvedBy: string | null;
-            versionId: string;
-            applicationId: string;
-            deploymentMode: import("@prisma/client").$Enums.DeploymentMode;
-            activationDate: Date | null;
-            region: string | null;
-            platform: string[];
-            userSegment: string | null;
-            approvalRequired: boolean;
-            rollbackAllowed: boolean;
-            rollbackConditions: string | null;
-            lockedAfterActivation: boolean;
-            isActive: boolean;
-            deployedBy: string | null;
-            affectedUsers: number;
-            deployedAt: Date;
-        })[];
-    }>;
+    findAll(applicationId?: string, versionId?: string, limit?: number, offset?: number): Promise<PaginatedResponseDto<{
+        application: {
+            name: string;
+        };
+        version: {
+            versionNumber: number;
+            templateId: string;
+        };
+    } & {
+        id: string;
+        status: import("@prisma/client").$Enums.DeploymentStatus;
+        approvedBy: string | null;
+        versionId: string;
+        applicationId: string;
+        deploymentMode: import("@prisma/client").$Enums.DeploymentMode;
+        activationDate: Date | null;
+        region: string | null;
+        platform: string[];
+        userSegment: string | null;
+        approvalRequired: boolean;
+        rollbackAllowed: boolean;
+        rollbackConditions: string | null;
+        lockedAfterActivation: boolean;
+        isActive: boolean;
+        deployedBy: string | null;
+        affectedUsers: number;
+        deployedAt: Date;
+    }>>;
     findOne(id: string): Promise<{
         application: {
             id: string;

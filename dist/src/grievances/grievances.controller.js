@@ -136,7 +136,7 @@ exports.GrievancesController = GrievancesController = __decorate([
     (0, swagger_1.ApiTags)('Grievances'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/grievances'),
+    (0, common_1.Controller)('api/v1/grievances'),
     __metadata("design:paramtypes", [grievances_service_1.GrievancesService])
 ], GrievancesController);
 //# sourceMappingURL=grievances.controller.js.map

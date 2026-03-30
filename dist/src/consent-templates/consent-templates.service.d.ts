@@ -6,6 +6,7 @@ export declare class ConsentTemplatesService {
     private prisma;
     constructor(prisma: PrismaService);
     create(createConsentTemplateDto: CreateConsentTemplateDto, tenantId: string, creatorId: string): import("@prisma/client").Prisma.Prisma__ConsentTemplateClient<{
+        type: import("@prisma/client").$Enums.ConsentType;
         id: string;
         status: import("@prisma/client").$Enums.TemplateStatus;
         createdAt: Date;
@@ -13,7 +14,6 @@ export declare class ConsentTemplatesService {
         description: string | null;
         tenantId: string;
         title: string;
-        type: import("@prisma/client").$Enums.ConsentType;
         regulations: import("@prisma/client").$Enums.Regulation[];
         wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
         validityStart: Date | null;
@@ -38,62 +38,57 @@ export declare class ConsentTemplatesService {
         search?: string;
         limit?: number;
         offset?: number;
-    }): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: ({
-            creator: {
-                name: string;
-                email: string;
-            };
-            versions: {
-                id: string;
-                status: import("@prisma/client").$Enums.ConsentVersionStatus;
-                createdAt: Date;
-                content: string;
-                versionNumber: number;
-                changeSummary: string | null;
-                changedFields: string[];
-                changeReason: string | null;
-                approvedBy: string | null;
-                approvalTimestamp: Date | null;
-                effectiveFrom: Date | null;
-                effectiveTo: Date | null;
-                usersImpacted: number;
-                reconsentTriggered: boolean;
-                publishedAt: Date;
-                templateId: string;
-                publishedBy: string;
-            }[];
-        } & {
+    }): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<{
+        creator: {
+            name: string;
+            email: string;
+        };
+        versions: {
             id: string;
-            status: import("@prisma/client").$Enums.TemplateStatus;
+            status: import("@prisma/client").$Enums.ConsentVersionStatus;
             createdAt: Date;
-            updatedAt: Date;
-            description: string | null;
-            tenantId: string;
-            title: string;
-            type: import("@prisma/client").$Enums.ConsentType;
-            regulations: import("@prisma/client").$Enums.Regulation[];
-            wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
-            validityStart: Date | null;
-            validityEnd: Date | null;
-            noExpiry: boolean;
-            targetUserCategory: import("@prisma/client").$Enums.TargetUserCategory[];
-            ageThreshold: number;
-            consentGivenBy: import("@prisma/client").$Enums.ConsentGivenBy;
-            mechanism: import("@prisma/client").$Enums.ConsentMechanism;
-            separateConsents: boolean;
-            withdrawVisible: boolean;
-            dataSharing: boolean;
-            privacyNoticeRef: string | null;
-            auditTrailEnabled: boolean;
-            defaultLanguage: string;
-            supportedLanguages: string[];
-            createdBy: string;
-        })[];
-    }>;
+            content: string;
+            versionNumber: number;
+            changeSummary: string | null;
+            changedFields: string[];
+            changeReason: string | null;
+            approvedBy: string | null;
+            approvalTimestamp: Date | null;
+            effectiveFrom: Date | null;
+            effectiveTo: Date | null;
+            usersImpacted: number;
+            reconsentTriggered: boolean;
+            publishedAt: Date;
+            templateId: string;
+            publishedBy: string;
+        }[];
+    } & {
+        type: import("@prisma/client").$Enums.ConsentType;
+        id: string;
+        status: import("@prisma/client").$Enums.TemplateStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        description: string | null;
+        tenantId: string;
+        title: string;
+        regulations: import("@prisma/client").$Enums.Regulation[];
+        wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
+        validityStart: Date | null;
+        validityEnd: Date | null;
+        noExpiry: boolean;
+        targetUserCategory: import("@prisma/client").$Enums.TargetUserCategory[];
+        ageThreshold: number;
+        consentGivenBy: import("@prisma/client").$Enums.ConsentGivenBy;
+        mechanism: import("@prisma/client").$Enums.ConsentMechanism;
+        separateConsents: boolean;
+        withdrawVisible: boolean;
+        dataSharing: boolean;
+        privacyNoticeRef: string | null;
+        auditTrailEnabled: boolean;
+        defaultLanguage: string;
+        supportedLanguages: string[];
+        createdBy: string;
+    }>>;
     findOne(id: string): Promise<{
         creator: {
             name: string;
@@ -119,6 +114,7 @@ export declare class ConsentTemplatesService {
             publishedBy: string;
         }[];
     } & {
+        type: import("@prisma/client").$Enums.ConsentType;
         id: string;
         status: import("@prisma/client").$Enums.TemplateStatus;
         createdAt: Date;
@@ -126,7 +122,6 @@ export declare class ConsentTemplatesService {
         description: string | null;
         tenantId: string;
         title: string;
-        type: import("@prisma/client").$Enums.ConsentType;
         regulations: import("@prisma/client").$Enums.Regulation[];
         wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
         validityStart: Date | null;
@@ -146,6 +141,7 @@ export declare class ConsentTemplatesService {
         createdBy: string;
     }>;
     update(id: string, updateConsentTemplateDto: UpdateConsentTemplateDto): Promise<{
+        type: import("@prisma/client").$Enums.ConsentType;
         id: string;
         status: import("@prisma/client").$Enums.TemplateStatus;
         createdAt: Date;
@@ -153,7 +149,6 @@ export declare class ConsentTemplatesService {
         description: string | null;
         tenantId: string;
         title: string;
-        type: import("@prisma/client").$Enums.ConsentType;
         regulations: import("@prisma/client").$Enums.Regulation[];
         wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
         validityStart: Date | null;
@@ -173,6 +168,7 @@ export declare class ConsentTemplatesService {
         createdBy: string;
     }>;
     remove(id: string): Promise<{
+        type: import("@prisma/client").$Enums.ConsentType;
         id: string;
         status: import("@prisma/client").$Enums.TemplateStatus;
         createdAt: Date;
@@ -180,7 +176,6 @@ export declare class ConsentTemplatesService {
         description: string | null;
         tenantId: string;
         title: string;
-        type: import("@prisma/client").$Enums.ConsentType;
         regulations: import("@prisma/client").$Enums.Regulation[];
         wizardFields: import("@prisma/client/runtime/client").JsonValue | null;
         validityStart: Date | null;

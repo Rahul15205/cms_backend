@@ -49,20 +49,26 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const client_1 = require("@prisma/client");
 const bcrypt = __importStar(require("bcrypt"));
 const crypto = __importStar(require("crypto"));
+const otplib_1 = require("otplib");
+const qrcode = __importStar(require("qrcode"));
 const audit_logs_service_1 = require("../audit-logs/audit-logs.service");
+const encryption_service_1 = require("../encryption/encryption.service");
 let AuthService = class AuthService {
     prisma;
     jwtService;
     auditLogsService;
-    constructor(prisma, jwtService, auditLogsService) {
+    encryptionService;
+    constructor(prisma, jwtService, auditLogsService, encryptionService) {
         this.prisma = prisma;
         this.jwtService = jwtService;
         this.auditLogsService = auditLogsService;
+        this.encryptionService = encryptionService;
     }
     async login(loginDto) {
         const { email, password } = loginDto;
+        const emailHash = this.encryptionService.generateHash(email);
         const user = await this.prisma.user.findUnique({
-            where: { email },
+            where: { emailHash },
             include: {
                 roles: { include: { role: { include: { permissions: true } } } },
                 tenant: true
@@ -99,6 +105,25 @@ let AuthService = class AuthService {
             });
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
+        if (user.mfaEnabled) {
+            if (!loginDto.mfaToken) {
+                return { mfaRequired: true, message: 'MFA token required' };
+            }
+            const secret = user.mfaSecret ? this.encryptionService.decrypt(user.mfaSecret) : null;
+            if (!secret)
+                throw new common_1.UnauthorizedException('MFA setup is incomplete');
+            const isValid = otplib_1.authenticator.verify({ token: loginDto.mfaToken, secret });
+            if (!isValid) {
+                await this.auditLogsService.create({
+                    userId: user.id,
+                    action: 'Failed Login: Invalid MFA Token',
+                    category: 'SECURITY',
+                    severity: 'WARNING',
+                    tenantId: user.tenantId,
+                });
+                throw new common_1.UnauthorizedException('Invalid MFA token');
+            }
+        }
         await this.prisma.user.update({
             where: { id: user.id },
             data: { lastLogin: new Date() }
@@ -110,6 +135,28 @@ let AuthService = class AuthService {
             severity: 'INFO',
             tenantId: user.tenantId,
         });
+        const maxSessions = 3;
+        const activeSessions = await this.prisma.session.findMany({
+            where: { userId: user.id, isCurrentSession: true },
+            orderBy: { loginTime: 'asc' },
+        });
+        if (activeSessions.length >= maxSessions) {
+            const sessionsToInvalidate = activeSessions.slice(0, activeSessions.length - maxSessions + 1);
+            const sessionIds = sessionsToInvalidate.map(s => s.id);
+            if (sessionIds.length > 0) {
+                await this.prisma.session.updateMany({
+                    where: { id: { in: sessionIds } },
+                    data: { isCurrentSession: false, refreshToken: null },
+                });
+                await this.auditLogsService.create({
+                    userId: user.id,
+                    action: 'Session Limit Exceeded: Oldest Session Terminated automatically',
+                    category: 'SECURITY',
+                    severity: 'WARNING',
+                    tenantId: user.tenantId,
+                });
+            }
+        }
         const refreshToken = crypto.randomUUID();
         await this.prisma.session.create({
             data: {
@@ -120,9 +167,10 @@ let AuthService = class AuthService {
                 refreshToken,
             }
         });
+        const decryptedEmail = this.encryptionService.decrypt(user.email);
         const payload = {
             sub: user.id,
-            email: user.email,
+            email: decryptedEmail,
             tenantId: user.tenantId
         };
         return {
@@ -131,7 +179,7 @@ let AuthService = class AuthService {
             user: {
                 id: user.id,
                 name: user.name,
-                email: user.email,
+                email: decryptedEmail,
                 roles: user.roles.map(ur => ur.role.name),
                 permissions: user.roles.reduce((acc, ur) => {
                     ur.role.permissions.forEach(p => {
@@ -150,6 +198,34 @@ let AuthService = class AuthService {
                 tenant: user.tenant.name
             }
         };
+    }
+    async generateMfaSecret(userId) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.UnauthorizedException('User not found');
+        const email = this.encryptionService.decrypt(user.email);
+        const secret = otplib_1.authenticator.generateSecret();
+        const otpauthUrl = otplib_1.authenticator.keyuri(email, 'Proteccio CMS', secret);
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { mfaSecret: this.encryptionService.encrypt(secret) },
+        });
+        const qrCodeUrl = await qrcode.toDataURL(otpauthUrl);
+        return { secret, qrCodeUrl };
+    }
+    async verifyAndEnableMfa(userId, token) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user || !user.mfaSecret)
+            throw new common_1.UnauthorizedException('MFA not setup');
+        const secret = this.encryptionService.decrypt(user.mfaSecret);
+        const isValid = otplib_1.authenticator.verify({ token, secret });
+        if (!isValid)
+            throw new common_1.UnauthorizedException('Invalid MFA token');
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { mfaEnabled: true },
+        });
+        return { message: 'MFA enabled successfully' };
     }
     async refresh(refreshDto) {
         const { refreshToken } = refreshDto;
@@ -178,9 +254,10 @@ let AuthService = class AuthService {
                 lastActivity: new Date()
             }
         });
+        const decryptedEmail = this.encryptionService.decrypt(session.user.email);
         const payload = {
             sub: session.user.id,
-            email: session.user.email,
+            email: decryptedEmail,
             tenantId: session.user.tenantId
         };
         return {
@@ -189,7 +266,7 @@ let AuthService = class AuthService {
             user: {
                 id: session.user.id,
                 name: session.user.name,
-                email: session.user.email,
+                email: decryptedEmail,
                 roles: session.user.roles.map(ur => ur.role.name),
                 permissions: session.user.roles.reduce((acc, ur) => {
                     ur.role.permissions.forEach(p => {
@@ -230,12 +307,13 @@ let AuthService = class AuthService {
         return {
             id: user.id,
             name: user.name,
-            email: user.email,
-            phone: user.phone,
+            email: this.encryptionService.decrypt(user.email),
+            phone: user.phone ? this.encryptionService.decrypt(user.phone) : null,
             status: user.status,
             accountType: user.accountType,
             department: user.department,
             mfaEnabled: user.mfaEnabled,
+            aadhaarVerified: user.aadhaarVerified,
             lastLogin: user.lastLogin,
             roles: user.roles.map((ur) => ur.role.name),
             permissions: user.roles.reduce((acc, ur) => {
@@ -264,6 +342,7 @@ exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         jwt_1.JwtService,
-        audit_logs_service_1.AuditLogsService])
+        audit_logs_service_1.AuditLogsService,
+        encryption_service_1.EncryptionService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

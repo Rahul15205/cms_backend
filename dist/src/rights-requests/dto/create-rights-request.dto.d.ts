@@ -7,6 +7,7 @@ export declare class CreateRightsRequestDto {
     requesterName: string;
     requesterEmail: string;
     requesterPhone?: string;
+    aadhaarNumber?: string;
     isAuthorizedRep?: boolean;
     authorizedRepDetails?: any;
     description: string;

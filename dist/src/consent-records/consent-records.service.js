@@ -8,15 +8,26 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConsentRecordsService = void 0;
 const common_1 = require("@nestjs/common");
+const paginated_response_dto_1 = require("../common/dto/paginated-response.dto");
+const bullmq_1 = require("@nestjs/bullmq");
+const bullmq_2 = require("bullmq");
 const prisma_service_1 = require("../prisma/prisma.service");
 const client_1 = require("@prisma/client");
+const encryption_service_1 = require("../encryption/encryption.service");
 let ConsentRecordsService = class ConsentRecordsService {
     prisma;
-    constructor(prisma) {
+    encryptionService;
+    receiptQueue;
+    constructor(prisma, encryptionService, receiptQueue) {
         this.prisma = prisma;
+        this.encryptionService = encryptionService;
+        this.receiptQueue = receiptQueue;
     }
     async create(createConsentRecordDto) {
         const { versionId, applicationId, userId, endUserEmail } = createConsentRecordDto;
@@ -34,7 +45,9 @@ let ConsentRecordsService = class ConsentRecordsService {
         const recordPayload = {
             ...createConsentRecordDto,
             status: createConsentRecordDto.status || client_1.ConsentStatus.GRANTED,
-            grantedAt: new Date()
+            grantedAt: new Date(),
+            endUserEmailHash: endUserEmail ? this.encryptionService.generateHash(endUserEmail) : null,
+            endUserPhoneHash: createConsentRecordDto.endUserPhone ? this.encryptionService.generateHash(createConsentRecordDto.endUserPhone) : null,
         };
         if (recordPayload.status === client_1.ConsentStatus.REVOKED) {
             recordPayload.revokedAt = new Date();
@@ -60,6 +73,9 @@ let ConsentRecordsService = class ConsentRecordsService {
             }).catch(err => {
                 console.error('Failed to create automated usage record:', err);
             });
+            if (record.endUserEmail) {
+                await this.receiptQueue.add('generate-receipt', { recordId: record.id });
+            }
         }
         return record;
     }
@@ -73,8 +89,13 @@ let ConsentRecordsService = class ConsentRecordsService {
             where.applicationId = applicationId;
         if (userId)
             where.userId = userId;
-        if (email)
-            where.endUserEmail = { contains: email, mode: 'insensitive' };
+        if (email) {
+            const emailHash = this.encryptionService.generateHash(email);
+            where.OR = [
+                { endUserEmail: { contains: email, mode: 'insensitive' } },
+                { endUserEmailHash: emailHash }
+            ];
+        }
         const take = limit ? Number(limit) : 50;
         const skip = offset ? Number(offset) : 0;
         const [total, data] = await Promise.all([
@@ -90,12 +111,7 @@ let ConsentRecordsService = class ConsentRecordsService {
                 }
             })
         ]);
-        return {
-            total,
-            page: Math.floor(skip / take) + 1,
-            limit: take,
-            data
-        };
+        return (0, paginated_response_dto_1.paginate)(data, total, Math.floor(skip / take) + 1, take);
     }
     async findOne(id) {
         const record = await this.prisma.consentRecord.findUnique({
@@ -124,6 +140,9 @@ let ConsentRecordsService = class ConsentRecordsService {
 exports.ConsentRecordsService = ConsentRecordsService;
 exports.ConsentRecordsService = ConsentRecordsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __param(2, (0, bullmq_1.InjectQueue)('consent-receipts')),
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        encryption_service_1.EncryptionService,
+        bullmq_2.Queue])
 ], ConsentRecordsService);
 //# sourceMappingURL=consent-records.service.js.map

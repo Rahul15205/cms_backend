@@ -9,7 +9,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 @ApiTags('Security')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/security')
+@Controller('api/v1/security')
 export class SecurityController {
   constructor(private readonly securityService: SecurityService) {}
 

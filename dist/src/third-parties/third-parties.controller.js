@@ -93,7 +93,7 @@ exports.ThirdPartiesController = ThirdPartiesController = __decorate([
     (0, swagger_1.ApiTags)('Third Parties'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/third-parties'),
+    (0, common_1.Controller)('api/v1/third-parties'),
     __metadata("design:paramtypes", [third_parties_service_1.ThirdPartiesService])
 ], ThirdPartiesController);
 //# sourceMappingURL=third-parties.controller.js.map

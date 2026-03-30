@@ -4,6 +4,7 @@ export declare class CreateUserDto {
     password: string;
     name: string;
     phone?: string;
+    aadhaarNumber?: string;
     status: UserStatus;
     accountType: AccountType;
     department?: string;

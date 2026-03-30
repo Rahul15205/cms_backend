@@ -2,9 +2,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserStatus } from '@prisma/client';
+import { EncryptionService } from '../encryption/encryption.service';
 export declare class UsersService {
     private prisma;
-    constructor(prisma: PrismaService);
+    private encryptionService;
+    constructor(prisma: PrismaService, encryptionService: EncryptionService);
     create(createUserDto: CreateUserDto, tenantId: string): Promise<{
         roles: {
             roleId: string;
@@ -18,11 +20,18 @@ export declare class UsersService {
         updatedAt: Date;
         tenantId: string;
         email: string;
+        emailHash: string | null;
         password: string;
         phone: string | null;
+        phoneHash: string | null;
+        aadhaarNumber: string | null;
+        aadhaarHash: string | null;
+        aadhaarVerified: boolean;
+        aadhaarVerifiedAt: Date | null;
         accountType: import("@prisma/client").$Enums.AccountType;
         department: string | null;
         mfaEnabled: boolean;
+        mfaSecret: string | null;
         lastLogin: Date | null;
         validFrom: Date | null;
         validUntil: Date | null;
@@ -38,101 +47,10 @@ export declare class UsersService {
         offset?: number;
         sortBy?: string;
         sortOrder?: 'asc' | 'desc';
-    }): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: {
-            id: string;
-            name: string;
-            status: import("@prisma/client").$Enums.UserStatus;
-            createdAt: Date;
-            updatedAt: Date;
-            roles: ({
-                role: {
-                    name: string;
-                };
-            } & {
-                roleId: string;
-                userId: string;
-            })[];
-            tenantId: string;
-            email: string;
-            phone: string | null;
-            accountType: import("@prisma/client").$Enums.AccountType;
-            department: string | null;
-            mfaEnabled: boolean;
-            lastLogin: Date | null;
-            validFrom: Date | null;
-            validUntil: Date | null;
-        }[];
-    }>;
-    findOne(id: string): Promise<{
-        roles: ({
-            role: {
-                permissions: {
-                    create: boolean;
-                    id: string;
-                    module: import("@prisma/client").$Enums.ModuleName;
-                    view: boolean;
-                    edit: boolean;
-                    approve: boolean;
-                    export: boolean;
-                    configure: boolean;
-                    admin: boolean;
-                    roleId: string;
-                }[];
-            } & {
-                id: string;
-                name: string;
-                status: import("@prisma/client").$Enums.RoleStatus;
-                createdAt: Date;
-                description: string | null;
-                isSystemRole: boolean;
-                isTemporary: boolean;
-                clonedFrom: string | null;
-                expiresAt: Date | null;
-                tenantId: string | null;
-            };
-        } & {
-            roleId: string;
-            userId: string;
-        })[];
-        tenant: {
-            id: string;
-            domain: string | null;
-            name: string;
-            status: import("@prisma/client").$Enums.TenantStatus;
-            settings: import("@prisma/client/runtime/client").JsonValue | null;
-            createdAt: Date;
-            updatedAt: Date;
-        };
-    } & {
-        id: string;
-        name: string;
-        status: import("@prisma/client").$Enums.UserStatus;
-        createdAt: Date;
-        updatedAt: Date;
-        tenantId: string;
-        email: string;
-        password: string;
-        phone: string | null;
-        accountType: import("@prisma/client").$Enums.AccountType;
-        department: string | null;
-        mfaEnabled: boolean;
-        lastLogin: Date | null;
-        validFrom: Date | null;
-        validUntil: Date | null;
-        riskScore: number;
-        workflowAccess: import("@prisma/client/runtime/client").JsonValue | null;
-        apiAccess: import("@prisma/client/runtime/client").JsonValue | null;
-    }>;
-    update(id: string, updateUserDto: UpdateUserDto): Promise<{
-        id: string;
-        name: string;
-        status: import("@prisma/client").$Enums.UserStatus;
-        email: string;
-    }>;
+    }): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<any>>;
+    findOne(id: string): Promise<any>;
+    private decryptUser;
+    update(id: string, updateUserDto: UpdateUserDto): Promise<any>;
     updateStatus(id: string, status: UserStatus): Promise<{
         id: string;
         status: import("@prisma/client").$Enums.UserStatus;
@@ -145,11 +63,18 @@ export declare class UsersService {
         updatedAt: Date;
         tenantId: string;
         email: string;
+        emailHash: string | null;
         password: string;
         phone: string | null;
+        phoneHash: string | null;
+        aadhaarNumber: string | null;
+        aadhaarHash: string | null;
+        aadhaarVerified: boolean;
+        aadhaarVerifiedAt: Date | null;
         accountType: import("@prisma/client").$Enums.AccountType;
         department: string | null;
         mfaEnabled: boolean;
+        mfaSecret: string | null;
         lastLogin: Date | null;
         validFrom: Date | null;
         validUntil: Date | null;

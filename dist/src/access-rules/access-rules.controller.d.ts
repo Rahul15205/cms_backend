@@ -5,6 +5,7 @@ export declare class AccessRulesController {
     private readonly accessRulesService;
     constructor(accessRulesService: AccessRulesService);
     create(createAccessRuleDto: CreateAccessRuleDto, req: any): import("@prisma/client").Prisma.Prisma__AccessRuleClient<{
+        type: import("@prisma/client").$Enums.AccessRuleType;
         id: string;
         name: string;
         status: import("@prisma/client").$Enums.AccessRuleStatus;
@@ -12,11 +13,11 @@ export declare class AccessRulesController {
         updatedAt: Date;
         description: string | null;
         tenantId: string | null;
-        type: import("@prisma/client").$Enums.AccessRuleType;
         priority: number;
         conditions: import("@prisma/client/runtime/client").JsonValue;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     findAll(tenantId?: string): import("@prisma/client").Prisma.PrismaPromise<{
+        type: import("@prisma/client").$Enums.AccessRuleType;
         id: string;
         name: string;
         status: import("@prisma/client").$Enums.AccessRuleStatus;
@@ -24,11 +25,11 @@ export declare class AccessRulesController {
         updatedAt: Date;
         description: string | null;
         tenantId: string | null;
-        type: import("@prisma/client").$Enums.AccessRuleType;
         priority: number;
         conditions: import("@prisma/client/runtime/client").JsonValue;
     }[]>;
     findOne(id: string): Promise<{
+        type: import("@prisma/client").$Enums.AccessRuleType;
         id: string;
         name: string;
         status: import("@prisma/client").$Enums.AccessRuleStatus;
@@ -36,11 +37,11 @@ export declare class AccessRulesController {
         updatedAt: Date;
         description: string | null;
         tenantId: string | null;
-        type: import("@prisma/client").$Enums.AccessRuleType;
         priority: number;
         conditions: import("@prisma/client/runtime/client").JsonValue;
     }>;
     update(id: string, updateAccessRuleDto: UpdateAccessRuleDto): Promise<{
+        type: import("@prisma/client").$Enums.AccessRuleType;
         id: string;
         name: string;
         status: import("@prisma/client").$Enums.AccessRuleStatus;
@@ -48,11 +49,11 @@ export declare class AccessRulesController {
         updatedAt: Date;
         description: string | null;
         tenantId: string | null;
-        type: import("@prisma/client").$Enums.AccessRuleType;
         priority: number;
         conditions: import("@prisma/client/runtime/client").JsonValue;
     }>;
     remove(id: string): Promise<{
+        type: import("@prisma/client").$Enums.AccessRuleType;
         id: string;
         name: string;
         status: import("@prisma/client").$Enums.AccessRuleStatus;
@@ -60,7 +61,6 @@ export declare class AccessRulesController {
         updatedAt: Date;
         description: string | null;
         tenantId: string | null;
-        type: import("@prisma/client").$Enums.AccessRuleType;
         priority: number;
         conditions: import("@prisma/client/runtime/client").JsonValue;
     }>;

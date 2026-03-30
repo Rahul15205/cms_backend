@@ -10,7 +10,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 @ApiTags('Invitations')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/invitations')
+@Controller('api/v1/invitations')
 export class InvitationsController {
   constructor(private readonly invitationsService: InvitationsService) {}
 

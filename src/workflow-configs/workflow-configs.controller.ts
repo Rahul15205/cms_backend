@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query, UseInterceptors } from '@nestjs/common';
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
 import { WorkflowConfigsService } from './workflow-configs.service';
 import { CreateWorkflowConfigDto } from './dto/create-workflow-config.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -10,7 +11,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 @ApiTags('Config - Workflows')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/config/workflows')
+@Controller('api/v1/config/workflows')
 export class WorkflowConfigsController {
   constructor(private readonly workflowConfigsService: WorkflowConfigsService) {}
 
@@ -22,6 +23,8 @@ export class WorkflowConfigsController {
   }
 
   @Get()
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(60)
   @Permissions({ module: ModuleName.CONFIGURATIONS, action: 'view' })
   @ApiOperation({ summary: 'List workflow configurations' })
   findAll(@Query('tenantId') tenantId?: string) {

@@ -93,7 +93,7 @@ exports.DataCategoriesController = DataCategoriesController = __decorate([
     (0, swagger_1.ApiTags)('Data Categories'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/data-categories'),
+    (0, common_1.Controller)('api/v1/data-categories'),
     __metadata("design:paramtypes", [data_categories_service_1.DataCategoriesService])
 ], DataCategoriesController);
 //# sourceMappingURL=data-categories.controller.js.map

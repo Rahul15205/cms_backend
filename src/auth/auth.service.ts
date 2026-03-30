@@ -4,23 +4,30 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UserStatus, AuditSeverity, AuditCategory } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+// @ts-ignore
+import { authenticator } from 'otplib';
+import * as qrcode from 'qrcode';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { EncryptionService } from '../encryption/encryption.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-    private auditLogsService: AuditLogsService
+    private auditLogsService: AuditLogsService,
+    private encryptionService: EncryptionService
   ) {}
 
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
     
-    const user = await this.prisma.user.findUnique({
-      where: { email },
+    const emailHash = this.encryptionService.generateHash(email);
+    
+    const user: any = await this.prisma.user.findUnique({
+      where: { emailHash },
       include: {
         roles: { include: { role: { include: { permissions: true } } } },
         tenant: true
@@ -63,6 +70,29 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // --- MFA CHECK ---
+    if (user.mfaEnabled) {
+      if (!loginDto.mfaToken) {
+        return { mfaRequired: true, message: 'MFA token required' };
+      }
+
+      const secret = user.mfaSecret ? this.encryptionService.decrypt(user.mfaSecret) : null;
+      if (!secret) throw new UnauthorizedException('MFA setup is incomplete');
+
+      const isValid = authenticator.verify({ token: loginDto.mfaToken, secret });
+      if (!isValid) {
+        await this.auditLogsService.create({
+          userId: user.id,
+          action: 'Failed Login: Invalid MFA Token',
+          category: 'SECURITY',
+          severity: 'WARNING',
+          tenantId: user.tenantId,
+        });
+        throw new UnauthorizedException('Invalid MFA token');
+      }
+    }
+    // --- END MFA CHECK ---
+
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLogin: new Date() }
@@ -77,9 +107,39 @@ export class AuthService {
       tenantId: user.tenantId,
     });
 
+    // --- SESSION HARDENING (Exceeding max concurrent sessions) ---
+    // Max 3 concurrent sessions per user
+    const maxSessions = 3;
+    const activeSessions = await this.prisma.session.findMany({
+      where: { userId: user.id, isCurrentSession: true },
+      orderBy: { loginTime: 'asc' }, // Oldest first
+    });
+
+    if (activeSessions.length >= maxSessions) {
+      // Invalidate oldest sessions until we're under the limit
+      const sessionsToInvalidate = activeSessions.slice(0, activeSessions.length - maxSessions + 1);
+      const sessionIds = sessionsToInvalidate.map(s => s.id);
+      
+      if (sessionIds.length > 0) {
+        await this.prisma.session.updateMany({
+          where: { id: { in: sessionIds } },
+          data: { isCurrentSession: false, refreshToken: null },
+        });
+        
+        // Log the security event
+        await this.auditLogsService.create({
+          userId: user.id,
+          action: 'Session Limit Exceeded: Oldest Session Terminated automatically',
+          category: 'SECURITY',
+          severity: 'WARNING',
+          tenantId: user.tenantId,
+        });
+      }
+    }
+
     const refreshToken = crypto.randomUUID();
 
-    // Create session record
+    // Create new session record
     await this.prisma.session.create({
       data: {
         userId: user.id,
@@ -90,10 +150,13 @@ export class AuthService {
       }
     });
 
+    // Decrypt email for the token and response
+    const decryptedEmail = this.encryptionService.decrypt(user.email);
+
     // Generate JWT
     const payload = { 
       sub: user.id, 
-      email: user.email, 
+      email: decryptedEmail, 
       tenantId: user.tenantId 
     };
 
@@ -103,7 +166,7 @@ export class AuthService {
       user: {
         id: user.id,
         name: user.name,
-        email: user.email,
+        email: decryptedEmail,
         roles: user.roles.map(ur => ur.role.name),
         permissions: user.roles.reduce((acc, ur) => {
           ur.role.permissions.forEach(p => {
@@ -124,10 +187,43 @@ export class AuthService {
     };
   }
 
+  async generateMfaSecret(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const email = this.encryptionService.decrypt(user.email);
+    const secret = authenticator.generateSecret();
+    const otpauthUrl = authenticator.keyuri(email, 'Proteccio CMS', secret);
+
+    await (this.prisma.user as any).update({
+      where: { id: userId },
+      data: { mfaSecret: this.encryptionService.encrypt(secret) },
+    });
+
+    const qrCodeUrl = await qrcode.toDataURL(otpauthUrl);
+    return { secret, qrCodeUrl };
+  }
+
+  async verifyAndEnableMfa(userId: string, token: string) {
+    const user: any = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.mfaSecret) throw new UnauthorizedException('MFA not setup');
+
+    const secret = this.encryptionService.decrypt(user.mfaSecret);
+    const isValid = authenticator.verify({ token, secret });
+
+    if (!isValid) throw new UnauthorizedException('Invalid MFA token');
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaEnabled: true },
+    });
+
+    return { message: 'MFA enabled successfully' };
+  }
+
   async refresh(refreshDto: RefreshDto) {
     const { refreshToken } = refreshDto;
 
-    // Find active session with this refresh token
     const session = await this.prisma.session.findUnique({
       where: { refreshToken },
       include: {
@@ -148,7 +244,6 @@ export class AuthService {
       throw new UnauthorizedException('User account is not active');
     }
 
-    // Determine token rotation: invalidate old one and generate a new one
     const newRefreshToken = crypto.randomUUID();
 
     await this.prisma.session.update({
@@ -159,10 +254,11 @@ export class AuthService {
       }
     });
 
-    // Generate new JWT
+    const decryptedEmail = this.encryptionService.decrypt(session.user.email);
+
     const payload = { 
       sub: session.user.id, 
-      email: session.user.email, 
+      email: decryptedEmail, 
       tenantId: session.user.tenantId 
     };
 
@@ -172,7 +268,7 @@ export class AuthService {
       user: {
         id: session.user.id,
         name: session.user.name,
-        email: session.user.email,
+        email: decryptedEmail,
         roles: session.user.roles.map(ur => ur.role.name),
         permissions: session.user.roles.reduce((acc, ur) => {
           ur.role.permissions.forEach(p => {
@@ -194,7 +290,6 @@ export class AuthService {
   }
 
   async logout(userId: string) {
-    // Invalidate all current sessions for this user
     await this.prisma.session.updateMany({
       where: { userId, isCurrentSession: true },
       data: { isCurrentSession: false, refreshToken: null },
@@ -204,7 +299,7 @@ export class AuthService {
   }
 
   async getProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({
+    const user: any = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
         roles: { include: { role: { include: { permissions: true } } } },
@@ -219,12 +314,13 @@ export class AuthService {
     return {
       id: user.id,
       name: user.name,
-      email: user.email,
-      phone: user.phone,
+      email: this.encryptionService.decrypt(user.email),
+      phone: user.phone ? this.encryptionService.decrypt(user.phone) : null,
       status: user.status,
       accountType: user.accountType,
       department: user.department,
       mfaEnabled: user.mfaEnabled,
+      aadhaarVerified: user.aadhaarVerified,
       lastLogin: user.lastLogin,
       roles: user.roles.map((ur) => ur.role.name),
       permissions: user.roles.reduce((acc, ur) => {

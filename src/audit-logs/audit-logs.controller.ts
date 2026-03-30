@@ -9,7 +9,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 @ApiTags('Audit Logs')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/audit-logs')
+@Controller('api/v1/audit-logs')
 export class AuditLogsController {
   constructor(private readonly auditLogsService: AuditLogsService) {}
 
@@ -22,9 +22,9 @@ export class AuditLogsController {
   @ApiQuery({ name: 'severity', enum: AuditSeverity, required: false })
   @ApiQuery({ name: 'startDate', type: Date, required: false })
   @ApiQuery({ name: 'endDate', type: Date, required: false })
-  @ApiQuery({ name: 'limit', type: Number, required: false, description: 'Default: 50' })
-  @ApiQuery({ name: 'offset', type: Number, required: false, description: 'Default: 0' })
-  findAll(
+  @ApiQuery({ name: 'limit', type: Number, required: false, description: 'Default: 10' })
+  @ApiQuery({ name: 'anonymize', type: Boolean, required: false, description: 'Anonymize/Mask PII fields in logs' })
+  async findAll(
     @Query('tenantId') tenantId?: string,
     @Query('userId') userId?: string,
     @Query('category') category?: AuditCategory,
@@ -32,10 +32,25 @@ export class AuditLogsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
+    @Query('page') page?: number,
+    @Query('anonymize') anonymize?: string,
   ) {
-    return this.auditLogsService.findAll({
-      tenantId, userId, category, severity, startDate, endDate, limit, offset
+    const limitNum = limit ? Number(limit) : 10;
+    const pageNum = page ? Number(page) : 1;
+    const isAnonymize = anonymize === 'true' || anonymize === '1';
+
+    const { data, total } = await this.auditLogsService.findAll({
+      tenantId, userId, category, severity, startDate, endDate, 
+      limit: limitNum, 
+      page: pageNum,
+      anonymize: isAnonymize
     });
+
+    return {
+      total,
+      data,
+      page: pageNum,
+      limit: limitNum
+    };
   }
 }

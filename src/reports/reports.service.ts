@@ -2,10 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { ReportStatus, ReportType } from '@prisma/client';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class ReportsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @InjectQueue('reports') private readonly reportsQueue: Queue
+  ) {}
 
   async create(dto: CreateReportDto, userId: string) {
     const report = await this.prisma.generatedReport.create({
@@ -20,21 +25,15 @@ export class ReportsService {
       },
     });
 
-    // Simulate async report generation — mark as completed immediately
-    // In production, this would queue a background job
-    const counts = await this.gatherReportData(dto.reportType, dto.tenantId);
-
-    const updated = await this.prisma.generatedReport.update({
-      where: { id: report.id },
-      data: {
-        status: 'RPT_COMPLETED',
-        completedAt: new Date(),
-        filePath: `/reports/${report.id}.${(dto.format ?? 'CSV').toLowerCase()}`,
-        fileSize: JSON.stringify(counts).length,
-      },
+    // Queue the background job asynchronously
+    await this.reportsQueue.add('generate', {
+      reportId: report.id,
+      format: report.format,
+      type: report.reportType,
+      tenantId: report.tenantId,
     });
 
-    return updated;
+    return report;
   }
 
   async findAll(tenantId?: string, reportType?: ReportType, limit?: number, offset?: number) {
@@ -66,16 +65,10 @@ export class ReportsService {
     if (report.status !== ReportStatus.RPT_COMPLETED) {
       throw new NotFoundException('Report is not ready for download');
     }
-    // In production, this would stream the file from storage
-    // For now return the report metadata with the file path
-    return {
-      id: report.id,
-      name: report.name,
-      format: report.format,
-      filePath: report.filePath,
-      fileSize: report.fileSize,
-      message: 'File download endpoint — in production this would stream the file',
-    };
+    if (!report.filePath) {
+      throw new NotFoundException('File path not found on the generated report');
+    }
+    return report;
   }
 
   async delete(id: string) {
@@ -83,33 +76,4 @@ export class ReportsService {
     return this.prisma.generatedReport.delete({ where: { id } });
   }
 
-  // -------------------------------------------------------
-  // Private: Gather summary data for the report
-  // -------------------------------------------------------
-  private async gatherReportData(reportType: ReportType, tenantId?: string) {
-    switch (reportType) {
-      case 'CONSENT':
-        return {
-          totalTemplates: await this.prisma.consentTemplate.count(tenantId ? { where: { tenantId } } : undefined),
-          totalRecords: await this.prisma.consentRecord.count(),
-          totalDeployments: await this.prisma.consentDeployment.count(),
-        };
-      case 'RIGHTS':
-        return {
-          totalRequests: await this.prisma.rightsRequest.count(tenantId ? { where: { tenantId } } : undefined),
-          totalGrievances: await this.prisma.grievance.count(tenantId ? { where: { tenantId } } : undefined),
-        };
-      case 'COMPLIANCE':
-        return {
-          totalSlaRules: await this.prisma.slaRule.count(tenantId ? { where: { tenantId } } : undefined),
-          totalNotices: await this.prisma.notice.count(tenantId ? { where: { tenantId } } : undefined),
-        };
-      case 'AUDIT':
-        return {
-          totalLogs: await this.prisma.auditLog.count(tenantId ? { where: { tenantId } } : undefined),
-        };
-      default:
-        return {};
-    }
-  }
 }

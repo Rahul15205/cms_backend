@@ -10,10 +10,12 @@ exports.AuthModule = void 0;
 const common_1 = require("@nestjs/common");
 const jwt_1 = require("@nestjs/jwt");
 const passport_1 = require("@nestjs/passport");
+const config_1 = require("@nestjs/config");
 const auth_service_1 = require("./auth.service");
 const auth_controller_1 = require("./auth.controller");
 const jwt_strategy_1 = require("./jwt.strategy");
 const audit_logs_module_1 = require("../audit-logs/audit-logs.module");
+const encryption_module_1 = require("../encryption/encryption.module");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
@@ -21,11 +23,20 @@ exports.AuthModule = AuthModule = __decorate([
     (0, common_1.Module)({
         imports: [
             passport_1.PassportModule.register({ defaultStrategy: 'jwt' }),
-            jwt_1.JwtModule.register({
-                secret: process.env.JWT_SECRET || 'super-secret-key-change-me',
-                signOptions: { expiresIn: '1d' },
+            jwt_1.JwtModule.registerAsync({
+                imports: [config_1.ConfigModule],
+                useFactory: (configService) => {
+                    const secret = configService.get('JWT_SECRET') || 'cms-dev-fallback-secret';
+                    const expiresIn = configService.get('JWT_EXPIRES_IN') || '15m';
+                    return {
+                        secret,
+                        signOptions: { expiresIn },
+                    };
+                },
+                inject: [config_1.ConfigService],
             }),
             audit_logs_module_1.AuditLogsModule,
+            encryption_module_1.EncryptionModule,
         ],
         providers: [auth_service_1.AuthService, jwt_strategy_1.JwtStrategy],
         controllers: [auth_controller_1.AuthController],

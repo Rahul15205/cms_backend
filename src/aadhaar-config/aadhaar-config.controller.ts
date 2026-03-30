@@ -10,7 +10,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 @ApiTags('Config - Aadhaar')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/config/aadhaar')
+@Controller('api/v1/config/aadhaar')
 export class AadhaarConfigController {
   constructor(private readonly aadhaarConfigService: AadhaarConfigService) {}
 

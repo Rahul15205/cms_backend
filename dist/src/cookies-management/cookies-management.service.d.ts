@@ -1,3 +1,4 @@
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCookieCategoryDto } from './dto/create-cookie-category.dto';
 import { CreateCookieInventoryDto } from './dto/create-cookie-inventory.dto';
@@ -6,7 +7,8 @@ import { CreateCookieBannerDto } from './dto/create-cookie-banner.dto';
 import { CreateCookieConsentLogDto } from './dto/create-cookie-consent-log.dto';
 export declare class CookiesManagementService {
     private readonly prisma;
-    constructor(prisma: PrismaService);
+    private readonly cookieScannerQueue;
+    constructor(prisma: PrismaService, cookieScannerQueue: Queue);
     createCategory(dto: CreateCookieCategoryDto, tenantId: string): Promise<{
         id: string;
         name: string;
@@ -237,9 +239,9 @@ export declare class CookiesManagementService {
         updatedAt: Date;
         tenantId: string | null;
         userId: string | null;
+        date: Date;
         region: string | null;
         categories: string[];
-        date: Date;
     }>;
     getConsentLogs(tenantId: string): Promise<{
         id: string;
@@ -248,9 +250,9 @@ export declare class CookiesManagementService {
         updatedAt: Date;
         tenantId: string | null;
         userId: string | null;
+        date: Date;
         region: string | null;
         categories: string[];
-        date: Date;
     }[]>;
     getComplianceMetrics(tenantId: string): Promise<{
         banners: {

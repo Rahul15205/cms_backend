@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { paginate } from '../common/dto/paginated-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsentUsageStatus } from '@prisma/client';
 
@@ -41,7 +42,7 @@ export class ConsentAnalyticsService {
       }),
     ]);
 
-    return { total, page: Math.floor(skip / take) + 1, limit: take, data };
+    return paginate(data, total, Math.floor(skip / take) + 1, take);
   }
 
   /**
@@ -71,7 +72,7 @@ export class ConsentAnalyticsService {
       }),
     ]);
 
-    return { total, page: Math.floor(skip / take) + 1, limit: take, data };
+    return paginate(data, total, Math.floor(skip / take) + 1, take);
   }
 
   /**

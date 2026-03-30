@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f6f9fc; color: #333; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .logo { color: #1a56db; font-size: 24px; font-weight: bold; margin-bottom: 20px; text-decoration: none; }
+    .footer { font-size: 12px; color: #888; margin-top: 30px; text-align: center; border-top: 1px solid #eaeaea; padding-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">Proteccio CMS</div>
+    
+    <h2 style="color: #111827; margin-top: 0;">Grievance Received</h2>
+    
+    <p>Hi {{name}},</p>
+    <p>Your grievance has been logged successfully and is being reviewed by our team.</p>
+    
+    <div style="background-color: #f9fafb; padding: 15px; border-radius: 4px; border: 1px solid #f3f4f6; margin: 15px 0;">
+      <p><strong>Case Number:</strong> {{caseNumber}}</p>
+      <p><strong>Subject:</strong> {{subject}}</p>
+      <p><strong>Filed On:</strong> {{date}}</p>
+    </div>
+
+    <p>We aim to resolve all grievances within the stipulated timeframe. You will receive an update as soon as there is progress on your case.</p>
+
+    <div class="footer">
+      &copy; {{year}} Proteccio Data Privacy. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>

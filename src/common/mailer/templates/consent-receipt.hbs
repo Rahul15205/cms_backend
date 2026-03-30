@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .receipt-container {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 24px;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #28a745;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        .section-title {
+            font-weight: bold;
+            color: #28a745;
+            font-size: 1.1em;
+            margin-top: 20px;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f1f1;
+        }
+        .label {
+            color: #666;
+            font-weight: 500;
+        }
+        .value {
+            font-weight: 600;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #777;
+            text-align: center;
+        }
+        .btn-withdraw {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt-container">
+        <div class="header">
+            <h2>Proof of Consent Receipt</h2>
+            <p>Transaction ID: {{recordId}}</p>
+        </div>
+
+        <p>Dear {{name}},</p>
+        <p>This is a verifiable record of the consent you provided via <strong>{{applicationName}}</strong>.</p>
+
+        <div class="section-title">Consent Details</div>
+        
+        <div class="detail-row">
+            <span class="label">Permission Title:</span>
+            <span class="value">{{templateTitle}}</span>
+        </div>
+        <div class="detail-row">
+            <span class="label">Version:</span>
+            <span class="value">{{versionNumber}}</span>
+        </div>
+        <div class="detail-row">
+            <span class="label">Date & Time:</span>
+            <span class="value">{{grantedAt}}</span>
+        </div>
+        <div class="detail-row">
+            <span class="label">Processing Purposes:</span>
+            <span class="value">{{purposes}}</span>
+        </div>
+        <div class="detail-row">
+            <span class="label">Data Categories:</span>
+            <span class="value">{{dataCategories}}</span>
+        </div>
+
+        <div class="section-title">Your Rights</div>
+        <p>You have the right to withdraw this consent at any time. You can also request access, correction, or erasure of your personal data through our Rights Request portal.</p>
+
+        <div style="text-align: center;">
+            <a href="{{withdrawalUrl}}" class="btn-withdraw">Manage My Consents</a>
+        </div>
+
+        <div class="footer">
+            <p>This is an automated receipt from the Proteccio Consent Management System (DPDP Section 6 Compliance).</p>
+        </div>
+    </div>
+</body>
+</html>

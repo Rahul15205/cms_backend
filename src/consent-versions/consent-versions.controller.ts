@@ -12,7 +12,7 @@ import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 @ApiTags('Consent Versions')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/consent-versions')
+@Controller('api/v1/consent-versions')
 export class ConsentVersionsController {
   constructor(private readonly consentVersionsService: ConsentVersionsService) {}
 

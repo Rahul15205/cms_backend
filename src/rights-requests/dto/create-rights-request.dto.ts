@@ -38,6 +38,11 @@ export class CreateRightsRequestDto {
   @IsString()
   requesterPhone?: string;
 
+  @ApiPropertyOptional({ example: '1234-5678-9012' })
+  @IsOptional()
+  @IsString()
+  aadhaarNumber?: string;
+
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()

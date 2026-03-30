@@ -13,20 +13,15 @@ export declare class ApplicationsService {
         tenantId: string;
         apiKey: string;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
-    findAll(tenantId?: string, search?: string, limit?: number, offset?: number): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: {
-            id: string;
-            name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            description: string | null;
-            tenantId: string;
-            apiKey: string;
-        }[];
-    }>;
+    findAll(tenantId?: string, search?: string, limit?: number, offset?: number): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        description: string | null;
+        tenantId: string;
+        apiKey: string;
+    }>>;
     findOne(id: string): Promise<{
         deployments: ({
             version: {

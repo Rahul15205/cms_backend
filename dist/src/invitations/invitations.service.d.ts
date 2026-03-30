@@ -1,8 +1,10 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 export declare class InvitationsService {
     private prisma;
-    constructor(prisma: PrismaService);
+    private notificationsService;
+    constructor(prisma: PrismaService, notificationsService: NotificationsService);
     create(createInvitationDto: CreateInvitationDto, inviterId: string, tenantId: string): Promise<{
         role: {
             name: string;
@@ -41,6 +43,10 @@ export declare class InvitationsService {
         acceptedAt: Date | null;
     })[]>;
     resend(id: string): Promise<{
+        role: {
+            name: string;
+        };
+    } & {
         id: string;
         status: import("@prisma/client").$Enums.InvitationStatus;
         expiresAt: Date;

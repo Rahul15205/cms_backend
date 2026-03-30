@@ -8,9 +8,16 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RightsRequestsService = void 0;
 const common_1 = require("@nestjs/common");
+const paginated_response_dto_1 = require("../common/dto/paginated-response.dto");
+const bullmq_1 = require("@nestjs/bullmq");
+const bullmq_2 = require("bullmq");
+const path_1 = require("path");
 const prisma_service_1 = require("../prisma/prisma.service");
 const client_1 = require("@prisma/client");
 const DEFAULT_WORKFLOW_STEPS = [
@@ -43,10 +50,36 @@ const STATUS_TO_STEP = {
     RESPONSE_SENT: 'Response Sent',
     CLOSED: 'Closed',
 };
+const storage_service_1 = require("../common/storage/storage.service");
+const encryption_service_1 = require("../encryption/encryption.service");
+const notifications_service_1 = require("../notifications/notifications.service");
+const reports_service_1 = require("../reports/reports.service");
+const client_2 = require("@prisma/client");
 let RightsRequestsService = class RightsRequestsService {
     prisma;
-    constructor(prisma) {
+    storageService;
+    encryptionService;
+    notificationsService;
+    reportsService;
+    slaQueue;
+    erasureQueue;
+    constructor(prisma, storageService, encryptionService, notificationsService, reportsService, slaQueue, erasureQueue) {
         this.prisma = prisma;
+        this.storageService = storageService;
+        this.encryptionService = encryptionService;
+        this.notificationsService = notificationsService;
+        this.reportsService = reportsService;
+        this.slaQueue = slaQueue;
+        this.erasureQueue = erasureQueue;
+    }
+    async onModuleInit() {
+        await this.slaQueue.add('check-sla', {}, {
+            repeat: {
+                pattern: '0 * * * *',
+            },
+            removeOnComplete: true,
+            jobId: 'hourly-sla-check'
+        });
     }
     async create(dto, userId) {
         const { dueDate, tenantId, ...rest } = dto;
@@ -58,9 +91,22 @@ let RightsRequestsService = class RightsRequestsService {
         });
         const caseNumber = `RR-${year}-${String(count + 1).padStart(6, '0')}`;
         return this.prisma.$transaction(async (prisma) => {
+            const encryptedEmail = this.encryptionService.encrypt(rest.requesterEmail);
+            const emailHash = this.encryptionService.generateHash(rest.requesterEmail);
+            const encryptedPhone = rest.requesterPhone ? this.encryptionService.encrypt(rest.requesterPhone) : null;
+            const phoneHash = rest.requesterPhone ? this.encryptionService.generateHash(rest.requesterPhone) : null;
+            const aadhaarRaw = rest.aadhaarNumber;
+            const encryptedAadhaar = aadhaarRaw ? this.encryptionService.encrypt(aadhaarRaw) : null;
+            const aadhaarHash = aadhaarRaw ? this.encryptionService.generateHash(aadhaarRaw) : null;
             const request = await prisma.rightsRequest.create({
                 data: {
                     ...rest,
+                    requesterEmail: encryptedEmail,
+                    requesterEmailHash: emailHash,
+                    requesterPhone: encryptedPhone,
+                    requesterPhoneHash: phoneHash,
+                    aadhaarNumber: encryptedAadhaar,
+                    aadhaarHash: aadhaarHash,
                     caseNumber,
                     dataCategories: rest.dataCategories || [],
                     relatedConsents: rest.relatedConsents || [],
@@ -89,6 +135,15 @@ let RightsRequestsService = class RightsRequestsService {
                     severity: 'INFO',
                 },
             });
+            this.notificationsService.sendRightsRequestConfirmation(rest.requesterEmail, rest.requesterName, caseNumber, rest.type, rest.regulation);
+            const adminEmail = process.env.DPO_EMAIL || 'admin@example.com';
+            this.notificationsService.sendNewRightsRequestAlert(adminEmail, {
+                caseNumber,
+                requesterName: rest.requesterName,
+                requestType: rest.type,
+                regulation: rest.regulation,
+                priority: rest.priority || 'NORMAL',
+            });
             return this.findOne(request.id);
         });
     }
@@ -105,10 +160,13 @@ let RightsRequestsService = class RightsRequestsService {
         if (filters.tenantId)
             where.tenantId = filters.tenantId;
         if (filters.search) {
+            const searchHash = this.encryptionService.generateHash(filters.search);
             where.OR = [
                 { caseNumber: { contains: filters.search, mode: 'insensitive' } },
                 { requesterName: { contains: filters.search, mode: 'insensitive' } },
-                { requesterEmail: { contains: filters.search, mode: 'insensitive' } },
+                { requesterEmailHash: searchHash },
+                { requesterPhoneHash: searchHash },
+                { aadhaarHash: searchHash },
                 { description: { contains: filters.search, mode: 'insensitive' } },
             ];
         }
@@ -126,8 +184,8 @@ let RightsRequestsService = class RightsRequestsService {
                 },
             }),
         ]);
-        const enriched = data.map((r) => this.enrichWithSla(r));
-        return { total, page: Math.floor(skip / take) + 1, limit: take, data: enriched };
+        const enriched = data.map((r) => this.decryptRequest(this.enrichWithSla(r)));
+        return (0, paginated_response_dto_1.paginate)(enriched, total, Math.floor(skip / take) + 1, take);
     }
     async findOne(id) {
         const request = await this.prisma.rightsRequest.findUnique({
@@ -139,7 +197,7 @@ let RightsRequestsService = class RightsRequestsService {
         });
         if (!request)
             throw new common_1.NotFoundException('Rights Request not found');
-        return this.enrichWithSla(request);
+        return this.decryptRequest(this.enrichWithSla(request));
     }
     async update(id, dto) {
         await this.findOne(id);
@@ -196,6 +254,25 @@ let RightsRequestsService = class RightsRequestsService {
                     severity: newStatus === client_1.RightsRequestStatus.ESCALATED ? 'WARNING' : 'INFO',
                 },
             });
+            this.notificationsService.sendRightsRequestStatusUpdate(request.requesterEmail, request.requesterName, request.caseNumber, request.type, newStatus, dto.note);
+            if (newStatus === client_1.RightsRequestStatus.ACTION_TAKEN &&
+                ['ACCESS', 'PORTABILITY'].includes(request.type)) {
+                await this.reportsService.create({
+                    name: `DSAR Data Pack: ${request.caseNumber}`,
+                    reportType: client_2.ReportType.DSAR_EXPORT,
+                    format: 'JSON',
+                    parameters: {
+                        email: request.requesterEmail,
+                        phone: request.requesterPhone,
+                        requestId: id,
+                    },
+                    tenantId: request.tenantId,
+                }, userId);
+            }
+            if (newStatus === client_1.RightsRequestStatus.ACTION_TAKEN &&
+                request.type === 'ERASURE') {
+                await this.erasureQueue.add('process-erasure', { requestId: id });
+            }
             return updated;
         });
     }
@@ -302,9 +379,12 @@ let RightsRequestsService = class RightsRequestsService {
         let fileType = dto.fileType;
         let size = dto.size;
         if (file) {
-            fileName = file.filename || file.originalname;
-            const parts = (file.originalname || '').split('.');
-            fileType = parts.length > 1 ? parts.pop()?.toLowerCase() : file.mimetype.split('/')[1] || 'unknown';
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+            const ext = (0, path_1.extname)(file.originalname);
+            const cloudPath = `evidence/${file.fieldname}-${uniqueSuffix}${ext}`;
+            await this.storageService.uploadFile(cloudPath, file.buffer, file.mimetype);
+            fileName = cloudPath;
+            fileType = ext.replace('.', '') || file.mimetype.split('/')[1] || 'unknown';
             const bytes = file.size;
             const mb = bytes / (1024 * 1024);
             if (mb >= 1) {
@@ -636,10 +716,28 @@ let RightsRequestsService = class RightsRequestsService {
         }
         return { ...request, slaBreached, daysRemaining };
     }
+    decryptRequest(request) {
+        if (!request)
+            return request;
+        return {
+            ...request,
+            requesterEmail: this.encryptionService.decrypt(request.requesterEmail),
+            requesterPhone: request.requesterPhone ? this.encryptionService.decrypt(request.requesterPhone) : null,
+            aadhaarNumber: request.aadhaarNumber ? this.encryptionService.decrypt(request.aadhaarNumber) : null,
+        };
+    }
 };
 exports.RightsRequestsService = RightsRequestsService;
 exports.RightsRequestsService = RightsRequestsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __param(5, (0, bullmq_1.InjectQueue)('sla-monitor')),
+    __param(6, (0, bullmq_1.InjectQueue)('erasure')),
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        storage_service_1.StorageService,
+        encryption_service_1.EncryptionService,
+        notifications_service_1.NotificationsService,
+        reports_service_1.ReportsService,
+        bullmq_2.Queue,
+        bullmq_2.Queue])
 ], RightsRequestsService);
 //# sourceMappingURL=rights-requests.service.js.map

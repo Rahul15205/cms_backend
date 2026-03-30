@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCookieCategoryDto } from './dto/create-cookie-category.dto';
 import { CreateCookieInventoryDto } from './dto/create-cookie-inventory.dto';
@@ -8,7 +10,10 @@ import { CreateCookieConsentLogDto } from './dto/create-cookie-consent-log.dto';
 
 @Injectable()
 export class CookiesManagementService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue('cookie-scanner') private readonly cookieScannerQueue: Queue
+  ) {}
 
   // ---------------------------------------------------------
   // Cookie Categories
@@ -148,11 +153,13 @@ export class CookiesManagementService {
       throw new NotFoundException('Website not found');
     }
 
-    // Mock scanning process
+    // Dispatch the scan job
+    await this.cookieScannerQueue.add('scan-website', { websiteId: id });
+
     return this.prisma.scannedWebsite.update({
       where: { id },
       data: {
-        status: 'IN_PROGRESS',
+        status: 'PENDING',
         lastScan: new Date(),
       },
     });

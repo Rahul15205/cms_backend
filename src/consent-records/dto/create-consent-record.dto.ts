@@ -23,6 +23,11 @@ export class CreateConsentRecordDto {
   @IsString()
   endUserEmail?: string;
 
+  @ApiPropertyOptional({ example: '+919876543210', description: 'Phone number if tracking external anonymous user' })
+  @IsOptional()
+  @IsString()
+  endUserPhone?: string;
+
   @ApiPropertyOptional({ example: '192.168.1.1' })
   @IsOptional()
   @IsString()

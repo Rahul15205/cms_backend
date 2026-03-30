@@ -1,19 +1,22 @@
-import { Controller, Get, Put, Param, Body, UseGuards, Query, Request } from '@nestjs/common';
+import { Controller, Get, Put, Param, Body, UseGuards, Query, Request, UseInterceptors } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { ModuleName } from '@prisma/client';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery, ApiParam } from '@nestjs/swagger';
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/dashboard')
+@Controller('api/v1/dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('kpis')
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(30) // 30 seconds cache
   @Permissions({ module: ModuleName.DASHBOARD, action: 'view' })
   @ApiOperation({ summary: 'Get aggregate KPIs across all modules (consents, rights, grievances, users, SLA)' })
   @ApiQuery({ name: 'tenantId', required: false })
@@ -22,6 +25,8 @@ export class DashboardController {
   }
 
   @Get('charts/:type')
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(30)
   @Permissions({ module: ModuleName.DASHBOARD, action: 'view' })
   @ApiOperation({ summary: 'Get chart data by type (consent-status, rights-by-status, rights-by-type, grievances-by-category, grievances-by-status, users-by-status)' })
   @ApiParam({ name: 'type', example: 'consent-status' })
@@ -43,6 +48,8 @@ export class DashboardController {
   }
 
   @Get('alerts')
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(30)
   @Permissions({ module: ModuleName.DASHBOARD, action: 'view' })
   @ApiOperation({ summary: 'Get active alerts (SLA breaches, escalated grievances, stale sessions)' })
   @ApiQuery({ name: 'tenantId', required: false })

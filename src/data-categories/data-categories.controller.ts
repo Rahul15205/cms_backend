@@ -11,7 +11,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 @ApiTags('Data Categories')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/data-categories')
+@Controller('api/v1/data-categories')
 export class DataCategoriesController {
   constructor(private readonly dataCategoriesService: DataCategoriesService) {}
 

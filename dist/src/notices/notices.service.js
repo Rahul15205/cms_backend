@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NoticesService = void 0;
 const common_1 = require("@nestjs/common");
+const paginated_response_dto_1 = require("../common/dto/paginated-response.dto");
 const prisma_service_1 = require("../prisma/prisma.service");
 let NoticesService = class NoticesService {
     prisma;
@@ -66,7 +67,7 @@ let NoticesService = class NoticesService {
                 },
             }),
         ]);
-        return { total, page: Math.floor(skip / take) + 1, limit: take, data };
+        return (0, paginated_response_dto_1.paginate)(data, total, Math.floor(skip / take) + 1, take);
     }
     async findOne(id) {
         const notice = await this.prisma.notice.findUnique({
@@ -130,14 +131,45 @@ let NoticesService = class NoticesService {
         });
     }
     createLanguage(dto) {
-        return this.prisma.noticeLanguage.create({
-            data: {
-                code: dto.code,
-                name: dto.name,
-                isDefault: dto.isDefault ?? false,
-                tenantId: dto.tenantId,
-            },
+        return this.prisma.$transaction(async (tx) => {
+            if (dto.isDefault) {
+                await tx.noticeLanguage.updateMany({
+                    where: dto.tenantId ? { tenantId: dto.tenantId } : {},
+                    data: { isDefault: false },
+                });
+            }
+            return tx.noticeLanguage.create({
+                data: {
+                    code: dto.code,
+                    name: dto.name,
+                    isDefault: dto.isDefault ?? false,
+                    tenantId: dto.tenantId,
+                },
+            });
         });
+    }
+    updateLanguage(id, dto) {
+        return this.prisma.$transaction(async (tx) => {
+            const existing = await tx.noticeLanguage.findUnique({ where: { id } });
+            if (!existing)
+                throw new common_1.NotFoundException('Notice language not found');
+            if (dto.isDefault) {
+                await tx.noticeLanguage.updateMany({
+                    where: existing.tenantId ? { tenantId: existing.tenantId } : {},
+                    data: { isDefault: false },
+                });
+            }
+            return tx.noticeLanguage.update({
+                where: { id },
+                data: dto,
+            });
+        });
+    }
+    async deleteLanguage(id) {
+        const existing = await this.prisma.noticeLanguage.findUnique({ where: { id } });
+        if (!existing)
+            throw new common_1.NotFoundException('Notice language not found');
+        return this.prisma.noticeLanguage.delete({ where: { id } });
     }
     createType(dto) {
         return this.prisma.noticeType.create({

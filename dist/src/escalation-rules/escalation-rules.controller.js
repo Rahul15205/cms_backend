@@ -103,7 +103,7 @@ exports.EscalationRulesController = EscalationRulesController = __decorate([
     (0, swagger_1.ApiTags)('Escalation Rules'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, common_1.Controller)('api/config/escalation-rules'),
+    (0, common_1.Controller)('api/v1/config/escalation-rules'),
     __metadata("design:paramtypes", [escalation_rules_service_1.EscalationRulesService])
 ], EscalationRulesController);
 //# sourceMappingURL=escalation-rules.controller.js.map

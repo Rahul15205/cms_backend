@@ -24,39 +24,34 @@ export declare class ConsentDeploymentsService {
         affectedUsers: number;
         deployedAt: Date;
     }>;
-    findAll(applicationId?: string, versionId?: string, limit?: number, offset?: number): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: ({
-            application: {
-                name: string;
-            };
-            version: {
-                versionNumber: number;
-                templateId: string;
-            };
-        } & {
-            id: string;
-            status: import("@prisma/client").$Enums.DeploymentStatus;
-            approvedBy: string | null;
-            versionId: string;
-            applicationId: string;
-            deploymentMode: import("@prisma/client").$Enums.DeploymentMode;
-            activationDate: Date | null;
-            region: string | null;
-            platform: string[];
-            userSegment: string | null;
-            approvalRequired: boolean;
-            rollbackAllowed: boolean;
-            rollbackConditions: string | null;
-            lockedAfterActivation: boolean;
-            isActive: boolean;
-            deployedBy: string | null;
-            affectedUsers: number;
-            deployedAt: Date;
-        })[];
-    }>;
+    findAll(applicationId?: string, versionId?: string, limit?: number, offset?: number): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<{
+        application: {
+            name: string;
+        };
+        version: {
+            versionNumber: number;
+            templateId: string;
+        };
+    } & {
+        id: string;
+        status: import("@prisma/client").$Enums.DeploymentStatus;
+        approvedBy: string | null;
+        versionId: string;
+        applicationId: string;
+        deploymentMode: import("@prisma/client").$Enums.DeploymentMode;
+        activationDate: Date | null;
+        region: string | null;
+        platform: string[];
+        userSegment: string | null;
+        approvalRequired: boolean;
+        rollbackAllowed: boolean;
+        rollbackConditions: string | null;
+        lockedAfterActivation: boolean;
+        isActive: boolean;
+        deployedBy: string | null;
+        affectedUsers: number;
+        deployedAt: Date;
+    }>>;
     findOne(id: string): Promise<{
         application: {
             id: string;

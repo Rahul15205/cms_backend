@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f6f9fc; color: #333; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .logo { color: #1a56db; font-size: 24px; font-weight: bold; margin-bottom: 20px; text-decoration: none; }
+    .footer { font-size: 12px; color: #888; margin-top: 30px; text-align: center; border-top: 1px solid #eaeaea; padding-top: 20px; }
+    .status-badge { display: inline-block; background-color: #ebf8ff; color: #2b6cb0; padding: 4px 12px; border-radius: 9999px; font-size: 14px; font-weight: 600; text-transform: uppercase; margin-top: 10px;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">Proteccio CMS</div>
+    
+    <h2 style="color: #111827; margin-top: 0;">Update on your request: {{caseNumber}}</h2>
+    
+    <p>Dear {{name}},</p>
+    <p>The status of your <strong>{{requestType}}</strong> request has been updated.</p>
+    
+    <p><strong>New Status:</strong></p>
+    <div class="status-badge">{{status}}</div>
+
+    {{#if note}}
+    <p style="margin-top: 20px;"><strong>Note from our team:</strong></p>
+    <blockquote style="border-left: 4px solid #e2e8f0; padding-left: 15px; font-style: italic; color: #4a5568;">
+      {{note}}
+    </blockquote>
+    {{/if}}
+
+    <p style="margin-top: 20px;">We will continue to notify you of any further progress.</p>
+
+    <div class="footer">
+      &copy; {{year}} Proteccio Data Privacy. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>

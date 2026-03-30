@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
+import { paginate } from '../common/dto/paginated-response.dto';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { extname } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRightsRequestDto } from './dto/create-rights-request.dto';
 import { UpdateRightsRequestDto } from './dto/update-rights-request.dto';
@@ -45,9 +49,35 @@ const STATUS_TO_STEP: Partial<Record<RightsRequestStatus, string>> = {
   CLOSED: 'Closed',
 };
 
+import { StorageService } from '../common/storage/storage.service';
+import { EncryptionService } from '../encryption/encryption.service';
+
+import { NotificationsService } from '../notifications/notifications.service';
+import { ReportsService } from '../reports/reports.service';
+import { ReportType } from '@prisma/client';
+
 @Injectable()
-export class RightsRequestsService {
-  constructor(private prisma: PrismaService) {}
+export class RightsRequestsService implements OnModuleInit {
+  constructor(
+    private prisma: PrismaService,
+    private storageService: StorageService,
+    private encryptionService: EncryptionService,
+    private notificationsService: NotificationsService,
+    private reportsService: ReportsService,
+    @InjectQueue('sla-monitor') private slaQueue: Queue,
+    @InjectQueue('erasure') private erasureQueue: Queue
+  ) {}
+
+  async onModuleInit() {
+    // Schedule the SLA monitoring job to run every hour
+    await this.slaQueue.add('check-sla', {}, {
+      repeat: {
+        pattern: '0 * * * *', // Every hour at minute 0
+      },
+      removeOnComplete: true,
+      jobId: 'hourly-sla-check'
+    });
+  }
 
   // ==========================================
   // PHASE 2: Core CRUD
@@ -66,10 +96,27 @@ export class RightsRequestsService {
     const caseNumber = `RR-${year}-${String(count + 1).padStart(6, '0')}`;
 
     return this.prisma.$transaction(async (prisma) => {
+      // Encrypt and Hash PII
+      const encryptedEmail = this.encryptionService.encrypt(rest.requesterEmail);
+      const emailHash = this.encryptionService.generateHash(rest.requesterEmail);
+      const encryptedPhone = rest.requesterPhone ? this.encryptionService.encrypt(rest.requesterPhone) : null;
+      const phoneHash = rest.requesterPhone ? this.encryptionService.generateHash(rest.requesterPhone) : null;
+      
+      // Handle Aadhaar if present in DTO (might need update to DTO later)
+      const aadhaarRaw = (rest as any).aadhaarNumber;
+      const encryptedAadhaar = aadhaarRaw ? this.encryptionService.encrypt(aadhaarRaw) : null;
+      const aadhaarHash = aadhaarRaw ? this.encryptionService.generateHash(aadhaarRaw) : null;
+
       // Create the request
       const request = await prisma.rightsRequest.create({
         data: {
           ...rest,
+          requesterEmail: encryptedEmail,
+          requesterEmailHash: emailHash,
+          requesterPhone: encryptedPhone,
+          requesterPhoneHash: phoneHash,
+          aadhaarNumber: encryptedAadhaar,
+          aadhaarHash: aadhaarHash,
           caseNumber,
           dataCategories: rest.dataCategories || [],
           relatedConsents: rest.relatedConsents || [],
@@ -103,6 +150,25 @@ export class RightsRequestsService {
         },
       });
 
+      // 4. Trigger Notifications (Async)
+      this.notificationsService.sendRightsRequestConfirmation(
+        rest.requesterEmail!,
+        rest.requesterName,
+        caseNumber,
+        rest.type,
+        rest.regulation
+      );
+
+      // Alert Admin (DPO)
+      const adminEmail = process.env.DPO_EMAIL || 'admin@example.com'; 
+      this.notificationsService.sendNewRightsRequestAlert(adminEmail, {
+        caseNumber,
+        requesterName: rest.requesterName,
+        requestType: rest.type,
+        regulation: rest.regulation,
+        priority: rest.priority || 'NORMAL',
+      });
+
       return this.findOne(request.id);
     });
   }
@@ -124,10 +190,13 @@ export class RightsRequestsService {
     if (filters.assignedTo) where.assignedTo = filters.assignedTo;
     if (filters.tenantId) where.tenantId = filters.tenantId;
     if (filters.search) {
+      const searchHash = this.encryptionService.generateHash(filters.search);
       where.OR = [
         { caseNumber: { contains: filters.search, mode: 'insensitive' } },
         { requesterName: { contains: filters.search, mode: 'insensitive' } },
-        { requesterEmail: { contains: filters.search, mode: 'insensitive' } },
+        { requesterEmailHash: searchHash }, // Exact match via blind index
+        { requesterPhoneHash: searchHash },
+        { aadhaarHash: searchHash },
         { description: { contains: filters.search, mode: 'insensitive' } },
       ];
     }
@@ -148,10 +217,10 @@ export class RightsRequestsService {
       }),
     ]);
 
-    // Compute SLA fields at query time
-    const enriched = data.map((r) => this.enrichWithSla(r));
+    // Compute SLA fields at query time and decrypt PII
+    const enriched = data.map((r) => this.decryptRequest(this.enrichWithSla(r)));
 
-    return { total, page: Math.floor(skip / take) + 1, limit: take, data: enriched };
+    return paginate(enriched, total, Math.floor(skip / take) + 1, take);
   }
 
   async findOne(id: string) {
@@ -164,7 +233,7 @@ export class RightsRequestsService {
     });
 
     if (!request) throw new NotFoundException('Rights Request not found');
-    return this.enrichWithSla(request);
+    return this.decryptRequest(this.enrichWithSla(request));
   }
 
   async update(id: string, dto: UpdateRightsRequestDto) {
@@ -242,6 +311,42 @@ export class RightsRequestsService {
           severity: newStatus === RightsRequestStatus.ESCALATED ? 'WARNING' : 'INFO',
         },
       });
+
+      // 4. Trigger Status Update Notification
+      this.notificationsService.sendRightsRequestStatusUpdate(
+        request.requesterEmail!,
+        request.requesterName,
+        request.caseNumber,
+        request.type,
+        newStatus,
+        dto.note
+      );
+
+      // 5. Automatic DSAR Fulfillment (Access/Portability)
+      if (
+        newStatus === RightsRequestStatus.ACTION_TAKEN &&
+        ['ACCESS', 'PORTABILITY'].includes(request.type)
+      ) {
+        await this.reportsService.create({
+          name: `DSAR Data Pack: ${request.caseNumber}`,
+          reportType: ReportType.DSAR_EXPORT,
+          format: 'JSON',
+          parameters: {
+            email: request.requesterEmail,
+            phone: request.requesterPhone,
+            requestId: id,
+          },
+          tenantId: request.tenantId,
+        }, userId);
+      }
+
+      // 6. Automatic Erasure (Right to be Forgotten)
+      if (
+        newStatus === RightsRequestStatus.ACTION_TAKEN &&
+        request.type === 'ERASURE'
+      ) {
+        await this.erasureQueue.add('process-erasure', { requestId: id });
+      }
 
       return updated;
     });
@@ -372,11 +477,16 @@ export class RightsRequestsService {
     let size = dto.size;
 
     if (file) {
-      fileName = file.filename || file.originalname;
-      // Extract extension from originalname if available, else fallback to mimetype
-      const parts = (file.originalname || '').split('.');
-      fileType = parts.length > 1 ? parts.pop()?.toLowerCase() : file.mimetype.split('/')[1] || 'unknown';
-      // Convert size to human readable (KB/MB)
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = extname(file.originalname);
+      const cloudPath = `evidence/${file.fieldname}-${uniqueSuffix}${ext}`;
+      
+      // Upload to Supabase
+      await this.storageService.uploadFile(cloudPath, file.buffer, file.mimetype);
+      
+      fileName = cloudPath; // Store the cloud path/URL
+      fileType = ext.replace('.', '') || file.mimetype.split('/')[1] || 'unknown';
+      
       const bytes = file.size;
       const mb = bytes / (1024 * 1024);
       if (mb >= 1) {
@@ -794,5 +904,15 @@ export class RightsRequestsService {
     }
 
     return { ...request, slaBreached, daysRemaining };
+  }
+
+  private decryptRequest(request: any) {
+    if (!request) return request;
+    return {
+      ...request,
+      requesterEmail: this.encryptionService.decrypt(request.requesterEmail),
+      requesterPhone: request.requesterPhone ? this.encryptionService.decrypt(request.requesterPhone) : null,
+      aadhaarNumber: request.aadhaarNumber ? this.encryptionService.decrypt(request.aadhaarNumber) : null,
+    };
   }
 }

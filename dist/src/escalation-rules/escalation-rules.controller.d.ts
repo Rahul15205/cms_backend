@@ -21,27 +21,22 @@ export declare class EscalationRulesController {
         maxLevels: number;
         autoCloseOnResolution: boolean;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
-    findAll(triggerCondition?: EscalationTrigger, status?: ConfigRuleStatus, tenantId?: string, limit?: number, offset?: number): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: {
-            id: string;
-            name: string;
-            status: import("@prisma/client").$Enums.ConfigRuleStatus;
-            createdAt: Date;
-            updatedAt: Date;
-            tenantId: string | null;
-            action: import("@prisma/client").$Enums.EscalationAction;
-            triggerCondition: import("@prisma/client").$Enums.EscalationTrigger;
-            triggerThreshold: number | null;
-            escalationLevel: import("@prisma/client").$Enums.EscalationLevel;
-            recipientRole: string;
-            recipientUser: string | null;
-            maxLevels: number;
-            autoCloseOnResolution: boolean;
-        }[];
-    }>;
+    findAll(triggerCondition?: EscalationTrigger, status?: ConfigRuleStatus, tenantId?: string, limit?: number, offset?: number): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<{
+        id: string;
+        name: string;
+        status: import("@prisma/client").$Enums.ConfigRuleStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        action: import("@prisma/client").$Enums.EscalationAction;
+        triggerCondition: import("@prisma/client").$Enums.EscalationTrigger;
+        triggerThreshold: number | null;
+        escalationLevel: import("@prisma/client").$Enums.EscalationLevel;
+        recipientRole: string;
+        recipientUser: string | null;
+        maxLevels: number;
+        autoCloseOnResolution: boolean;
+    }>>;
     findOne(id: string): Promise<{
         id: string;
         name: string;

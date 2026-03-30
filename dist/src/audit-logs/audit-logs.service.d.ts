@@ -11,23 +11,41 @@ export declare class AuditLogsService {
         startDate?: string;
         endDate?: string;
         limit?: number;
-        offset?: number;
-    }): import("@prisma/client").Prisma.PrismaPromise<({
-        user: {
-            name: string;
-            email: string;
-        } | null;
-    } & {
-        id: string;
-        createdAt: Date;
-        tenantId: string | null;
-        userId: string | null;
-        category: import("@prisma/client").$Enums.AuditCategory;
-        severity: import("@prisma/client").$Enums.AuditSeverity;
-        action: string;
-        details: import("@prisma/client/runtime/client").JsonValue | null;
-        ipAddress: string | null;
-    })[]>;
+        page?: number;
+        anonymize?: boolean;
+    }): Promise<{
+        data: ({
+            user: {
+                name: string;
+                email: string;
+            } | null;
+        } & {
+            id: string;
+            createdAt: Date;
+            tenantId: string | null;
+            userId: string | null;
+            category: import("@prisma/client").$Enums.AuditCategory;
+            severity: import("@prisma/client").$Enums.AuditSeverity;
+            action: string;
+            details: import("@prisma/client/runtime/client").JsonValue | null;
+            ipAddress: string | null;
+        })[] | {
+            user: {
+                email: string | undefined;
+                name: string;
+            } | undefined;
+            details: any;
+            id: string;
+            createdAt: Date;
+            tenantId: string | null;
+            userId: string | null;
+            category: import("@prisma/client").$Enums.AuditCategory;
+            severity: import("@prisma/client").$Enums.AuditSeverity;
+            action: string;
+            ipAddress: string | null;
+        }[];
+        total: number;
+    }>;
     create(data: {
         userId?: string;
         action: string;

@@ -1,7 +1,5 @@
 import { Controller, Get, Post, Body, Param, Put, Query, UseGuards, Request, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
 import { RightsRequestsService } from './rights-requests.service';
 import { CreateRightsRequestDto } from './dto/create-rights-request.dto';
 import { UpdateRightsRequestDto } from './dto/update-rights-request.dto';
@@ -19,7 +17,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 @ApiTags('Rights Management')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('api/rights')
+@Controller('api/v1/rights')
 export class RightsRequestsController {
   constructor(private readonly rightsRequestsService: RightsRequestsService) {}
 
@@ -139,16 +137,7 @@ export class RightsRequestsController {
   @Post('requests/:id/evidence')
   @Permissions({ module: ModuleName.RIGHTS_MANAGEMENT, action: 'create' })
   @ApiOperation({ summary: 'Add an evidence item (supports multipart form file uploads)' })
-  @UseInterceptors(FileInterceptor('file', {
-    storage: diskStorage({
-      destination: './uploads/evidence',
-      filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = extname(file.originalname);
-        cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
-      },
-    }),
-  }))
+  @UseInterceptors(FileInterceptor('file'))
   addEvidence(
     @Param('id') id: string,
     @Body() dto: CreateEvidenceItemDto,

@@ -10,10 +10,33 @@ import * as bcrypt from 'bcrypt';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 
+import * as crypto from 'crypto';
+
 const connectionString = process.env.DATABASE_URL;
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
+
+// Encryption Helpers for Seed
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default_secret_key_32_chars_long!!';
+const ALGORITHM = 'aes-256-cbc';
+const DERIVED_KEY = crypto.scryptSync(ENCRYPTION_KEY, 'system-salt', 32);
+
+function encrypt(text: string): string {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(ALGORITHM, DERIVED_KEY, iv);
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString('hex') + ':' + encrypted.toString('hex');
+}
+
+function generateHash(text: string): string {
+  if (!text) return '';
+  return crypto
+    .createHash('sha256')
+    .update(text.toLowerCase().trim() + 'system-salt')
+    .digest('hex');
+}
 
 async function main() {
   console.log('Seeding default tenant, roles, and admin user...');
@@ -85,10 +108,11 @@ async function main() {
   const adminEmail = 'admin@acme.com';
   
   const adminUser = await prisma.user.upsert({
-    where: { email: adminEmail },
+    where: { emailHash: generateHash(adminEmail) },
     update: {},
     create: {
-      email: adminEmail,
+      email: encrypt(adminEmail),
+      emailHash: generateHash(adminEmail),
       name: 'System Administrator',
       password: hashedPassword,
       status: UserStatus.ACTIVE,
@@ -154,10 +178,12 @@ async function main() {
       type: RightsRequestType.ERASURE,
       regulation: Regulation.DPDP,
       status: RightsRequestStatus.RECEIVED,
+      currentStep: 'Received',
       priority: RightsRequestPriority.NORMAL,
       requesterId: 'USR-001',
       requesterName: 'John Doe',
-      requesterEmail: 'john.doe@example.com',
+      requesterEmail: encrypt('john.doe@example.com'),
+      requesterEmailHash: generateHash('john.doe@example.com'),
       description: 'Requesting erasure of personal marketing data.',
       tenantId: tenant.id,
     }
@@ -172,7 +198,8 @@ async function main() {
       priority: RightsRequestPriority.URGENT,
       requesterId: 'USR-002',
       requesterName: 'Jane Smith',
-      requesterEmail: 'jane.smith@example.com',
+      requesterEmail: encrypt('jane.smith@example.com'),
+      requesterEmailHash: generateHash('jane.smith@example.com'),
       description: 'Requesting access to all profile data.',
       tenantId: tenant.id,
     }

@@ -41,6 +41,10 @@ export declare class InvitationsController {
         acceptedAt: Date | null;
     })[]>;
     resend(id: string): Promise<{
+        role: {
+            name: string;
+        };
+    } & {
         id: string;
         status: import("@prisma/client").$Enums.InvitationStatus;
         expiresAt: Date;

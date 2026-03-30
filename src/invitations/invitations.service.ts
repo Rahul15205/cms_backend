@@ -2,10 +2,14 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { InvitationStatus } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class InvitationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationsService: NotificationsService,
+  ) {}
 
   async create(createInvitationDto: CreateInvitationDto, inviterId: string, tenantId: string) {
     const { email, roleId } = createInvitationDto;
@@ -28,7 +32,7 @@ export class InvitationsService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    return this.prisma.invitation.create({
+    const invitation = await this.prisma.invitation.create({
       data: {
         email,
         roleId,
@@ -39,6 +43,18 @@ export class InvitationsService {
       },
       include: { role: { select: { name: true } }, inviter: { select: { name: true, email: true } } }
     });
+
+    if (invitation.role && invitation.role.name) {
+      // Dispatch email notification asynchronously without awaiting to avoid blocking response
+      this.notificationsService.sendInvitationEmail({
+        to: invitation.email,
+        role: invitation.role.name,
+        // In reality, this URL should be read from an environment variable (e.g. FRONTEND_URL)
+        inviteUrl: `http://localhost:5173/accept-invite?token=${invitation.id}`, 
+      });
+    }
+
+    return invitation;
   }
 
   findAll(tenantId?: string) {
@@ -58,10 +74,21 @@ export class InvitationsService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    return this.prisma.invitation.update({
+    const updatedInv = await this.prisma.invitation.update({
       where: { id },
-      data: { expiresAt, status: InvitationStatus.PENDING }
+      data: { expiresAt, status: InvitationStatus.PENDING },
+      include: { role: { select: { name: true } } }
     });
+
+    if (updatedInv.role && updatedInv.role.name) {
+      this.notificationsService.sendInvitationEmail({
+        to: updatedInv.email,
+        role: updatedInv.role.name,
+        inviteUrl: `http://localhost:5173/accept-invite?token=${updatedInv.id}`, 
+      });
+    }
+
+    return updatedInv;
   }
 
   async remove(id: string) {

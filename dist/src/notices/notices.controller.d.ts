@@ -28,37 +28,32 @@ export declare class NoticesController {
         typeId: string | null;
         currentVersion: number;
     }>;
-    findAll(status?: NoticeStatus, typeId?: string, tenantId?: string, search?: string, limit?: number, offset?: number): Promise<{
-        total: number;
-        page: number;
-        limit: number;
-        data: ({
-            type: {
-                id: string;
-                name: string;
-                createdAt: Date;
-                updatedAt: Date;
-                description: string | null;
-                tenantId: string | null;
-                required: boolean;
-            } | null;
-            _count: {
-                versions: number;
-                acknowledgements: number;
-            };
-        } & {
+    findAll(status?: NoticeStatus, typeId?: string, tenantId?: string, search?: string, limit?: number, offset?: number): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<{
+        type: {
             id: string;
-            status: import("@prisma/client").$Enums.NoticeStatus;
+            name: string;
             createdAt: Date;
             updatedAt: Date;
+            description: string | null;
             tenantId: string | null;
-            title: string;
-            createdBy: string | null;
-            content: string | null;
-            typeId: string | null;
-            currentVersion: number;
-        })[];
-    }>;
+            required: boolean;
+        } | null;
+        _count: {
+            versions: number;
+            acknowledgements: number;
+        };
+    } & {
+        id: string;
+        status: import("@prisma/client").$Enums.NoticeStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        title: string;
+        createdBy: string | null;
+        content: string | null;
+        typeId: string | null;
+        currentVersion: number;
+    }>>;
     getLanguages(tenantId?: string): import("@prisma/client").Prisma.PrismaPromise<{
         id: string;
         name: string;
@@ -74,7 +69,7 @@ export declare class NoticesController {
         name: string;
         isDefault?: boolean;
         tenantId?: string;
-    }): import("@prisma/client").Prisma.Prisma__NoticeLanguageClient<{
+    }): Promise<{
         id: string;
         name: string;
         createdAt: Date;
@@ -83,7 +78,31 @@ export declare class NoticesController {
         code: string;
         isDefault: boolean;
         completion: number;
-    }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    }>;
+    updateLanguage(id: string, dto: {
+        isDefault?: boolean;
+        completion?: number;
+        name?: string;
+    }): Promise<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        code: string;
+        isDefault: boolean;
+        completion: number;
+    }>;
+    deleteLanguage(id: string): Promise<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        tenantId: string | null;
+        code: string;
+        isDefault: boolean;
+        completion: number;
+    }>;
     getTypes(tenantId?: string): Promise<({
         _count: {
             notices: number;

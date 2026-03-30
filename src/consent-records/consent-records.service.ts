@@ -1,12 +1,20 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { paginate } from '../common/dto/paginated-response.dto';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsentRecordDto } from './dto/create-consent-record.dto';
 import { UpdateConsentRecordDto } from './dto/update-consent-record.dto';
 import { ConsentStatus } from '@prisma/client';
+import { EncryptionService } from '../encryption/encryption.service';
 
 @Injectable()
 export class ConsentRecordsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly encryptionService: EncryptionService,
+    @InjectQueue('consent-receipts') private readonly receiptQueue: Queue,
+  ) {}
 
   async create(createConsentRecordDto: CreateConsentRecordDto) {
     const { versionId, applicationId, userId, endUserEmail } = createConsentRecordDto;
@@ -27,11 +35,13 @@ export class ConsentRecordsService {
       throw new BadRequestException('This consent version is not actively deployed to the specified application');
     }
 
-    // Capture exact ingestion timestamp
+    // Capture exact ingestion timestamp and generate hashes
     const recordPayload: any = {
       ...createConsentRecordDto,
       status: createConsentRecordDto.status || ConsentStatus.GRANTED,
-      grantedAt: new Date()
+      grantedAt: new Date(),
+      endUserEmailHash: endUserEmail ? this.encryptionService.generateHash(endUserEmail) : null,
+      endUserPhoneHash: createConsentRecordDto.endUserPhone ? this.encryptionService.generateHash(createConsentRecordDto.endUserPhone) : null,
     };
 
     if (recordPayload.status === ConsentStatus.REVOKED) {
@@ -62,6 +72,11 @@ export class ConsentRecordsService {
         console.error('Failed to create automated usage record:', err);
         // We don't throw here to avoid failing the main consent capture
       });
+
+      // Enqueue Consent Receipt Job (DPDP Section 6)
+      if (record.endUserEmail) {
+        await this.receiptQueue.add('generate-receipt', { recordId: record.id });
+      }
     }
 
     return record;
@@ -73,7 +88,13 @@ export class ConsentRecordsService {
     if (versionId) where.versionId = versionId;
     if (applicationId) where.applicationId = applicationId;
     if (userId) where.userId = userId;
-    if (email) where.endUserEmail = { contains: email, mode: 'insensitive' };
+    if (email) {
+      const emailHash = this.encryptionService.generateHash(email);
+      where.OR = [
+        { endUserEmail: { contains: email, mode: 'insensitive' } },
+        { endUserEmailHash: emailHash }
+      ];
+    }
 
     const take = limit ? Number(limit) : 50;
     const skip = offset ? Number(offset) : 0;
@@ -92,12 +113,7 @@ export class ConsentRecordsService {
       })
     ]);
 
-    return {
-      total,
-      page: Math.floor(skip / take) + 1,
-      limit: take,
-      data
-    };
+    return paginate(data, total, Math.floor(skip / take) + 1, take);
   }
 
   async findOne(id: string) {

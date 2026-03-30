@@ -51,7 +51,7 @@ exports.SessionsController = SessionsController = __decorate([
     (0, swagger_1.ApiTags)('Sessions'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.Controller)('api/sessions'),
+    (0, common_1.Controller)('api/v1/sessions'),
     __metadata("design:paramtypes", [sessions_service_1.SessionsService])
 ], SessionsController);
 //# sourceMappingURL=sessions.controller.js.map
