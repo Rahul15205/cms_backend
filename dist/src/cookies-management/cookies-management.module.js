@@ -13,6 +13,7 @@ const cookies_management_controller_1 = require("./cookies-management.controller
 const cookies_management_service_1 = require("./cookies-management.service");
 const prisma_module_1 = require("../prisma/prisma.module");
 const cookie_scanner_processor_1 = require("./cookie-scanner.processor");
+const notifications_module_1 = require("../notifications/notifications.module");
 let CookiesManagementModule = class CookiesManagementModule {
 };
 exports.CookiesManagementModule = CookiesManagementModule;
@@ -20,6 +21,7 @@ exports.CookiesManagementModule = CookiesManagementModule = __decorate([
     (0, common_1.Module)({
         imports: [
             prisma_module_1.PrismaModule,
+            notifications_module_1.NotificationsModule,
             bullmq_1.BullModule.registerQueue({ name: 'cookie-scanner' }),
         ],
         controllers: [cookies_management_controller_1.CookiesManagementController],

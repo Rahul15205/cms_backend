@@ -40,13 +40,13 @@ export declare class ApplicationsController {
             region: string | null;
             platform: string[];
             userSegment: string | null;
+            deployedBy: string | null;
+            affectedUsers: number;
             approvalRequired: boolean;
             rollbackAllowed: boolean;
             rollbackConditions: string | null;
             lockedAfterActivation: boolean;
             isActive: boolean;
-            deployedBy: string | null;
-            affectedUsers: number;
             deployedAt: Date;
         })[];
     } & {

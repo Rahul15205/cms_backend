@@ -72,8 +72,7 @@ COPY --from=builder /app/scripts ./scripts
 
 EXPOSE 3001
 
-# Puppeteer environment variables
+# Puppeteer environment variables to use bundled Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
 CMD ["npm", "run", "start:prod"]

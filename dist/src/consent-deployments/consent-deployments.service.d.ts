@@ -15,13 +15,13 @@ export declare class ConsentDeploymentsService {
         region: string | null;
         platform: string[];
         userSegment: string | null;
+        deployedBy: string | null;
+        affectedUsers: number;
         approvalRequired: boolean;
         rollbackAllowed: boolean;
         rollbackConditions: string | null;
         lockedAfterActivation: boolean;
         isActive: boolean;
-        deployedBy: string | null;
-        affectedUsers: number;
         deployedAt: Date;
     }>;
     findAll(applicationId?: string, versionId?: string, limit?: number, offset?: number): Promise<import("../common/dto/paginated-response.dto").PaginatedResponseDto<{
@@ -43,13 +43,13 @@ export declare class ConsentDeploymentsService {
         region: string | null;
         platform: string[];
         userSegment: string | null;
+        deployedBy: string | null;
+        affectedUsers: number;
         approvalRequired: boolean;
         rollbackAllowed: boolean;
         rollbackConditions: string | null;
         lockedAfterActivation: boolean;
         isActive: boolean;
-        deployedBy: string | null;
-        affectedUsers: number;
         deployedAt: Date;
     }>>;
     findOne(id: string): Promise<{
@@ -105,13 +105,13 @@ export declare class ConsentDeploymentsService {
         region: string | null;
         platform: string[];
         userSegment: string | null;
+        deployedBy: string | null;
+        affectedUsers: number;
         approvalRequired: boolean;
         rollbackAllowed: boolean;
         rollbackConditions: string | null;
         lockedAfterActivation: boolean;
         isActive: boolean;
-        deployedBy: string | null;
-        affectedUsers: number;
         deployedAt: Date;
     }>;
     update(id: string, updateConsentDeploymentDto: UpdateConsentDeploymentDto): Promise<{
@@ -125,13 +125,13 @@ export declare class ConsentDeploymentsService {
         region: string | null;
         platform: string[];
         userSegment: string | null;
+        deployedBy: string | null;
+        affectedUsers: number;
         approvalRequired: boolean;
         rollbackAllowed: boolean;
         rollbackConditions: string | null;
         lockedAfterActivation: boolean;
         isActive: boolean;
-        deployedBy: string | null;
-        affectedUsers: number;
         deployedAt: Date;
     }>;
     rollback(id: string, performedBy: string): Promise<{
@@ -145,13 +145,13 @@ export declare class ConsentDeploymentsService {
         region: string | null;
         platform: string[];
         userSegment: string | null;
+        deployedBy: string | null;
+        affectedUsers: number;
         approvalRequired: boolean;
         rollbackAllowed: boolean;
         rollbackConditions: string | null;
         lockedAfterActivation: boolean;
         isActive: boolean;
-        deployedBy: string | null;
-        affectedUsers: number;
         deployedAt: Date;
     }>;
     getDeploymentLogs(deploymentId: string): Promise<{
@@ -174,13 +174,13 @@ export declare class ConsentDeploymentsService {
         region: string | null;
         platform: string[];
         userSegment: string | null;
+        deployedBy: string | null;
+        affectedUsers: number;
         approvalRequired: boolean;
         rollbackAllowed: boolean;
         rollbackConditions: string | null;
         lockedAfterActivation: boolean;
         isActive: boolean;
-        deployedBy: string | null;
-        affectedUsers: number;
         deployedAt: Date;
     }>;
 }
