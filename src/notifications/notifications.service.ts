@@ -196,4 +196,25 @@ export class NotificationsService {
       return false;
     }
   }
+
+  async sendCookieScanCompletionEmail(email: string, websiteName: string, stats: any): Promise<boolean> {
+    try {
+      this.logger.log(`Dispatching cookie scan report for ${websiteName} to ${email}`);
+      await this.mailerService.sendMail({
+        to: email,
+        subject: `Scan Completed: ${websiteName}`,
+        template: 'cookie-scan-report',
+        context: {
+          websiteName,
+          ...stats,
+          dashboardUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+          year: new Date().getFullYear(),
+        },
+      });
+      return true;
+    } catch (error) {
+      this.logger.error({ err: error }, `Failed to send cookie scan report to ${email}`);
+      return false;
+    }
+  }
 }

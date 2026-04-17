@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #334155; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #f8fafc; }
+        .card { background: white; border-radius: 12px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; }
+        .header { text-align: center; margin-bottom: 32px; }
+        .logo { color: #10b981; font-size: 24px; font-weight: bold; margin-bottom: 8px; }
+        .title { font-size: 20px; font-weight: 700; color: #1e293b; margin: 0; }
+        .stats-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 16px; margin: 24px 0; }
+        .stat-box { background: #f1f5f9; padding: 16px; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 24px; font-weight: 800; color: #10b981; }
+        .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+        .summary-list { margin: 24px 0; border-top: 1px solid #f1f5f9; padding-top: 24px; }
+        .summary-item { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; }
+        .footer { text-align: center; margin-top: 32px; font-size: 12px; color: #94a3b8; }
+        .button { display: inline-block; padding: 12px 24px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; margin-top: 24px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">PROTECCIO</div>
+            <h1 class="title">Website Scan Completed</h1>
+        </div>
+        
+        <div class="card">
+            <p>Hello,</p>
+            <p>The cookie scan for <strong>{{websiteName}}</strong> is now complete. We've crawled your site and identified the following tracking technologies.</p>
+            
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-value">{{totalCookies}}</div>
+                    <div class="stat-label">Total Cookies</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">{{pagesScanned}}</div>
+                    <div class="stat-label">Pages Crawled</div>
+                </div>
+            </div>
+
+            <div class="summary-list">
+                <h3 style="font-size: 16px; margin-bottom: 16px;">Scan Summary</h3>
+                <div class="summary-item">
+                    <span>Necessary Cookies</span>
+                    <strong>{{necessaryCount}}</strong>
+                </div>
+                <div class="summary-item">
+                    <span>Functional Cookies</span>
+                    <strong>{{functionalCount}}</strong>
+                </div>
+                <div class="summary-item">
+                    <span>Analytics Cookies</span>
+                    <strong>{{analyticsCount}}</strong>
+                </div>
+                <div class="summary-item">
+                    <span>Marketing Cookies</span>
+                    <strong>{{marketingCount}}</strong>
+                </div>
+                <div class="summary-item" style="border-top: 1px dashed #e2e8f0; padding-top: 12px; margin-top: 12px;">
+                    <span>Security Score</span>
+                    <strong style="color: #10b981;">A+</strong>
+                </div>
+            </div>
+
+            <div style="text-align: center;">
+                <a href="{{dashboardUrl}}/cookies" class="button">View Dashboard</a>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>&copy; {{year}} Proteccio Data. All rights reserved.</p>
+            <p>This is an automated notification from your Consent Management System.</p>
+        </div>
+    </div>
+</body>
+</html>

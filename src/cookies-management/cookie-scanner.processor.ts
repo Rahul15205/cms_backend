@@ -2,9 +2,10 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
-import axios from 'axios';
+import { NotificationsService } from '../notifications/notifications.service';
+import * as puppeteer from 'puppeteer';
 import { classifyCookie } from './cookie-dictionary.util';
-import { ScanStatus } from '@prisma/client';
+import { ScanStatus, ScanDepth } from '@prisma/client';
 
 export interface CookieScanJobData {
   websiteId: string;
@@ -14,13 +15,16 @@ export interface CookieScanJobData {
 export class CookieScannerProcessor extends WorkerHost {
   private readonly logger = new Logger(CookieScannerProcessor.name);
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {
     super();
   }
 
   async process(job: Job<CookieScanJobData>): Promise<any> {
     const { websiteId } = job.data;
-    this.logger.log(`Scanning website: ${websiteId}`);
+    this.logger.log(`Starting Advanced Professional Scan for website: ${websiteId}`);
 
     const website = await this.prisma.scannedWebsite.findUnique({
       where: { id: websiteId },
@@ -30,95 +34,153 @@ export class CookieScannerProcessor extends WorkerHost {
       throw new Error(`Website not found: ${websiteId}`);
     }
 
+    let browser: puppeteer.Browser | null = null;
+    const visited = new Set<string>();
+    const queue: string[] = [website.url];
+    const maxPages = website.depth === ScanDepth.DEEP ? 50 : 10;
+    const discoveredCookies = new Map<string, any>();
+
     try {
-      // 1. Update status to IN_PROGRESS
+      // 1. Update status
       await this.prisma.scannedWebsite.update({
         where: { id: websiteId },
         data: { status: ScanStatus.IN_PROGRESS }
       });
 
-      // 2. Fetch website headers
-      // Note: External sites might block simple Axios 
-      const response = await axios.get(website.url, {
-        headers: { 'User-Agent': 'Proteccio-Cookie-Scanner/1.0' },
-        timeout: 10000,
-        validateStatus: () => true, // Don't throw on 404/500
+      // 2. Launch Puppeteer
+      browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-extensions'
+        ],
       });
 
-      const setCookieHeaders = response.headers['set-cookie'] || [];
-      this.logger.log(`Found ${setCookieHeaders.length} cookies in headers for ${website.url}`);
+      const page = await browser.newPage();
+      await page.setUserAgent('Proteccio-Professional-Crawler/1.0 (Professional Cookie Compliance Scanner)');
 
-      // 3. Process Cookies
-      const results: any[] = [];
-      for (const rawCookie of setCookieHeaders) {
-        const parts = rawCookie.split(';');
-        const [nameValue] = parts;
-        const [name, value] = nameValue.split('=');
-        
-        if (!name) continue;
+      // 3. Crawling Loop (BFS)
+      while (queue.length > 0 && visited.size < maxPages) {
+        const currentUrl = queue.shift()!;
+        if (visited.has(currentUrl)) continue;
 
-        const info = classifyCookie(name.trim());
-        
-        // Find or create category record for this tenant
-        let category = await this.prisma.cookieCategory.findFirst({
-          where: { 
-            category: info.category,
-            tenantId: website.tenantId 
+        visited.add(currentUrl);
+        this.logger.log(`[Crawling] ${visited.size}/${maxPages}: ${currentUrl}`);
+
+        try {
+          await page.goto(currentUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+          
+          // Capture Cookies (Includes JS and HTTP cookies)
+          const cookies = await page.cookies();
+          for (const cookie of cookies) {
+            if (!discoveredCookies.has(cookie.name)) {
+              discoveredCookies.set(cookie.name, {
+                ...cookie,
+                foundOn: currentUrl
+              });
+            }
           }
+
+          // Extract more links if we haven't reached the limit
+          if (visited.size < maxPages) {
+            const links = await page.$$eval('a', (anchors) => 
+              anchors.map(a => a.href).filter(href => href.startsWith('http'))
+            );
+
+            const baseUrl = new URL(website.url);
+            for (const link of links) {
+              try {
+                const linkUrl = new URL(link);
+                // Only crawl the same domain
+                if (linkUrl.hostname === baseUrl.hostname && !visited.has(link)) {
+                  queue.push(link);
+                }
+              } catch { /* Invalid URL */ }
+            }
+          }
+        } catch (err) {
+          this.logger.warn(`Failed to crawl ${currentUrl}: ${err.message}`);
+        }
+      }
+
+      // 4. Process Discovered Cookies
+      const results: any[] = [];
+      const categoryCounts: Record<string, number> = {
+        NECESSARY: 0,
+        FUNCTIONAL: 0,
+        ANALYTICS: 0,
+        MARKETING: 0,
+        UNCATEGORIZED: 0
+      };
+
+      for (const [name, cookie] of discoveredCookies.entries()) {
+        const info = classifyCookie(name);
+        categoryCounts[info.category]++;
+
+        let category = await this.prisma.cookieCategory.findFirst({
+          where: { category: info.category, tenantId: website.tenantId }
         });
 
         if (!category) {
           category = await this.prisma.cookieCategory.create({
-            data: {
-              name: info.category,
-              category: info.category,
-              tenantId: website.tenantId
-            }
+            data: { name: info.category, category: info.category, tenantId: website.tenantId }
           });
         }
 
-        // Find existing record to upsert (Prisma doesn't have a composite unique on inventory)
         const existing = await this.prisma.cookieInventory.findFirst({
-           where: { 
-               name: name.trim(), 
-               domain: website.url, 
-               tenantId: website.tenantId 
-           }
+           where: { name: name.trim(), domain: website.url, tenantId: website.tenantId }
         });
 
         if (existing) {
-            await this.prisma.cookieInventory.update({
-                where: { id: existing.id },
-                data: {
-                    categoryId: category.id,
-                    description: info.description
-                }
-            });
+          await this.prisma.cookieInventory.update({
+            where: { id: existing.id },
+            data: { categoryId: category.id, description: info.description }
+          });
         } else {
-            const inventory = await this.prisma.cookieInventory.create({
-                data: {
-                  name: name.trim(),
-                  domain: website.url,
-                  categoryId: category.id,
-                  description: info.description,
-                  tenantId: website.tenantId
-                }
-            });
-            results.push(inventory);
+          const inventory = await this.prisma.cookieInventory.create({
+            data: {
+              name: name.trim(),
+              domain: website.url,
+              categoryId: category.id,
+              description: info.description,
+              expiration: cookie.expires ? new Date(cookie.expires * 1000).toLocaleDateString() : 'Session',
+              tenantId: website.tenantId
+            }
+          });
+          results.push(inventory);
         }
       }
 
-      // 4. Finalize Scan
+      // 5. Finalize Scan
       await this.prisma.scannedWebsite.update({
         where: { id: websiteId },
         data: { 
-            status: ScanStatus.COMPLETED,
-            lastScan: new Date()
+          status: ScanStatus.COMPLETED,
+          lastScan: new Date()
         }
       });
 
-      this.logger.log(`Scan completed for ${website.url}. New cookies recorded: ${results.length}`);
-      return { cookiesFound: results.length };
+      // 6. Send Notification Email
+      if (website.email) {
+        await this.notificationsService.sendCookieScanCompletionEmail(
+          website.email,
+          website.name,
+          {
+            totalCookies: discoveredCookies.size,
+            pagesScanned: visited.size,
+            necessaryCount: categoryCounts['NECESSARY'],
+            functionalCount: categoryCounts['FUNCTIONAL'],
+            analyticsCount: categoryCounts['ANALYTICS'],
+            marketingCount: categoryCounts['MARKETING'],
+          }
+        );
+      }
+
+      this.logger.log(`Professional Scan complete for ${website.url}. Pages: ${visited.size}, Cookies: ${discoveredCookies.size}`);
+      return { cookiesFound: discoveredCookies.size, pagesScanned: visited.size };
+
     } catch (error) {
       this.logger.error(`Scan failed for ${website.url}: ${error.message}`);
       await this.prisma.scannedWebsite.update({
@@ -126,6 +188,8 @@ export class CookieScannerProcessor extends WorkerHost {
         data: { status: ScanStatus.FAILED }
       });
       throw error;
+    } finally {
+      if (browser) await browser.close();
     }
   }
 }
