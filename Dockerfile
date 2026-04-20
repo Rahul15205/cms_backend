@@ -70,9 +70,12 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./
 COPY --from=builder /app/scripts ./scripts
 
+# Copy Puppeteer's Chrome browser from build stage
+COPY --from=builder /root/.cache/puppeteer /root/.cache/puppeteer
+
 EXPOSE 3001
 
-# Puppeteer environment variables to use bundled Chromium
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
+# Puppeteer environment variables
+ENV PUPPETEER_CACHE_DIR=/root/.cache/puppeteer
 
 CMD ["npm", "run", "start:prod"]
