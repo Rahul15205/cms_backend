@@ -114,12 +114,17 @@ export class CookiesManagementService {
   // ---------------------------------------------------------
 
   async createWebsite(dto: CreateScannedWebsiteDto, tenantId: string) {
-    return this.prisma.scannedWebsite.create({
+    const website = await this.prisma.scannedWebsite.create({
       data: {
         ...dto,
         tenantId,
       },
     });
+
+    // Automatically trigger first scan
+    await this.cookieScannerQueue.add('scan-website', { websiteId: website.id });
+
+    return website;
   }
 
   async getWebsites(tenantId: string) {
