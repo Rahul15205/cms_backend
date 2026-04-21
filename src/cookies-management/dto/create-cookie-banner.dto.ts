@@ -30,4 +30,20 @@ export class CreateCookieBannerDto {
   @IsEnum(BannerStatus)
   @IsOptional()
   status?: BannerStatus;
+
+  @IsString()
+  @IsOptional()
+  heading?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsString()
+  @IsOptional()
+  themeColor?: string;
+
+  @IsString()
+  @IsOptional()
+  websiteId?: string;
 }
