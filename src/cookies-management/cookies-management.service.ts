@@ -281,4 +281,27 @@ export class CookiesManagementService {
       complianceScore: totalLogs > 0 ? Math.round((acceptedCount / totalLogs) * 100) : 100,
     };
   }
+
+  async getPublicBanner(websiteId: string) {
+    const banner = await this.prisma.cookieBanner.findFirst({
+      where: {
+        websiteId,
+        status: 'ACTIVE',
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (!banner) {
+      // Fallback to global banner if no website-specific active banner
+      return this.prisma.cookieBanner.findFirst({
+        where: {
+          websiteId: null,
+          status: 'ACTIVE',
+        },
+        orderBy: { updatedAt: 'desc' },
+      });
+    }
+
+    return banner;
+  }
 }

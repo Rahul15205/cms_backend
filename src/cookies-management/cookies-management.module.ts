@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { CookiesManagementController } from './cookies-management.controller';
+import { CookieBannerPublicController } from './cookie-banner-public.controller';
 import { CookiesManagementService } from './cookies-management.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { CookieScannerProcessor } from './cookie-scanner.processor';
@@ -14,7 +15,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       { name: 'cookie-scanner' }
     ),
   ],
-  controllers: [CookiesManagementController],
+  controllers: [CookiesManagementController, CookieBannerPublicController],
   providers: [CookiesManagementService, CookieScannerProcessor],
   exports: [CookiesManagementService],
 })
