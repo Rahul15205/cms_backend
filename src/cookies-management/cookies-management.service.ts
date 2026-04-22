@@ -288,6 +288,18 @@ export class CookiesManagementService {
         websiteId,
         status: 'ACTIVE',
       },
+      include: {
+        tenant: {
+          include: {
+            cookieCategories: {
+              where: { enabled: true },
+              include: {
+                cookies: true,
+              },
+            },
+          },
+        },
+      },
       orderBy: { updatedAt: 'desc' },
     });
 
@@ -297,6 +309,18 @@ export class CookiesManagementService {
         where: {
           websiteId: null,
           status: 'ACTIVE',
+        },
+        include: {
+          tenant: {
+            include: {
+              cookieCategories: {
+                where: { enabled: true },
+                include: {
+                  cookies: true,
+                },
+              },
+            },
+          },
         },
         orderBy: { updatedAt: 'desc' },
       });
