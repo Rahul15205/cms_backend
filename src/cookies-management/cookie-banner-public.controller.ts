@@ -12,6 +12,7 @@ export class CookieBannerPublicController {
 
   @Get('banner-script/:websiteId')
   @Header('Content-Type', 'application/javascript')
+  @Header('Cross-Origin-Resource-Policy', 'cross-origin')
   async getBannerScript(@Param('websiteId') websiteId: string) {
     const banner = await this.cookiesManagementService.getPublicBanner(websiteId);
     
