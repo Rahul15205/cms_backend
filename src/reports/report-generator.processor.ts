@@ -43,21 +43,21 @@ export class ReportGeneratorProcessor extends WorkerHost {
       });
 
       let cloudPath = '';
+      let localPath = '';
       if (type === ReportType.DSAR_EXPORT) {
         cloudPath = await this.generateDsarExport(job.data);
       } else {
-        const filePath = await this.generateStandardReport(job.data);
-        const fileName = path.basename(filePath);
+        localPath = await this.generateStandardReport(job.data);
+        const fileName = path.basename(localPath);
         const cloudPathPrefix = job.data.tenantId ? `reports/${job.data.tenantId}/` : 'reports/system/';
         cloudPath = `${cloudPathPrefix}${fileName}`;
 
-        const fileBuffer = fs.readFileSync(filePath);
+        const fileBuffer = fs.readFileSync(localPath);
         await this.storageService.uploadFile(cloudPath, fileBuffer, this.getMimeType(format));
-        fs.unlinkSync(filePath);
       }
 
       // 2. Update status to RPT_COMPLETED
-      await this.prisma.generatedReport.update({
+      const updatedReport = await this.prisma.generatedReport.update({
         where: { id: reportId },
         data: {
           status: ReportStatus.RPT_COMPLETED,
@@ -65,6 +65,21 @@ export class ReportGeneratorProcessor extends WorkerHost {
           completedAt: new Date(),
         }
       });
+
+      // 3. Send email notification if email is provided in parameters
+      const params = updatedReport.parameters as any;
+      if (params?.email && type === ReportType.COMPLIANCE && localPath) {
+        await this.notificationsService.sendComplianceReport(
+          params.email,
+          params.websiteName || 'Your Website',
+          localPath
+        );
+      }
+
+      // 4. Cleanup local file
+      if (localPath && fs.existsSync(localPath)) {
+        fs.unlinkSync(localPath);
+      }
 
       this.logger.log(`Report ${reportId} successfully generated and stored at ${cloudPath}`);
       return { cloudPath };

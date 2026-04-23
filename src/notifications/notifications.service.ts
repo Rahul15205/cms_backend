@@ -217,4 +217,30 @@ export class NotificationsService {
       return false;
     }
   }
+
+  async sendComplianceReport(email: string, websiteName: string, filePath: string): Promise<boolean> {
+    try {
+      this.logger.log(`Dispatching compliance report for ${websiteName} to ${email}`);
+      await this.mailerService.sendMail({
+        to: email,
+        subject: `Compliance Report: ${websiteName}`,
+        template: 'compliance-report',
+        context: {
+          websiteName,
+          dashboardUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+          year: new Date().getFullYear(),
+        },
+        attachments: [
+          {
+            filename: `Compliance_Report_${websiteName.replace(/\s+/g, '_')}.pdf`,
+            path: filePath,
+          }
+        ]
+      });
+      return true;
+    } catch (error) {
+      this.logger.error({ err: error }, `Failed to send compliance report to ${email}`);
+      return false;
+    }
+  }
 }

@@ -19,7 +19,7 @@ import { join } from 'path';
           },
         },
         defaults: {
-          from: config.get('SMTP_FROM', '"No Reply" <noreply@example.com>'),
+          from: `"${config.get('SMTP_FROM_NAME', 'Proteccio')}" <${config.get('SMTP_FROM_EMAIL', 'contact@protecciodata.com')}>`,
         },
         template: {
           dir: join(__dirname, 'templates'), 
