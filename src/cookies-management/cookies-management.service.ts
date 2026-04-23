@@ -302,11 +302,29 @@ export class CookiesManagementService {
       include: { category: true }
     });
 
+    // Get all enabled categories for this tenant
+    const allCategories = await this.prisma.cookieCategory.findMany({
+      where: { tenantId, enabled: true },
+    });
+
     const distributionMap = new Map<string, number>();
+    allCategories.forEach(cat => {
+      distributionMap.set(cat.name, 0);
+    });
+    
+    // Also include Uncategorized as a potential bucket
+    distributionMap.set('Uncategorized', 0);
+
     inventory.forEach(item => {
       const catName = item.category?.name || 'Uncategorized';
       distributionMap.set(catName, (distributionMap.get(catName) || 0) + 1);
     });
+
+    // Filter out Uncategorized if it has 0 cookies to keep it clean, 
+    // but keep defined categories even if they are 0
+    if (distributionMap.get('Uncategorized') === 0) {
+      distributionMap.delete('Uncategorized');
+    }
 
     const palette = [
       '#10b981', // Emerald
