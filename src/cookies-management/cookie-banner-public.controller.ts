@@ -114,17 +114,19 @@ export class CookieBannerPublicController {
         pointer-events: auto;
         animation: proteccio-slide-up 0.4s ease-out;
       ">
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-          <h3 style="margin: 0; font-size: \${parseFloat(fontSize) + 4}px; font-weight: 700;">\${config.title || 'Cookie Consent'}</h3>
-          <p style="margin: 0; font-size: \${fontSize}; line-height: 1.5; opacity: 0.8;">\${config.description || 'We use cookies to improve your experience.'}</p>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <h3 style="margin: 0; font-size: \${parseFloat(fontSize) + 4}px; font-weight: 700; color: \${textColor};">\${config.heading || 'This website uses cookies'}</h3>
+          <p style="margin: 0; font-size: \${fontSize}; line-height: 1.6; opacity: 0.9; color: \${textColor};">\${config.description || 'We use cookies to personalise content and ads, to provide social media features and to analyse our traffic.'}</p>
         </div>
-        <div style="display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
-          <button id="proteccio-preferences" style="background: transparent; border: 1px solid rgba(0,0,0,0.1); color: inherit; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize};">\${config.settingsButtonText || 'Manage Settings'}</button>
-          <button id="proteccio-reject" style="background: transparent; border: 1px solid rgba(0,0,0,0.1); color: inherit; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize};">\${config.declineButtonText || 'Decline'}</button>
-          <button id="proteccio-accept" style="background: \${themeColor}; color: \${btnTextColor}; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: \${fontSize}; shadow: 0 4px 12px \${themeColor}40;">\${config.acceptButtonText || 'Accept All'}</button>
+        <div style="display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; margin-top: 8px;">
+          <button id="proteccio-preferences" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.settingsButtonText || 'Preferences'}</button>
+          <button id="proteccio-reject" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.declineButtonText || 'Reject All'}</button>
+          <button id="proteccio-accept" style="background: \${themeColor}; color: \${btnTextColor}; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: \${fontSize}; shadow: 0 4px 12px \${themeColor}40; transition: all 0.2s; transform: scale(1);">\${config.acceptButtonText || 'Accept All'}</button>
         </div>
       </div>
       <style>
+        #proteccio-cookie-banner button:hover { opacity: 0.9; transform: translateY(-1px); }
+        #proteccio-cookie-banner button:active { transform: translateY(0); }
         @keyframes proteccio-slide-up {
           from { transform: translateY(100%); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
@@ -148,7 +150,7 @@ export class CookieBannerPublicController {
         max-height: 80vh;
         overflow-y: auto;
       ">
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 16px;">
           <button id="proteccio-back" style="background: transparent; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; color: inherit;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           </button>
@@ -157,18 +159,18 @@ export class CookieBannerPublicController {
         
         <div style="display: flex; flex-direction: column; gap: 20px;">
           \${categories.map(cat => \`
-            <div style="display: flex; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05);">
               <div style="flex: 1;">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
                   <span style="font-weight: 600; font-size: 15px;">\${cat.name}</span>
-                  \${cat.locked ? '<span style="font-size: 10px; background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Required</span>' : ''}
+                  \${cat.locked ? '<span style="font-size: 10px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Required</span>' : ''}
                 </div>
-                <p style="margin: 0; font-size: 13px; opacity: 0.6; line-height: 1.5;">\${cat.description || 'Helps the website function correctly.'}</p>
+                <p style="margin: 0; font-size: 13px; opacity: 0.7; line-height: 1.5;">\${cat.description || 'Helps the website function correctly.'}</p>
               </div>
               <div style="display: flex; align-items: center;">
                 <label style="position: relative; display: inline-block; width: 44px; height: 24px;">
                   <input type="checkbox" class="proteccio-toggle" \${cat.locked || cat.enabled ? 'checked' : ''} \${cat.locked ? 'disabled' : ''} data-cat-id="\${cat.id}" style="opacity: 0; width: 0; height: 0;">
-                  <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: \${cat.locked || cat.enabled ? themeColor : '#ccc'}; transition: .3s; border-radius: 24px;"></span>
+                  <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: \${cat.locked || cat.enabled ? themeColor : 'rgba(255,255,255,0.1)'}; transition: .3s; border-radius: 24px;"></span>
                   <span style="position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; transform: \${cat.locked || cat.enabled ? 'translateX(20px)' : 'translateX(0)'}"></span>
                 </label>
               </div>
@@ -177,7 +179,7 @@ export class CookieBannerPublicController {
         </div>
 
         <div style="display: flex; justify-content: flex-end; margin-top: 32px; gap: 12px;">
-          <button id="proteccio-save-prefs" style="background: \${themeColor}; color: \${btnTextColor}; border: none; padding: 12px 32px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%;">Save Preferences</button>
+          <button id="proteccio-save-prefs" style="background: \${themeColor}; color: \${btnTextColor}; border: none; padding: 12px 32px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; transition: all 0.2s;">Save Preferences</button>
         </div>
       </div>
     \`;
