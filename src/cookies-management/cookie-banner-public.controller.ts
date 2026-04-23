@@ -279,6 +279,7 @@ export class CookieBannerPublicController {
       const data = await response.json();
       
       if (data.status === 'WITHDRAWN' || data.status === 'NONE') {
+        localStorage.removeItem('proteccio-consent');
         initBanner();
       } else {
         console.log('Proteccio: Valid consent found on server.');

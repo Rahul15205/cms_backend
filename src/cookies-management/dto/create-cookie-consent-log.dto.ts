@@ -20,4 +20,8 @@ export class CreateCookieConsentLogDto {
 
   @IsEnum(ConsentLogStatus)
   status: ConsentLogStatus;
+
+  @IsString()
+  @IsOptional()
+  websiteId?: string;
 }
