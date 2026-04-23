@@ -1142,7 +1142,18 @@ model CookieBanner {
   
   heading     String?
   description String?
-  themeColor  String?
+  themeColor  String? // Button background color
+  
+  // Advanced Styling
+  textColor         String? @default("#111827")
+  backgroundColor   String? @default("#ffffff")
+  buttonTextColor   String? @default("#ffffff")
+  borderRadius      Int?    @default(12)
+  maxWidth          Int?    @default(1200)
+  fontSize          Int?    @default(14)
+  padding           Int?    @default(24)
+  backdropBlur      Int?    @default(0)
+  backdropOpacity   Int?    @default(50)
 
   websiteId String?
   website   ScannedWebsite? @relation(fields: [websiteId], references: [id])

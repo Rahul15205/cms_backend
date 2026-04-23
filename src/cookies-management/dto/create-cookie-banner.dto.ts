@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsNumber } from 'class-validator';
 
 export enum BannerPosition {
   BOTTOM = 'BOTTOM',
@@ -46,4 +46,40 @@ export class CreateCookieBannerDto {
   @IsString()
   @IsOptional()
   websiteId?: string;
+
+  @IsString()
+  @IsOptional()
+  textColor?: string;
+
+  @IsString()
+  @IsOptional()
+  backgroundColor?: string;
+
+  @IsString()
+  @IsOptional()
+  buttonTextColor?: string;
+
+  @IsNumber()
+  @IsOptional()
+  borderRadius?: number;
+
+  @IsNumber()
+  @IsOptional()
+  maxWidth?: number;
+
+  @IsNumber()
+  @IsOptional()
+  fontSize?: number;
+
+  @IsNumber()
+  @IsOptional()
+  padding?: number;
+
+  @IsNumber()
+  @IsOptional()
+  backdropBlur?: number;
+
+  @IsNumber()
+  @IsOptional()
+  backdropOpacity?: number;
 }
