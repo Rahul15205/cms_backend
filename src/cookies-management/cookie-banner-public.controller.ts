@@ -87,8 +87,8 @@ export class CookieBannerPublicController {
         display: flex; 
         flex-direction: column; 
         gap: 15px;
-        width: 100%;
-        max-width: \${config.position === 'CENTER' ? '600px' : (config.position === 'CORNER' ? '400px' : maxWidth)};
+        width: 90%;
+        max-width: \${maxWidth};
         border-radius: \${borderRadius};
         margin: \${config.position === 'BOTTOM' || config.position === 'TOP' ? '20px' : '0'};
         pointer-events: auto;
