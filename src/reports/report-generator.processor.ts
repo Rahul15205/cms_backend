@@ -51,17 +51,12 @@ export class ReportGeneratorProcessor extends WorkerHost {
           cloudPath = await this.generateDsarExport(job.data);
         } else {
           localPath = await this.generateStandardReport(job.data);
-          const fileName = path.basename(localPath);
-          const cloudPathPrefix = job.data.tenantId ? `reports/${job.data.tenantId}/` : 'reports/system/';
-          cloudPath = `${cloudPathPrefix}${fileName}`;
-
-          const fileBuffer = fs.readFileSync(localPath);
-          await this.storageService.uploadFile(cloudPath, fileBuffer, this.getMimeType(format));
+          // Bypass Supabase storage as requested - just use localPath for email
+          this.logger.log(`Skipping Supabase upload for report: ${reportId}. Proceeding to email.`);
         }
       } catch (err) {
-        this.logger.error(`Storage/Generation failed: ${err.message}`);
+        this.logger.error(`Generation failed: ${(err as any).message}`);
         storageError = err;
-        // If we have a localPath, we can still proceed to send the email
         if (!localPath) throw err; 
       }
 
