@@ -44,36 +44,51 @@ export class ReportGeneratorProcessor extends WorkerHost {
 
       let cloudPath = '';
       let localPath = '';
-      if (type === ReportType.DSAR_EXPORT) {
-        cloudPath = await this.generateDsarExport(job.data);
-      } else {
-        localPath = await this.generateStandardReport(job.data);
-        const fileName = path.basename(localPath);
-        const cloudPathPrefix = job.data.tenantId ? `reports/${job.data.tenantId}/` : 'reports/system/';
-        cloudPath = `${cloudPathPrefix}${fileName}`;
+      let storageError = null;
 
-        const fileBuffer = fs.readFileSync(localPath);
-        await this.storageService.uploadFile(cloudPath, fileBuffer, this.getMimeType(format));
+      try {
+        if (type === ReportType.DSAR_EXPORT) {
+          cloudPath = await this.generateDsarExport(job.data);
+        } else {
+          localPath = await this.generateStandardReport(job.data);
+          const fileName = path.basename(localPath);
+          const cloudPathPrefix = job.data.tenantId ? `reports/${job.data.tenantId}/` : 'reports/system/';
+          cloudPath = `${cloudPathPrefix}${fileName}`;
+
+          const fileBuffer = fs.readFileSync(localPath);
+          await this.storageService.uploadFile(cloudPath, fileBuffer, this.getMimeType(format));
+        }
+      } catch (err) {
+        this.logger.error(`Storage/Generation failed: ${err.message}`);
+        storageError = err;
+        // If we have a localPath, we can still proceed to send the email
+        if (!localPath) throw err; 
       }
 
-      // 2. Update status to RPT_COMPLETED
+      // 2. Update status in database
       const updatedReport = await this.prisma.generatedReport.update({
         where: { id: reportId },
         data: {
-          status: ReportStatus.RPT_COMPLETED,
-          filePath: cloudPath,
+          status: storageError ? ReportStatus.RPT_FAILED : ReportStatus.RPT_COMPLETED,
+          filePath: cloudPath || null,
+          error: storageError ? (storageError as any).message : null,
           completedAt: new Date(),
         }
       });
 
-      // 3. Send email notification if email is provided in parameters
+      // 3. Send email notification (Independent of storage success if localPath exists)
       const params = updatedReport.parameters as any;
-      if (params?.email && type === ReportType.COMPLIANCE && localPath) {
-        await this.notificationsService.sendComplianceReport(
-          params.email,
-          params.websiteName || 'Your Website',
-          localPath
-        );
+      if (params?.email && type === ReportType.COMPLIANCE && localPath && fs.existsSync(localPath)) {
+        try {
+          await this.notificationsService.sendComplianceReport(
+            params.email,
+            params.websiteName || 'Your Website',
+            localPath
+          );
+          this.logger.log(`Compliance report email sent to ${params.email}`);
+        } catch (emailErr) {
+          this.logger.error(`Failed to send compliance report email: ${(emailErr as any).message}`);
+        }
       }
 
       // 4. Cleanup local file
@@ -81,16 +96,18 @@ export class ReportGeneratorProcessor extends WorkerHost {
         fs.unlinkSync(localPath);
       }
 
-      this.logger.log(`Report ${reportId} successfully generated and stored at ${cloudPath}`);
-      return { cloudPath };
+      if (storageError && !localPath) throw storageError;
+
+      this.logger.log(`Report ${reportId} processing finished. Storage: ${storageError ? 'FAILED' : 'SUCCESS'}`);
+      return { cloudPath, storageError: (storageError as any)?.message };
     } catch (error) {
-      this.logger.error(`Failed to generate report ${reportId}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate report ${reportId}: ${(error as any).message}`, (error as any).stack);
       
       await this.prisma.generatedReport.update({
         where: { id: reportId },
         data: { 
           status: ReportStatus.RPT_FAILED,
-          error: error.message
+          error: (error as any).message
         }
       });
 
