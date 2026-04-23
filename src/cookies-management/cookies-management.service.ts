@@ -355,6 +355,7 @@ export class CookiesManagementService {
         status: 'ACTIVE',
       },
       include: {
+        website: true,
         tenant: {
           include: {
             cookieCategories: {
@@ -369,14 +370,17 @@ export class CookiesManagementService {
       orderBy: { updatedAt: 'desc' },
     });
 
-    if (!banner) {
+    let finalBanner = banner;
+
+    if (!finalBanner) {
       // Fallback to global banner if no website-specific active banner
-      return this.prisma.cookieBanner.findFirst({
+      finalBanner = await this.prisma.cookieBanner.findFirst({
         where: {
           websiteId: null,
           status: 'ACTIVE',
         },
         include: {
+          website: true,
           tenant: {
             include: {
               cookieCategories: {
@@ -392,6 +396,23 @@ export class CookiesManagementService {
       });
     }
 
-    return banner;
+    if (finalBanner && (finalBanner as any).website) {
+      try {
+        const websiteUrl = (finalBanner as any).website.url;
+        const hostname = new URL(websiteUrl).hostname.replace('www.', '');
+        
+        // Filter cookies in each category to only show those for this domain
+        (finalBanner as any).tenant.cookieCategories.forEach(cat => {
+          cat.cookies = cat.cookies.filter(cookie => {
+            const cookieDomain = cookie.domain.toLowerCase().replace('www.', '');
+            return cookieDomain.includes(hostname) || hostname.includes(cookieDomain);
+          });
+        });
+      } catch (e) {
+        console.error('Proteccio: Error filtering cookies by domain', e);
+      }
+    }
+
+    return finalBanner;
   }
 }
