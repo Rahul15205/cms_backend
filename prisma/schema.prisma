@@ -1169,6 +1169,7 @@ model CookieBanner {
 enum ConsentLogStatus {
   ACCEPTED
   WITHDRAWN
+  REJECTED
 }
 
 model CookieConsentLog {

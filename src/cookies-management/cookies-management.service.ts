@@ -241,12 +241,17 @@ export class CookiesManagementService {
 
     if (!website) return null;
 
+    let status: any = 'ACCEPTED';
+    const rawStatus = (dto.status || '').toUpperCase();
+    if (rawStatus === 'REJECTED') status = 'REJECTED';
+    else if (rawStatus === 'WITHDRAWN') status = 'WITHDRAWN';
+
     return this.prisma.cookieConsentLog.create({
       data: {
         userId: dto.userId || `USER-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
         region: dto.region || 'Unknown',
         categories: dto.categories,
-        status: dto.status === 'accepted' ? 'ACCEPTED' : 'WITHDRAWN',
+        status: status,
         websiteId: websiteId,
         tenantId: website.tenantId,
       },
@@ -366,12 +371,52 @@ export class CookiesManagementService {
       return { name, value, color };
     });
 
+    // Get trend data for the last 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const trendLogs = await this.prisma.cookieConsentLog.findMany({
+      where: {
+        ...whereClause,
+        createdAt: { gte: sevenDaysAgo }
+      },
+      select: {
+        createdAt: true,
+        status: true
+      }
+    });
+
+    const trendMap = new Map<string, { accepted: number, withdrawn: number, rejected: number }>();
+    
+    // Initialize last 7 days
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString('en-US', { weekday: 'short' });
+      trendMap.set(dateStr, { accepted: 0, withdrawn: 0, rejected: 0 });
+    }
+
+    trendLogs.forEach(log => {
+      const dateStr = new Date(log.createdAt).toLocaleDateString('en-US', { weekday: 'short' });
+      const stats = trendMap.get(dateStr);
+      if (stats) {
+        if (log.status === 'ACCEPTED') stats.accepted++;
+        else if (log.status === 'WITHDRAWN') stats.withdrawn++;
+        else if (log.status === 'REJECTED') stats.rejected++;
+      }
+    });
+
+    const trends = Array.from(trendMap.entries())
+      .map(([name, stats]) => ({ name, ...stats }))
+      .reverse(); // Chronological order
+
     return {
       totalCookies,
       categories: categoriesCount,
       activeConsents: acceptedCount,
       optOutRate: totalLogs > 0 ? Math.round((withdrawnCount / totalLogs) * 100) : 0,
       distribution,
+      trends,
       consentLogs: {
         total: totalLogs,
         accepted: acceptedCount,
