@@ -253,6 +253,21 @@ export class CookiesManagementService {
     });
   }
 
+  async checkConsentStatus(websiteId: string, userId: string) {
+    const log = await this.prisma.cookieConsentLog.findFirst({
+      where: {
+        websiteId,
+        userId,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      status: log?.status || 'NONE',
+      categories: log?.categories || [],
+    };
+  }
+
   async getConsentLogs(tenantId: string) {
     return this.prisma.cookieConsentLog.findMany({
       where: { tenantId },

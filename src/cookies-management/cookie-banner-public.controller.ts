@@ -15,6 +15,11 @@ export class CookieBannerPublicController {
     return this.cookiesManagementService.recordPublicConsent(websiteId, dto);
   }
 
+  @Get('consent-status/:websiteId/:userId')
+  async checkStatus(@Param('websiteId') websiteId: string, @Param('userId') userId: string) {
+    return this.cookiesManagementService.checkConsentStatus(websiteId, userId);
+  }
+
   @Get('banner-script/:websiteId')
   @Header('Content-Type', 'application/javascript')
   @Header('Cross-Origin-Resource-Policy', 'cross-origin')
@@ -278,23 +283,34 @@ export class CookieBannerPublicController {
           if (cat) activeCats.push(cat.name);
         }
       });
-      setConsent('partial', activeCats);
-    };
+      localStorage.setItem('proteccio_user_id', userId);
   }
 
-  if (localStorage.getItem('proteccio-consent')) return;
+  async function checkConsent() {
+    try {
+      const response = await fetch(\`\${config.baseUrl}/api/v1/public/cookies/consent-status/\${config.websiteId}/\${userId}\`);
+      const data = await response.json();
+      
+      if (data.status === 'WITHDRAWN' || data.status === 'NONE') {
+        initBanner();
+      } else {
+        // Already accepted, don't show banner
+        console.log('Proteccio: Valid consent found on server.');
+      }
+    } catch (e) {
+      // Fallback to local storage if server check fails
+      const localConsent = localStorage.getItem('proteccio_consent');
+      if (!localConsent) initBanner();
+    }
+  }
+
+  checkConsent();
   
   // Load Inter Font
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap';
   document.head.appendChild(link);
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initBanner);
-  } else {
-    initBanner();
-  }
 })();
     `;
   }
