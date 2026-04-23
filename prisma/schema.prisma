@@ -1115,6 +1115,7 @@ model ScannedWebsite {
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
   cookieBanners CookieBanner[]
+  cookieConsentLogs CookieConsentLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1177,6 +1178,9 @@ model CookieConsentLog {
   region     String?
   categories String[]         // IDs of categories accepted
   status     ConsentLogStatus @default(ACCEPTED)
+
+  websiteId String?
+  website   ScannedWebsite? @relation(fields: [websiteId], references: [id])
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])

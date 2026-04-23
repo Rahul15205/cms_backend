@@ -8,6 +8,7 @@ import {
   Param,
   UseGuards,
   Request,
+  Query,
 } from '@nestjs/common';
 import { CookiesManagementService } from './cookies-management.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -173,8 +174,8 @@ export class CookiesManagementController {
   }
 
   @Get('compliance')
-  getComplianceMetrics(@Request() req) {
+  getComplianceMetrics(@Query('websiteId') websiteId: string, @Request() req) {
     const tenantId = req.user.tenantId;
-    return this.cookiesManagementService.getComplianceMetrics(tenantId);
+    return this.cookiesManagementService.getComplianceMetrics(tenantId, websiteId);
   }
 }

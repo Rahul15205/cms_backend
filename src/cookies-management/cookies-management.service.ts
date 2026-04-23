@@ -234,6 +234,25 @@ export class CookiesManagementService {
     });
   }
 
+  async recordPublicConsent(websiteId: string, dto: any) {
+    const website = await this.prisma.scannedWebsite.findUnique({
+      where: { id: websiteId }
+    });
+
+    if (!website) return null;
+
+    return this.prisma.cookieConsentLog.create({
+      data: {
+        userId: dto.userId || `USER-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+        region: dto.region || 'Unknown',
+        categories: dto.categories,
+        status: dto.status === 'accepted' ? 'ACCEPTED' : 'WITHDRAWN',
+        websiteId: websiteId,
+        tenantId: website.tenantId,
+      },
+    });
+  }
+
   async getConsentLogs(tenantId: string) {
     return this.prisma.cookieConsentLog.findMany({
       where: { tenantId },
@@ -242,42 +261,79 @@ export class CookiesManagementService {
     });
   }
 
-  async getComplianceMetrics(tenantId: string) {
-    const banners = await this.prisma.cookieBanner.count({
-      where: { tenantId },
+  async getComplianceMetrics(tenantId: string, websiteId?: string) {
+    const whereClause: any = { tenantId };
+    if (websiteId && websiteId !== 'all') {
+      whereClause.websiteId = websiteId;
+    }
+
+    // Filter cookies by website
+    const cookieWhere: any = { tenantId };
+    if (websiteId && websiteId !== 'all') {
+      const website = await this.prisma.scannedWebsite.findUnique({ where: { id: websiteId } });
+      if (website) {
+        cookieWhere.domain = { contains: new URL(website.url).hostname };
+      }
+    }
+
+    const totalCookies = await this.prisma.cookieInventory.count({
+      where: cookieWhere,
     });
 
-    const activeBanners = await this.prisma.cookieBanner.count({
-      where: { tenantId, status: 'ACTIVE' },
+    const categoriesCount = await this.prisma.cookieCategory.count({
+      where: { tenantId, enabled: true },
     });
 
     const totalLogs = await this.prisma.cookieConsentLog.count({
-      where: { tenantId },
+      where: whereClause,
     });
 
     const acceptedCount = await this.prisma.cookieConsentLog.count({
-      where: { tenantId, status: 'ACCEPTED' },
+      where: { ...whereClause, status: 'ACCEPTED' },
     });
 
     const withdrawnCount = await this.prisma.cookieConsentLog.count({
-      where: { tenantId, status: 'WITHDRAWN' },
+      where: { ...whereClause, status: 'WITHDRAWN' },
     });
 
-    const websiteCount = await this.prisma.scannedWebsite.count({
-      where: { tenantId },
+    // Get distribution by category
+    const inventory = await this.prisma.cookieInventory.findMany({
+      where: cookieWhere,
+      include: { category: true }
     });
+
+    const distributionMap = new Map<string, number>();
+    inventory.forEach(item => {
+      const catName = item.category?.name || 'Uncategorized';
+      distributionMap.set(catName, (distributionMap.get(catName) || 0) + 1);
+    });
+
+    const categoryColors: Record<string, string> = {
+      'Necessary': '#10b981',
+      'Analytics': '#3b82f6',
+      'Advertising': '#f59e0b',
+      'Functional': '#8b5cf6',
+      'Social': '#ef4444',
+      'Uncategorized': '#94a3b8'
+    };
+
+    const distribution = Array.from(distributionMap.entries()).map(([name, value]) => ({
+      name,
+      value,
+      color: categoryColors[name] || categoryColors['Uncategorized']
+    }));
 
     return {
-      banners: {
-        total: banners,
-        active: activeBanners,
-      },
+      totalCookies,
+      categories: categoriesCount,
+      activeConsents: acceptedCount,
+      optOutRate: totalLogs > 0 ? Math.round((withdrawnCount / totalLogs) * 100) : 0,
+      distribution,
       consentLogs: {
         total: totalLogs,
         accepted: acceptedCount,
         withdrawn: withdrawnCount,
       },
-      websites: websiteCount,
       complianceScore: totalLogs > 0 ? Math.round((acceptedCount / totalLogs) * 100) : 100,
     };
   }

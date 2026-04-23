@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Header } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Header } from '@nestjs/common';
 import { CookiesManagementService } from './cookies-management.service';
 
 @Controller('api/v1/public/cookies')
@@ -8,6 +8,11 @@ export class CookieBannerPublicController {
   @Get('banner/:websiteId')
   async getBanner(@Param('websiteId') websiteId: string) {
     return this.cookiesManagementService.getPublicBanner(websiteId);
+  }
+
+  @Post('consent/:websiteId')
+  async recordConsent(@Param('websiteId') websiteId: string, @Body() dto: any) {
+    return this.cookiesManagementService.recordPublicConsent(websiteId, dto);
   }
 
   @Get('banner-script/:websiteId')
@@ -216,14 +221,38 @@ export class CookieBannerPublicController {
 
     // Actions
     const setConsent = (status, selectedCats = null) => {
+      const activeCategories = selectedCats || categories.filter(c => c.locked || c.enabled).map(c => c.name);
       const consentData = {
         status,
         timestamp: new Date().toISOString(),
-        categories: selectedCats || categories.filter(c => c.locked || c.enabled).map(c => c.name)
+        categories: activeCategories
       };
       localStorage.setItem('proteccio-consent', JSON.stringify(consentData));
+
+      // GTM & DataLayer Integration
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: 'proteccio_consent_update',
+        consent_status: status,
+        consent_categories: activeCategories,
+        // Google Consent Mode Mapping
+        ad_storage: activeCategories.includes('ADVERTISING') ? 'granted' : 'denied',
+        analytics_storage: activeCategories.includes('ANALYTICS') ? 'granted' : 'denied',
+        functionality_storage: activeCategories.includes('FUNCTIONAL') ? 'granted' : 'denied',
+        personalization_storage: activeCategories.includes('FUNCTIONAL') ? 'granted' : 'denied',
+        security_storage: 'granted' // Necessary is always granted
+      });
+
       bannerDiv.style.opacity = '0';
       bannerDiv.style.transform = 'translateY(20px)';
+      
+      // Save to server
+      fetch(\`\${config.baseUrl || ''}/api/v1/public/cookies/consent/\${config.websiteId}\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(consentData)
+      }).catch(err => console.error('Proteccio: Failed to save consent', err));
+
       setTimeout(() => bannerDiv.remove(), 300);
     };
 
