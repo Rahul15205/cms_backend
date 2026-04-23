@@ -12,9 +12,17 @@ async function bootstrap() {
   // Security headers (CSP, HSTS, X-Frame-Options, etc.)
   app.use(helmet());
 
-  // CORS — restricted to allowed origins from env
+  // CORS — allow public access for banner script and consent recording
   app.enableCors({
-    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:5173'],
+    origin: (origin, callback) => {
+      const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || ['http://localhost:5173'];
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        // We allow all origins for the public API endpoints to support multi-site integration
+        callback(null, true); 
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Header } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Header, Request } from '@nestjs/common';
 import { CookiesManagementService } from './cookies-management.service';
 
 @Controller('api/v1/public/cookies')
@@ -18,12 +18,16 @@ export class CookieBannerPublicController {
   @Get('banner-script/:websiteId')
   @Header('Content-Type', 'application/javascript')
   @Header('Cross-Origin-Resource-Policy', 'cross-origin')
-  async getBannerScript(@Param('websiteId') websiteId: string) {
+  async getBannerScript(@Param('websiteId') websiteId: string, @Request() req) {
     const banner = await this.cookiesManagementService.getPublicBanner(websiteId);
     
     if (!banner) {
       return `console.warn('Proteccio: No active banner found for website ${websiteId}');`;
     }
+
+    const protocol = req.protocol || 'http';
+    const host = req.get('host');
+    const baseUrl = `${protocol}://${host}`;
 
     // Extract categories from nested tenant object
     const categories = (banner as any).tenant?.cookieCategories || [];
@@ -32,6 +36,8 @@ export class CookieBannerPublicController {
     return `
 (function() {
   const config = ${JSON.stringify(banner)};
+  config.websiteId = '${websiteId}';
+  config.baseUrl = '${baseUrl}';
   const categories = ${JSON.stringify(categories)};
   
   function initBanner() {
@@ -247,9 +253,7 @@ export class CookieBannerPublicController {
       bannerDiv.style.transform = 'translateY(20px)';
       
       // Save to server
-      const scriptTag = document.currentScript;
-      const baseUrl = scriptTag ? new URL(scriptTag.src).origin : '';
-      fetch(\`\${baseUrl}/api/v1/public/cookies/consent/\${config.websiteId}\`, {
+      fetch(\`\${config.baseUrl}/api/v1/public/cookies/consent/\${config.websiteId}\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(consentData)
