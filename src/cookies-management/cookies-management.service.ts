@@ -308,20 +308,30 @@ export class CookiesManagementService {
       distributionMap.set(catName, (distributionMap.get(catName) || 0) + 1);
     });
 
-    const categoryColors: Record<string, string> = {
-      'Necessary': '#10b981',
-      'Analytics': '#3b82f6',
-      'Advertising': '#f59e0b',
-      'Functional': '#8b5cf6',
-      'Social': '#ef4444',
-      'Uncategorized': '#94a3b8'
-    };
+    const palette = [
+      '#10b981', // Emerald
+      '#3b82f6', // Blue
+      '#f59e0b', // Amber
+      '#8b5cf6', // Violet
+      '#ef4444', // Red
+      '#06b6d4', // Cyan
+      '#ec4899', // Pink
+      '#f97316', // Orange
+      '#14b8a6', // Teal
+      '#6366f1', // Indigo
+    ];
 
-    const distribution = Array.from(distributionMap.entries()).map(([name, value]) => ({
-      name,
-      value,
-      color: categoryColors[name] || categoryColors['Uncategorized']
-    }));
+    let colorIndex = 0;
+    const distribution = Array.from(distributionMap.entries()).map(([name, value]) => {
+      let color;
+      if (name.toUpperCase() === 'UNCATEGORIZED') {
+        color = '#94a3b8'; // Slate/Gray for uncategorized
+      } else {
+        color = palette[colorIndex % palette.length];
+        colorIndex++;
+      }
+      return { name, value, color };
+    });
 
     return {
       totalCookies,

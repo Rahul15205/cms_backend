@@ -247,7 +247,9 @@ export class CookieBannerPublicController {
       bannerDiv.style.transform = 'translateY(20px)';
       
       // Save to server
-      fetch(\`\${config.baseUrl || ''}/api/v1/public/cookies/consent/\${config.websiteId}\`, {
+      const scriptTag = document.currentScript;
+      const baseUrl = scriptTag ? new URL(scriptTag.src).origin : '';
+      fetch(\`\${baseUrl}/api/v1/public/cookies/consent/\${config.websiteId}\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(consentData)
