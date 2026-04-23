@@ -25,9 +25,8 @@ export class CookieBannerPublicController {
       return `console.warn('Proteccio: No active banner found for website ${websiteId}');`;
     }
 
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
     const host = req.get('host');
-    const baseUrl = `${protocol}://${host}`;
+    const baseUrl = `//${host}`;
 
     // Extract categories from nested tenant object
     const categories = (banner as any).tenant?.cookieCategories || [];
