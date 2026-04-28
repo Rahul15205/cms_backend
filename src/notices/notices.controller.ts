@@ -24,7 +24,7 @@ export class NoticesController {
   @Permissions({ module: ModuleName.NOTICES, action: 'create' })
   @ApiOperation({ summary: 'Create a new notice (auto-creates v1 snapshot)' })
   create(@Body() dto: CreateNoticeDto, @Request() req: any) {
-    return this.noticesService.create(dto, req.user.userId);
+    return this.noticesService.create({ ...dto, tenantId: req.user.tenantId } as any, req.user.userId);
   }
 
   @Get()
@@ -43,23 +43,26 @@ export class NoticesController {
     @Query('search') search?: string,
     @Query('limit') limit?: number,
     @Query('offset') offset?: number,
+    @Request() req?: any,
   ) {
-    return this.noticesService.findAll({ status, typeId, tenantId, search, limit, offset });
+    const tenantIdToUse = req?.user?.tenantId || tenantId;
+    return this.noticesService.findAll({ status, typeId, tenantId: tenantIdToUse, search, limit, offset });
   }
 
   @Get('languages')
   @Permissions({ module: ModuleName.NOTICES, action: 'view' })
   @ApiOperation({ summary: 'List available notice languages and their completion status' })
   @ApiQuery({ name: 'tenantId', required: false })
-  getLanguages(@Query('tenantId') tenantId?: string) {
-    return this.noticesService.getLanguages(tenantId);
+  getLanguages(@Request() req: any, @Query('tenantId') tenantId?: string) {
+    const tenantIdToUse = req.user.tenantId || tenantId;
+    return this.noticesService.getLanguages(tenantIdToUse);
   }
 
   @Post('languages')
   @Permissions({ module: ModuleName.NOTICES, action: 'create' })
   @ApiOperation({ summary: 'Add a new notice language' })
-  createLanguage(@Body() dto: { code: string; name: string; isDefault?: boolean; tenantId?: string }) {
-    return this.noticesService.createLanguage(dto);
+  createLanguage(@Body() dto: { code: string; name: string; isDefault?: boolean; tenantId?: string }, @Request() req: any) {
+    return this.noticesService.createLanguage({ ...dto, tenantId: req.user.tenantId });
   }
 
   @Put('languages/:id')
@@ -80,15 +83,16 @@ export class NoticesController {
   @Permissions({ module: ModuleName.NOTICES, action: 'view' })
   @ApiOperation({ summary: 'List notice types (e.g., Privacy Policy, Terms of Service)' })
   @ApiQuery({ name: 'tenantId', required: false })
-  getTypes(@Query('tenantId') tenantId?: string) {
-    return this.noticesService.getTypes(tenantId);
+  getTypes(@Request() req: any, @Query('tenantId') tenantId?: string) {
+    const tenantIdToUse = req.user.tenantId || tenantId;
+    return this.noticesService.getTypes(tenantIdToUse);
   }
 
   @Post('types')
   @Permissions({ module: ModuleName.NOTICES, action: 'create' })
   @ApiOperation({ summary: 'Create a new notice type' })
-  createType(@Body() dto: CreateNoticeTypeDto) {
-    return this.noticesService.createType(dto);
+  createType(@Body() dto: CreateNoticeTypeDto, @Request() req: any) {
+    return this.noticesService.createType({ ...dto, tenantId: req.user.tenantId });
   }
 
   @Get('history/global')
@@ -109,7 +113,7 @@ export class NoticesController {
   @Permissions({ module: ModuleName.NOTICES, action: 'edit' })
   @ApiOperation({ summary: 'Update a notice (auto-versions on content/title changes)' })
   update(@Param('id') id: string, @Body() dto: UpdateNoticeDto, @Request() req: any) {
-    return this.noticesService.update(id, dto, req.user.userId);
+    return this.noticesService.update(id, { ...dto, tenantId: req.user.tenantId } as any, req.user.userId);
   }
 
   @Get(':id/history')
