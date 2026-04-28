@@ -233,19 +233,30 @@ export class NoticesService {
       select: { tenantId: true },
     });
 
-    if (!website) return [];
+    if (!website) {
+      console.warn(`Proteccio: Website not found for ID: ${websiteId}`);
+      return [];
+    }
+
+    console.log(`Proteccio: Fetching notices for website ${websiteId} (Tenant: ${website.tenantId})`);
 
     // Return active notices for this tenant
-    return this.prisma.notice.findMany({
+    // We check for both NOTICE_ACTIVE (enum) and potential string variants
+    const notices = await this.prisma.notice.findMany({
       where: {
         tenantId: website.tenantId,
-        status: NoticeStatus.NOTICE_ACTIVE,
+        status: {
+          in: [NoticeStatus.NOTICE_ACTIVE, 'active' as any, 'PUBLISHED' as any]
+        }
       },
       include: {
         type: true,
       },
       orderBy: { updatedAt: 'desc' },
     });
+
+    console.log(`Proteccio: Found ${notices.length} active notices for tenant ${website.tenantId}`);
+    return notices;
   }
 
   async recordNoticeAcknowledgement(noticeId: string, dto: any) {
