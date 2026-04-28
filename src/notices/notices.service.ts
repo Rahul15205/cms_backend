@@ -221,4 +221,48 @@ export class NoticesService {
       include: { _count: { select: { notices: true } } },
     });
   }
+
+  // ==========================================
+  // PUBLIC INTEGRATION
+  // ==========================================
+
+  async getPublicNotices(websiteId: string) {
+    // Find the website to get the tenantId
+    const website = await this.prisma.scannedWebsite.findUnique({
+      where: { id: websiteId },
+      select: { tenantId: true },
+    });
+
+    if (!website) return [];
+
+    // Return active notices for this tenant
+    return this.prisma.notice.findMany({
+      where: {
+        tenantId: website.tenantId,
+        status: NoticeStatus.NOTICE_ACTIVE,
+      },
+      include: {
+        type: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  async recordNoticeAcknowledgement(noticeId: string, dto: any) {
+    const notice = await this.prisma.notice.findUnique({
+      where: { id: noticeId },
+    });
+
+    if (!notice) throw new NotFoundException('Notice not found');
+
+    return this.prisma.noticeAcknowledgement.create({
+      data: {
+        noticeId,
+        version: notice.currentVersion,
+        userEmail: dto.userEmail || null,
+        userId: dto.userId || null,
+        ipAddress: dto.ipAddress || null,
+      },
+    });
+  }
 }
