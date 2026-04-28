@@ -36,7 +36,7 @@ export class NoticePublicController {
     }) : [];
 
     const host = req.get('host');
-    const baseUrl = `${req.protocol}://${host}`;
+    const baseUrl = `//${host}`;
 
     return `
 (function() {
