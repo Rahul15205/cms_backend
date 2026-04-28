@@ -227,36 +227,33 @@ export class NoticesService {
   // ==========================================
 
   async getPublicNotices(websiteId: string) {
-    // Find the website to get the tenantId
-    const website = await this.prisma.scannedWebsite.findUnique({
-      where: { id: websiteId },
-      select: { tenantId: true },
-    });
+    try {
+      // Find the website to get the tenantId
+      const website = await this.prisma.scannedWebsite.findUnique({
+        where: { id: websiteId },
+        select: { tenantId: true },
+      });
 
-    if (!website) {
-      console.warn(`Proteccio: Website not found for ID: ${websiteId}`);
+      if (!website || !website.tenantId) {
+        console.warn(`Proteccio: No valid tenant found for website ID: ${websiteId}`);
+        return [];
+      }
+
+      // Return active notices for this tenant
+      return await this.prisma.notice.findMany({
+        where: {
+          tenantId: website.tenantId,
+          status: NoticeStatus.NOTICE_ACTIVE,
+        },
+        include: {
+          type: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+      });
+    } catch (error) {
+      console.error('Proteccio: Error in getPublicNotices:', error);
       return [];
     }
-
-    console.log(`Proteccio: Fetching notices for website ${websiteId} (Tenant: ${website.tenantId})`);
-
-    // Return active notices for this tenant
-    // We check for both NOTICE_ACTIVE (enum) and potential string variants
-    const notices = await this.prisma.notice.findMany({
-      where: {
-        tenantId: website.tenantId,
-        status: {
-          in: [NoticeStatus.NOTICE_ACTIVE, 'active' as any, 'PUBLISHED' as any]
-        }
-      },
-      include: {
-        type: true,
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
-
-    console.log(`Proteccio: Found ${notices.length} active notices for tenant ${website.tenantId}`);
-    return notices;
   }
 
   async recordNoticeAcknowledgement(noticeId: string, dto: any) {
