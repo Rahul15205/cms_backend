@@ -64,13 +64,19 @@ export class NoticePublicController {
     },
 
     showByType: function(typeName) {
-      console.log('Proteccio: Looking for notice type:', typeName);
-      const notice = config.notices.find(n => n.type && (n.type.name === typeName || n.type.id === typeName));
+      console.log('Proteccio: Looking for notice type or title:', typeName);
+      // Try to match by Type name first, then fallback to Notice Title
+      const notice = config.notices.find(n => 
+        (n.type && (n.type.name === typeName || n.type.id === typeName)) || 
+        (n.title === typeName)
+      );
+      
       if (notice) {
         this.renderModal(notice);
       } else {
-        console.warn('Proteccio: No active notice found for type:', typeName);
-        console.log('Proteccio: Available types:', config.notices.map(n => n.type?.name).filter(Boolean));
+        console.warn('Proteccio: No active notice found for type or title:', typeName);
+        const available = config.notices.map(n => n.type?.name || n.title).filter(Boolean);
+        console.log('Proteccio: Available notices:', available);
       }
     },
 
