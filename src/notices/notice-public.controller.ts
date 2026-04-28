@@ -32,14 +32,28 @@ export class NoticePublicController {
   };
 
   const ProteccioNotice = {
+    config: config,
+    
     show: function(noticeId) {
       const notice = config.notices.find(n => n.id === noticeId);
-      if (notice) this.renderModal(notice);
+      if (notice) {
+        this.renderModal(notice);
+      } else {
+        console.warn('Proteccio: Notice not found with ID:', noticeId);
+      }
     },
+
     showByType: function(typeName) {
-      const notice = config.notices.find(n => n.type && n.type.name === typeName);
-      if (notice) this.renderModal(notice);
+      console.log('Proteccio: Looking for notice type:', typeName);
+      const notice = config.notices.find(n => n.type && (n.type.name === typeName || n.type.id === typeName));
+      if (notice) {
+        this.renderModal(notice);
+      } else {
+        console.warn('Proteccio: No active notice found for type:', typeName);
+        console.log('Proteccio: Available types:', config.notices.map(n => n.type?.name).filter(Boolean));
+      }
     },
+
     renderModal: function(notice) {
       if (document.getElementById('proteccio-notice-modal')) {
         document.getElementById('proteccio-notice-modal').remove();
@@ -50,18 +64,25 @@ export class NoticePublicController {
       modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999999;display:flex;align-items:center;justify-content:center;font-family:sans-serif;';
       
       modal.innerHTML = \`
-        <div style="background:white;width:90%;max-width:800px;max-height:80vh;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
-          <div style="padding:20px;border-bottom:1px solid #eee;display:flex;justify-content:between;align-items:center;">
-            <h2 style="margin:0;font-size:1.25rem;font-weight:600;">\${notice.title}</h2>
+        <div style="background:white;width:90%;max-width:800px;max-height:80vh;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);animation: proteccio-fade-in 0.3s ease-out;">
+          <div style="padding:20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+            <h2 style="margin:0;font-size:1.25rem;font-weight:600;color:#111;">\${notice.title}</h2>
             <button id="proteccio-notice-close" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#666;">&times;</button>
           </div>
-          <div style="padding:20px;overflow-y:auto;flex:1;line-height:1.6;color:#374151;">
+          <div style="padding:24px;overflow-y:auto;flex:1;line-height:1.6;color:#374151;font-size:1rem;">
             \${notice.content || 'No content available.'}
           </div>
-          <div style="padding:15px 20px;border-top:1px solid #eee;display:flex;justify-content:flex-end;gap:12px;">
-            <button id="proteccio-notice-ack" style="background:#10b981;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:600;cursor:pointer;">I Acknowledge</button>
+          <div style="padding:16px 20px;background:#f9fafb;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #eee;">
+            <button id="proteccio-notice-ack" style="background:#10b981;color:white;border:none;padding:10px 24px;border-radius:8px;font-weight:600;cursor:pointer;transition:all 0.2s;">I Acknowledge</button>
           </div>
         </div>
+        <style>
+          @keyframes proteccio-fade-in {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+          }
+          #proteccio-notice-ack:hover { background: #059669; }
+        </style>
       \`;
 
       document.body.appendChild(modal);
@@ -72,6 +93,7 @@ export class NoticePublicController {
         modal.remove();
       };
     },
+
     acknowledge: function(noticeId) {
       fetch(\`\${config.baseUrl}/api/v1/public/notices/acknowledge/\${noticeId}\`, {
         method: 'POST',
