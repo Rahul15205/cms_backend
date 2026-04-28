@@ -1,9 +1,13 @@
 import { Controller, Get, Post, Body, Param, Header, Request, NotFoundException } from '@nestjs/common';
 import { NoticesService } from './notices.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('api/v1/public/notices')
 export class NoticePublicController {
-  constructor(private readonly noticesService: NoticesService) {}
+  constructor(
+    private readonly noticesService: NoticesService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get('website/:websiteId')
   async getNoticesByWebsite(@Param('websiteId') websiteId: string) {
@@ -20,6 +24,17 @@ export class NoticePublicController {
   @Header('Cross-Origin-Resource-Policy', 'cross-origin')
   async getNoticeScript(@Param('websiteId') websiteId: string, @Request() req) {
     const notices = await this.noticesService.getPublicNotices(websiteId);
+    
+    // Debug: Fetch all notices for this website's tenant to see what's available
+    const website = await this.prisma.scannedWebsite.findUnique({
+      where: { id: websiteId },
+      select: { tenantId: true },
+    });
+    const allNotices = website?.tenantId ? await this.prisma.notice.findMany({
+      where: { tenantId: website.tenantId },
+      select: { id: true, title: true, status: true }
+    }) : [];
+
     const host = req.get('host');
     const baseUrl = `${req.protocol}://${host}`;
 
@@ -27,8 +42,13 @@ export class NoticePublicController {
 (function() {
   const config = {
     websiteId: '${websiteId}',
+    tenantId: '${website?.tenantId || 'NONE'}',
     baseUrl: '${baseUrl}',
-    notices: ${JSON.stringify(notices)}
+    notices: ${JSON.stringify(notices)},
+    debug: {
+      totalFound: ${allNotices.length},
+      availableNotices: ${JSON.stringify(allNotices)}
+    }
   };
 
   const ProteccioNotice = {
