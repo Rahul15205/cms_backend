@@ -24,17 +24,6 @@ export class NoticePublicController {
   @Header('Cross-Origin-Resource-Policy', 'cross-origin')
   async getNoticeScript(@Param('websiteId') websiteId: string, @Request() req) {
     const notices = await this.noticesService.getPublicNotices(websiteId);
-    
-    // Debug: Fetch all notices for this website's tenant to see what's available
-    const website = await this.prisma.scannedWebsite.findUnique({
-      where: { id: websiteId },
-      select: { tenantId: true },
-    });
-    const allNotices = website?.tenantId ? await this.prisma.notice.findMany({
-      where: { tenantId: website.tenantId },
-      select: { id: true, title: true, status: true }
-    }) : [];
-
     const host = req.get('host');
     const baseUrl = `//${host}`;
 
@@ -42,48 +31,59 @@ export class NoticePublicController {
 (function() {
   const config = {
     websiteId: '${websiteId}',
-    tenantId: '${website?.tenantId || 'NONE'}',
     baseUrl: '${baseUrl}',
-    notices: ${JSON.stringify(notices)},
-    debug: {
-      totalFound: ${allNotices.length},
-      availableNotices: ${JSON.stringify(allNotices)}
-    }
+    notices: ${JSON.stringify(notices)}
   };
 
   const ProteccioNotice = {
-    config: config,
-    
+    renderModal: function(notice) {
+      if (document.getElementById('proteccio-notice-modal')) return;
+
+      const modal = document.createElement('div');
+      modal.id = 'proteccio-notice-modal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:999999;font-family:sans-serif;animation:proteccioFadeIn 0.3s ease;';
+      
+      const content = document.createElement('div');
+      content.style.cssText = 'background:white;padding:25px;border-radius:12px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;position:relative;box-shadow:0 10px 25px rgba(0,0,0,0.2);animation:proteccioSlideUp 0.4s ease;';
+      
+      content.innerHTML = \`
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid #eee;padding-bottom:15px;">
+          <h2 style="margin:0;font-size:20px;color:#111;">\${notice.title}</h2>
+          <button id="proteccio-close-notice" style="background:none;border:none;font-size:24px;cursor:pointer;color:#888;">&times;</button>
+        </div>
+        <div style="line-height:1.6;color:#444;margin-bottom:25px;font-size:15px;">
+          \${notice.content || 'No content provided.'}
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:12px;">
+          <button id="proteccio-ack-btn" style="background:#00b894;color:white;border:none;padding:12px 24px;border-radius:6px;cursor:pointer;font-weight:600;transition:all 0.2s;">I Acknowledge</button>
+        </div>
+      \`;
+      
+      modal.appendChild(content);
+      document.body.appendChild(modal);
+
+      document.getElementById('proteccio-close-notice').onclick = () => {
+        document.body.removeChild(modal);
+      };
+
+      document.getElementById('proteccio-ack-btn').onclick = () => {
+        this.acknowledge(notice.id);
+        document.body.removeChild(modal);
+      };
+    },
+
     show: function(noticeId) {
       const notice = config.notices.find(n => n.id === noticeId);
       if (notice) {
         this.renderModal(notice);
-      } else {
-        console.warn('Proteccio: Notice not found with ID:', noticeId);
       }
     },
 
     showByType: function(typeName) {
-      console.log('Proteccio: Looking for notice type or title:', typeName);
-      // Try to match by Type name first, then fallback to Notice Title
       const notice = config.notices.find(n => 
         (n.type && (n.type.name === typeName || n.type.id === typeName)) || 
         (n.title === typeName)
       );
-      
-      if (notice) {
-        this.renderModal(notice);
-      } else {
-        console.warn('Proteccio: No active notice found for type or title:', typeName);
-        const available = config.notices.map(n => n.type?.name || n.title).filter(Boolean);
-        console.log('Proteccio: Available notices:', available);
-      }
-    },
-
-    renderModal: function(notice) {
-      if (document.getElementById('proteccio-notice-modal')) {
-        document.getElementById('proteccio-notice-modal').remove();
-      }
 
       const modal = document.createElement('div');
       modal.id = 'proteccio-notice-modal';
