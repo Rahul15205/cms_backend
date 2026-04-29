@@ -11,8 +11,9 @@ export class CookieBannerPublicController {
   }
 
   @Post('consent/:websiteId')
-  async recordConsent(@Param('websiteId') websiteId: string, @Body() dto: any) {
-    return this.cookiesManagementService.recordPublicConsent(websiteId, dto);
+  async recordConsent(@Param('websiteId') websiteId: string, @Body() dto: any, @Request() req: any) {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
+    return this.cookiesManagementService.recordPublicConsent(websiteId, { ...dto, ipAddress: ip });
   }
 
   @Get('consent-status/:websiteId/:userId')

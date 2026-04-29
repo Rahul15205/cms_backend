@@ -234,6 +234,25 @@ export class CookiesManagementService {
     });
   }
 
+  private maskIp(ip?: string): string {
+    if (!ip) return 'Unknown';
+    if (ip.includes(':')) {
+      // IPv6
+      const parts = ip.split(':');
+      if (parts.length > 1) {
+        parts[parts.length - 1] = 'xxxx';
+        return parts.join(':');
+      }
+    } else {
+      // IPv4
+      const parts = ip.split('.');
+      if (parts.length === 4) {
+        return `${parts[0]}.${parts[1]}.${parts[2]}.xxx`;
+      }
+    }
+    return ip;
+  }
+
   async recordPublicConsent(websiteId: string, dto: any) {
     const website = await this.prisma.scannedWebsite.findUnique({
       where: { id: websiteId }
@@ -252,6 +271,7 @@ export class CookiesManagementService {
         region: dto.region || 'Unknown',
         categories: dto.categories,
         status: status,
+        ipAddress: this.maskIp(dto.ipAddress),
         websiteId: websiteId,
         tenantId: website.tenantId,
       },

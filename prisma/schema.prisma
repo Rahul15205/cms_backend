@@ -1179,6 +1179,7 @@ model CookieConsentLog {
   region     String?
   categories String[]         // IDs of categories accepted
   status     ConsentLogStatus @default(ACCEPTED)
+  ipAddress  String?
 
   websiteId String?
   website   ScannedWebsite? @relation(fields: [websiteId], references: [id])
