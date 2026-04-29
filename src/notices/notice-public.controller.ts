@@ -41,73 +41,28 @@ export class NoticePublicController {
 
       const modal = document.createElement('div');
       modal.id = 'proteccio-notice-modal';
-      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:999999;font-family:sans-serif;animation:proteccioFadeIn 0.3s ease;';
-      
-      const content = document.createElement('div');
-      content.style.cssText = 'background:white;padding:25px;border-radius:12px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;position:relative;box-shadow:0 10px 25px rgba(0,0,0,0.2);animation:proteccioSlideUp 0.4s ease;';
-      
-      content.innerHTML = \`
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid #eee;padding-bottom:15px;">
-          <h2 style="margin:0;font-size:20px;color:#111;">\${notice.title}</h2>
-          <button id="proteccio-close-notice" style="background:none;border:none;font-size:24px;cursor:pointer;color:#888;">&times;</button>
-        </div>
-        <div style="line-height:1.6;color:#444;margin-bottom:25px;font-size:15px;">
-          \${notice.content || 'No content provided.'}
-        </div>
-        <div style="display:flex;justify-content:flex-end;gap:12px;">
-          <button id="proteccio-ack-btn" style="background:#00b894;color:white;border:none;padding:12px 24px;border-radius:6px;cursor:pointer;font-weight:600;transition:all 0.2s;">I Acknowledge</button>
-        </div>
-      \`;
-      
-      modal.appendChild(content);
-      document.body.appendChild(modal);
-
-      document.getElementById('proteccio-close-notice').onclick = () => {
-        document.body.removeChild(modal);
-      };
-
-      document.getElementById('proteccio-ack-btn').onclick = () => {
-        this.acknowledge(notice.id);
-        document.body.removeChild(modal);
-      };
-    },
-
-    show: function(noticeId) {
-      const notice = config.notices.find(n => n.id === noticeId);
-      if (notice) {
-        this.renderModal(notice);
-      }
-    },
-
-    showByType: function(typeName) {
-      const notice = config.notices.find(n => 
-        (n.type && (n.type.name === typeName || n.type.id === typeName)) || 
-        (n.title === typeName)
-      );
-
-      const modal = document.createElement('div');
-      modal.id = 'proteccio-notice-modal';
-      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999999;display:flex;align-items:center;justify-content:center;font-family:sans-serif;';
+      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999999;font-family:sans-serif;';
       
       modal.innerHTML = \`
-        <div style="background:white;width:90%;max-width:800px;max-height:80vh;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);animation: proteccio-fade-in 0.3s ease-out;">
-          <div style="padding:20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
-            <h2 style="margin:0;font-size:1.25rem;font-weight:600;color:#111;">\${notice.title}</h2>
-            <button id="proteccio-notice-close" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#666;">&times;</button>
+        <div style="background:white;width:90%;max-width:700px;max-height:85vh;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);animation: proteccioSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
+          <div style="padding:20px 24px;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;background:#fff;">
+            <h2 style="margin:0;font-size:1.25rem;font-weight:700;color:#111827;">\${notice.title}</h2>
+            <button id="proteccio-notice-close" style="background:#f3f4f6;border:none;width:32px;height:32px;border-radius:50%;font-size:1.25rem;cursor:pointer;color:#6b7280;display:flex;align-items:center;justify-content:center;transition:all 0.2s;">&times;</button>
           </div>
-          <div style="padding:24px;overflow-y:auto;flex:1;line-height:1.6;color:#374151;font-size:1rem;">
+          <div style="padding:24px;overflow-y:auto;flex:1;line-height:1.6;color:#374151;font-size:1rem;background:#fff;">
             \${notice.content || 'No content available.'}
           </div>
-          <div style="padding:16px 20px;background:#f9fafb;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #eee;">
-            <button id="proteccio-notice-ack" style="background:#10b981;color:white;border:none;padding:10px 24px;border-radius:8px;font-weight:600;cursor:pointer;transition:all 0.2s;">I Acknowledge</button>
+          <div style="padding:16px 24px;background:#f9fafb;display:flex;justify-content:flex-end;gap:12px;border-top:1px solid #f3f4f6;">
+            <button id="proteccio-notice-ack" style="background:#10b981;color:white;border:none;padding:12px 28px;border-radius:8px;font-weight:600;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 6px -1px rgba(16, 185, 129, 0.2);">I Acknowledge</button>
           </div>
         </div>
         <style>
-          @keyframes proteccio-fade-in {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
+          @keyframes proteccioSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
           }
-          #proteccio-notice-ack:hover { background: #059669; }
+          #proteccio-notice-close:hover { background: #e5e7eb; color: #111827; }
+          #proteccio-notice-ack:hover { background: #059669; transform: translateY(-1px); }
         </style>
       \`;
 
@@ -120,6 +75,14 @@ export class NoticePublicController {
       };
     },
 
+    showByType: function(typeName) {
+      const notice = config.notices.find(n => 
+        (n.type && (n.type.name === typeName || n.type.id === typeName)) || 
+        (n.title === typeName)
+      );
+      if (notice) this.renderModal(notice);
+    },
+
     acknowledge: function(noticeId) {
       fetch(\`\${config.baseUrl}/api/v1/public/notices/acknowledge/\${noticeId}\`, {
         method: 'POST',
@@ -129,30 +92,29 @@ export class NoticePublicController {
           timestamp: new Date().toISOString(),
           url: window.location.href
         })
+      }).then(() => {
+        localStorage.setItem('proteccio_ack_' + noticeId, new Date().getTime());
       }).catch(err => console.error('Proteccio: Failed to record acknowledgement', err));
+    },
+
+    initAutoShow: function() {
+      // Find the first notice that hasn't been acknowledged
+      const pendingNotice = config.notices.find(n => !localStorage.getItem('proteccio_ack_' + n.id));
+      if (pendingNotice) {
+        setTimeout(() => {
+          this.renderModal(pendingNotice);
+        }, 1500);
+      }
     }
   };
 
   window.ProteccioNotice = ProteccioNotice;
-
-  // Add floating button if configured (optional)
-  function initWidget() {
-    const btn = document.createElement('div');
-    btn.innerHTML = 'Privacy Notices';
-    btn.style.cssText = 'position:fixed;bottom:20px;left:20px;background:#111827;color:white;padding:10px 15px;border-radius:30px;font-size:12px;font-weight:600;cursor:pointer;z-index:999999;box-shadow:0 4px 6px rgba(0,0,0,0.1);';
-    btn.onclick = () => {
-       if (config.notices.length === 1) {
-         ProteccioNotice.show(config.notices[0].id);
-       } else {
-         // Show list if multiple
-         alert('Select a notice to view:\\n' + config.notices.map(n => n.title).join('\\n'));
-       }
-    };
-    // document.body.appendChild(btn);
+  
+  if (document.readyState === 'complete') {
+    ProteccioNotice.initAutoShow();
+  } else {
+    window.addEventListener('load', () => ProteccioNotice.initAutoShow());
   }
-
-  // Auto-init
-  // initWidget();
 })();
     `;
   }
