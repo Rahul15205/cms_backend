@@ -7,6 +7,7 @@ import { CreateCookieInventoryDto } from './dto/create-cookie-inventory.dto';
 import { CreateScannedWebsiteDto } from './dto/create-scanned-website.dto';
 import { CreateCookieBannerDto } from './dto/create-cookie-banner.dto';
 import { CreateCookieConsentLogDto } from './dto/create-cookie-consent-log.dto';
+import * as geoip from 'geoip-lite';
 
 @Injectable()
 export class CookiesManagementService {
@@ -235,22 +236,52 @@ export class CookiesManagementService {
   }
 
   private maskIp(ip?: string): string {
-    if (!ip) return 'Unknown';
+    if (!ip || ip === '::1' || ip === '127.0.0.1') return 'Localhost';
+    
+    // Handle IPv4-mapped IPv6 (e.g., ::ffff:192.168.1.1)
+    if (ip.startsWith('::ffff:')) {
+      const ipv4Part = ip.substring(7);
+      const parts = ipv4Part.split('.');
+      if (parts.length === 4) {
+        return `::ffff:${parts[0]}.${parts[1]}.${parts[2]}.xxx`;
+      }
+    }
+
     if (ip.includes(':')) {
-      // IPv6
+      // Standard IPv6
       const parts = ip.split(':');
       if (parts.length > 1) {
         parts[parts.length - 1] = 'xxxx';
         return parts.join(':');
       }
     } else {
-      // IPv4
+      // Standard IPv4
       const parts = ip.split('.');
       if (parts.length === 4) {
         return `${parts[0]}.${parts[1]}.${parts[2]}.xxx`;
       }
     }
     return ip;
+  }
+
+  private getLocation(ip?: string): string {
+    if (!ip || ip === '::1' || ip === '127.0.0.1' || ip.includes('localhost')) return 'Localhost';
+    
+    // Clean IP for geoip-lite (remove ::ffff: if present)
+    const cleanIp = ip.startsWith('::ffff:') ? ip.substring(7) : ip;
+    
+    try {
+      const geo = geoip.lookup(cleanIp);
+      if (geo) {
+        const city = geo.city || 'Unknown City';
+        const country = geo.country || 'Unknown Country';
+        return `${city}, ${country}`;
+      }
+    } catch (e) {
+      console.error('Proteccio: GeoIP lookup failed', e);
+    }
+    
+    return 'Unknown';
   }
 
   async recordPublicConsent(websiteId: string, dto: any) {
@@ -265,10 +296,12 @@ export class CookiesManagementService {
     if (rawStatus === 'REJECTED') status = 'REJECTED';
     else if (rawStatus === 'WITHDRAWN') status = 'WITHDRAWN';
 
+    const location = this.getLocation(dto.ipAddress);
+
     return this.prisma.cookieConsentLog.create({
       data: {
         userId: dto.userId || `USER-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
-        region: dto.region || 'Unknown',
+        region: location,
         categories: dto.categories,
         status: status,
         ipAddress: this.maskIp(dto.ipAddress),
