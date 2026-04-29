@@ -12,7 +12,13 @@ export class CookieBannerPublicController {
 
   @Post('consent/:websiteId')
   async recordConsent(@Param('websiteId') websiteId: string, @Body() dto: any, @Request() req: any) {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
+    let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
+    
+    // If x-forwarded-for is a list (common with proxies), take the first one
+    if (typeof ip === 'string' && ip.includes(',')) {
+      ip = ip.split(',')[0].trim();
+    }
+    
     return this.cookiesManagementService.recordPublicConsent(websiteId, { ...dto, ipAddress: ip });
   }
 

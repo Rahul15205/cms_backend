@@ -270,6 +270,14 @@ export class CookiesManagementService {
     // Clean IP for geoip-lite (remove ::ffff: if present)
     const cleanIp = ip.startsWith('::ffff:') ? ip.substring(7) : ip;
     
+    // Check for private/internal IP ranges
+    const isPrivate = 
+      cleanIp.startsWith('10.') || 
+      cleanIp.startsWith('192.168.') || 
+      (cleanIp.startsWith('172.') && parseInt(cleanIp.split('.')[1]) >= 16 && parseInt(cleanIp.split('.')[1]) <= 31);
+    
+    if (isPrivate) return 'Private Network';
+    
     try {
       const geo = geoip.lookup(cleanIp);
       if (geo) {
