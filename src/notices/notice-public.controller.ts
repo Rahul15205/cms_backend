@@ -98,12 +98,39 @@ export class NoticePublicController {
     },
 
     initAutoShow: function() {
-      // Find the first notice that hasn't been acknowledged
-      const pendingNotice = config.notices.find(n => !localStorage.getItem('proteccio_ack_' + n.id));
-      if (pendingNotice) {
-        setTimeout(() => {
-          this.renderModal(pendingNotice);
-        }, 1500);
+      // Find all notices that haven't been acknowledged
+      const pendingNotices = config.notices.filter(n => !localStorage.getItem('proteccio_ack_' + n.id));
+      
+      if (pendingNotices.length > 0) {
+        let index = 0;
+        const showNext = () => {
+          if (index < pendingNotices.length) {
+            const notice = pendingNotices[index];
+            this.renderModal(notice);
+            
+            // Override the close and ack behavior to show the next one
+            const originalClose = document.getElementById('proteccio-notice-close').onclick;
+            const originalAck = document.getElementById('proteccio-notice-ack').onclick;
+            
+            const handleNext = () => {
+              index++;
+              if (index < pendingNotices.length) {
+                setTimeout(showNext, 500); // Small delay between modals
+              }
+            };
+
+            document.getElementById('proteccio-notice-close').onclick = () => {
+              originalClose();
+              handleNext();
+            };
+            document.getElementById('proteccio-notice-ack').onclick = () => {
+              originalAck();
+              handleNext();
+            };
+          }
+        };
+
+        setTimeout(showNext, 1500);
       }
     }
   };
