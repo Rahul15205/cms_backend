@@ -59,7 +59,8 @@ export class CookieScannerProcessor extends WorkerHost {
       });
 
       const page = await browser.newPage();
-      await page.setUserAgent('Proteccio-Professional-Crawler/1.0 (Professional Cookie Compliance Scanner)');
+      await page.setViewport({ width: 1280, height: 800 });
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Proteccio-Scanner/1.1');
 
       // 3. Crawling Loop (BFS)
       while (queue.length > 0 && visited.size < maxPages) {
@@ -70,8 +71,28 @@ export class CookieScannerProcessor extends WorkerHost {
         this.logger.log(`[Crawling] ${visited.size}/${maxPages}: ${currentUrl}`);
 
         try {
-          await page.goto(currentUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+          await page.goto(currentUrl, { waitUntil: 'networkidle2', timeout: 45000 });
           
+          // Trigger lazy-loaded scripts and cookies by scrolling
+          await page.evaluate(async () => {
+            await new Promise((resolve) => {
+              let totalHeight = 0;
+              const distance = 100;
+              const timer = setInterval(() => {
+                const scrollHeight = document.body.scrollHeight;
+                window.scrollBy(0, distance);
+                totalHeight += distance;
+                if (totalHeight >= scrollHeight || totalHeight > 5000) {
+                  clearInterval(timer);
+                  resolve(true);
+                }
+              }, 100);
+            });
+          });
+
+          // Wait an extra bit for HubSpot/analytics scripts to fire and set cookies
+          await new Promise(r => setTimeout(r, 5000));
+
           // Capture Cookies (Includes JS and HTTP cookies)
           const cookies = await page.cookies();
           for (const cookie of cookies) {
