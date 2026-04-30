@@ -14,6 +14,16 @@ export class NoticePublicController {
     return this.noticesService.getPublicNotices(websiteId);
   }
 
+  @Get('type/:typeName')
+  async getNoticeByType(
+    @Param('typeName') typeName: string,
+    @Request() req
+  ) {
+    const websiteId = req.query.websiteId;
+    if (!websiteId) throw new NotFoundException('websiteId query parameter is required');
+    return this.noticesService.getPublicNoticeByType(websiteId as string, typeName);
+  }
+
   @Post('acknowledge/:noticeId')
   async acknowledgeNotice(@Param('noticeId') noticeId: string, @Body() dto: any) {
     return this.noticesService.recordNoticeAcknowledgement(noticeId, dto);

@@ -273,4 +273,38 @@ export class NoticesService {
       },
     });
   }
+
+  async getPublicNoticeByType(websiteId: string, typeName: string) {
+    // Find the website to get the tenantId
+    const website = await this.prisma.scannedWebsite.findUnique({
+      where: { id: websiteId },
+      select: { tenantId: true },
+    });
+
+    if (!website || !website.tenantId) {
+      throw new NotFoundException(`No valid website/tenant found for ID: ${websiteId}`);
+    }
+
+    // Return the active notice of this type for this tenant
+    const notice = await this.prisma.notice.findFirst({
+      where: {
+        tenantId: website.tenantId,
+        status: NoticeStatus.NOTICE_ACTIVE,
+        OR: [
+          { type: { name: { equals: typeName, mode: 'insensitive' } } },
+          { title: { equals: typeName, mode: 'insensitive' } }
+        ]
+      },
+      include: {
+        type: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (!notice) {
+      throw new NotFoundException(`No active notice found for type: ${typeName}`);
+    }
+
+    return notice;
+  }
 }
