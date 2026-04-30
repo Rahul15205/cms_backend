@@ -12,13 +12,16 @@ export class CookieBannerPublicController {
 
   @Post('consent/:websiteId')
   async recordConsent(@Param('websiteId') websiteId: string, @Body() dto: any, @Request() req: any) {
+    console.log('Proteccio: Recording consent. Headers:', JSON.stringify(req.headers));
+    console.log('Proteccio: req.ip:', req.ip, 'remoteAddress:', req.socket.remoteAddress);
+
     // Check multiple headers common with proxies and CDNs
     let ip = 
       req.headers['cf-connecting-ip'] || 
       req.headers['x-real-ip'] || 
       req.headers['x-forwarded-for'] || 
-      req.socket.remoteAddress || 
-      req.ip;
+      req.ip ||
+      req.socket.remoteAddress;
     
     // If x-forwarded-for is a list, take the first one
     if (typeof ip === 'string' && ip.includes(',')) {

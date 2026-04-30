@@ -10,7 +10,7 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
 
   // Trust proxy for X-Forwarded-For headers
-  (app.getHttpAdapter().getInstance() as any).set('trust proxy', 1);
+  (app.getHttpAdapter().getInstance() as any).set('trust proxy', true);
   
   // Security headers (CSP, HSTS, X-Frame-Options, etc.)
   app.use(helmet());
