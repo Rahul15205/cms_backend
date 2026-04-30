@@ -135,8 +135,8 @@ export class CookieBannerPublicController {
           <img src="\${logoUrl}" alt="Proteccio Logo" style="height: 32px; object-fit: contain;" onerror="this.style.display='none'">
           <div style="display: flex; align-items: center; gap: 8px;">
             <select id="proteccio-lang-selector" style="
-              background: rgba(0,0,0,0.03); 
-              border: 1px solid rgba(0,0,0,0.08); 
+              background: rgba(255,255,255,0.08); 
+              border: 1px solid rgba(255,255,255,0.15); 
               color: \${textColor}; 
               font-size: 12px; 
               padding: 6px 12px; 
@@ -145,10 +145,10 @@ export class CookieBannerPublicController {
               outline: none;
               font-weight: 500;
             ">
-              <option value="en">English</option>
-              <option value="hi">हिन्दी</option>
-              <option value="es">Español</option>
-              <option value="fr">Français</option>
+              <option value="en" style="background: \${bgColor}; color: \${textColor};">English</option>
+              <option value="hi" style="background: \${bgColor}; color: \${textColor};">हिन्दी</option>
+              <option value="es" style="background: \${bgColor}; color: \${textColor};">Español</option>
+              <option value="fr" style="background: \${bgColor}; color: \${textColor};">Français</option>
             </select>
           </div>
         </div>
@@ -158,19 +158,20 @@ export class CookieBannerPublicController {
         </div>
         <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 12px; margin-top: 8px;">
           <div style="display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; width: 100%;">
-            <button id="proteccio-preferences" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.settingsButtonText || 'Preferences'}</button>
-            <button id="proteccio-reject" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.declineButtonText || 'Reject All'}</button>
+            <button id="proteccio-preferences" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.settingsButtonText || 'Preferences'}</button>
+            <button id="proteccio-reject" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.declineButtonText || 'Reject All'}</button>
             <button id="proteccio-accept" style="background: \${themeColor}; color: \${btnTextColor}; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: \${fontSize}; box-shadow: 0 4px 12px \${themeColor}40; transition: all 0.2s; transform: scale(1);">\${config.acceptButtonText || 'Accept All'}</button>
           </div>
-          <div style="display: flex; align-items: center; gap: 4px; font-size: 9px; opacity: 0.4; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: \${textColor};">
+          <div style="display: flex; align-items: center; gap: 4px; font-size: 9px; opacity: 0.6; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: \${textColor};">
              <span>Powered by</span>
-             <img src="\${logoUrl}" style="height: 12px; filter: grayscale(1) brightness(0.5); margin-left: 2px;">
+             <img src="\${logoUrl}" style="height: 12px; margin-left: 2px;">
           </div>
         </div>
       </div>
       <style>
         #proteccio-cookie-banner button:hover { opacity: 0.9; transform: translateY(-1px); }
         #proteccio-cookie-banner button:active { transform: translateY(0); }
+        #proteccio-lang-selector option { background: \${bgColor}; color: \${textColor}; }
         @keyframes proteccio-slide-up {
           from { transform: translateY(100%); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
