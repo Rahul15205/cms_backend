@@ -9,53 +9,69 @@ export class TranslationService {
   private readonly enabled = process.env.ENABLE_BHASHINI === 'true';
 
   async translate(texts: string[], sourceLang: string, targetLang: string): Promise<string[]> {
-    if (!this.enabled || !this.baseUrl || sourceLang === targetLang) {
+    if (!this.enabled || !this.baseUrl || sourceLang === targetLang || !texts.length) {
       return texts;
     }
 
-    console.log(`Proteccio: Translating ${texts.length} items from ${sourceLang} to ${targetLang}`);
+    const CONCURRENCY = 25;
+    const translatedTexts: string[] = new Array(texts.length);
+    const batchPromises: Promise<void>[] = [];
 
-    try {
-      const response = await axios.post(
-        this.baseUrl,
-        {
-          pipelineTasks: [
-            {
-              taskType: 'translation',
-              config: {
-                language: {
-                  sourceLanguage: sourceLang,
-                  targetLanguage: targetLang,
+    for (let i = 0; i < texts.length; i += CONCURRENCY) {
+      const batch = texts.slice(i, i + CONCURRENCY);
+      const batchIndex = i;
+      
+      batchPromises.push(
+        (async () => {
+          try {
+            console.log(`Proteccio: Fetching translation batch from ${batchIndex} to ${batchIndex + batch.length}`);
+            const response = await axios.post(
+              this.baseUrl!,
+              {
+                pipelineTasks: [
+                  {
+                    taskType: 'translation',
+                    config: {
+                      language: {
+                        sourceLanguage: sourceLang,
+                        targetLanguage: targetLang,
+                      },
+                      serviceId: "",
+                    },
+                  },
+                ],
+                inputData: {
+                  input: batch.map((text) => ({ source: text })),
                 },
-                serviceId: "",
               },
-            },
-          ],
-          inputData: {
-            input: texts.map((text) => ({ source: text })),
-          },
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': this.interfaceKey,
-          },
-          timeout: 10000,
-        },
+              {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                  'Authorization': this.interfaceKey,
+                },
+                timeout: 15000,
+              },
+            );
+
+            console.log('Proteccio: Bhashini Raw Response for batch:', JSON.stringify(response.data).substring(0, 1000));
+
+            const outputs = response.data?.pipelineResponse?.[0]?.output || [];
+            batch.forEach((text, j) => {
+              const translated = outputs[j]?.target || outputs.find((o: any) => o.source === text)?.target;
+              translatedTexts[batchIndex + j] = translated?.trim() || text;
+            });
+          } catch (error) {
+            console.error('Proteccio: Batch translation error', error.response?.data || error.message);
+            batch.forEach((text, j) => {
+              translatedTexts[batchIndex + j] = text;
+            });
+          }
+        })()
       );
-
-      if (!response.data || !response.data.pipelineResponse) {
-        console.warn('Proteccio: Unexpected Bhashini response structure', JSON.stringify(response.data).substring(0, 500));
-        return texts;
-      }
-
-      const outputs = response.data.pipelineResponse[0]?.output || [];
-      console.log(`Proteccio: Translation successful for ${outputs.length} items`);
-      return texts.map((text, i) => outputs[i]?.target || text);
-    } catch (error) {
-      console.error('Proteccio: Translation API error', error.response?.data || error.message);
-      return texts;
     }
+
+    await Promise.all(batchPromises);
+    return translatedTexts;
   }
 }
