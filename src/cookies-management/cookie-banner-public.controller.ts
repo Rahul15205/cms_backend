@@ -154,15 +154,14 @@ export class CookieBannerPublicController {
           <h3 style="margin: 0; font-size: \${parseFloat(fontSize) + 4}px; font-weight: 700; color: \${textColor};">\${config.heading || 'This website uses cookies'}</h3>
           <p style="margin: 0; font-size: \${fontSize}; line-height: 1.6; opacity: 0.9; color: \${textColor};">\${config.description || 'We use cookies to personalise content and ads, to provide social media features and to analyse our traffic.'}</p>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-top: 8px; gap: 16px;">
-          <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; opacity: 0.6; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-             <img src="\${logoUrl}" style="height: 14px; opacity: 0.8;">
-             Powered by Proteccio Data
-          </div>
+        <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 8px;">
           <div style="display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
             <button id="proteccio-preferences" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.settingsButtonText || 'Preferences'}</button>
             <button id="proteccio-reject" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.declineButtonText || 'Reject All'}</button>
             <button id="proteccio-accept" style="background: \${themeColor}; color: \${btnTextColor}; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: \${fontSize}; box-shadow: 0 4px 12px \${themeColor}40; transition: all 0.2s; transform: scale(1);">\${config.acceptButtonText || 'Accept All'}</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; opacity: 0.5; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+             Powered by <img src="\${logoUrl}" style="height: 16px; object-fit: contain; filter: grayscale(1) brightness(1.2);">
           </div>
         </div>
       </div>
