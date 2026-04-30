@@ -115,13 +115,29 @@ export class CookieBannerPublicController {
     }
 
     const mainView = \`
+      <div id="proteccio-main-view" style="
+        background: \\\${bgColor}; 
+        color: \\\${textColor};
+        border: 1px solid rgba(0,0,0,0.05); 
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1); 
+        padding: \\\${padding};
+        width: 100%;
+        max-width: \\\${maxWidth};
+        margin: \\\${config.position === 'CORNER' ? '0' : padding};
+        border-radius: \\\${borderRadius};
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        pointer-events: auto;
+        animation: proteccio-slide-up 0.4s ease-out;
+      ">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <img src="\${logoUrl}" alt="Proteccio Logo" style="height: 32px; object-fit: contain;" onerror="this.style.display='none'">
+          <img src="\\\${logoUrl}" alt="Proteccio Logo" style="height: 32px; object-fit: contain;" onerror="this.style.display='none'">
           <div style="display: flex; align-items: center; gap: 8px;">
             <select id="proteccio-lang-selector" style="
               background: rgba(0,0,0,0.05); 
               border: 1px solid rgba(0,0,0,0.1); 
-              color: \${textColor}; 
+              color: \\\${textColor}; 
               font-size: 12px; 
               padding: 4px 8px; 
               border-radius: 4px; 
@@ -135,18 +151,18 @@ export class CookieBannerPublicController {
           </div>
         </div>
         <div style="display: flex; flex-direction: column; gap: 8px;">
-          <h3 style="margin: 0; font-size: \${parseFloat(fontSize) + 4}px; font-weight: 700; color: \${textColor};">\${config.heading || 'This website uses cookies'}</h3>
-          <p style="margin: 0; font-size: \${fontSize}; line-height: 1.6; opacity: 0.9; color: \${textColor};">\${config.description || 'We use cookies to personalise content and ads, to provide social media features and to analyse our traffic.'}</p>
+          <h3 style="margin: 0; font-size: \\\${parseFloat(fontSize) + 4}px; font-weight: 700; color: \\\${textColor};">\\\${config.heading || 'This website uses cookies'}</h3>
+          <p style="margin: 0; font-size: \\\${fontSize}; line-height: 1.6; opacity: 0.9; color: \\\${textColor};">\\\${config.description || 'We use cookies to personalise content and ads, to provide social media features and to analyse our traffic.'}</p>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-top: 8px; gap: 16px;">
           <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; opacity: 0.6; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-             <img src="\${logoUrl}" style="height: 14px; opacity: 0.8;">
+             <img src="\\\${logoUrl}" style="height: 14px; opacity: 0.8;">
              Powered by Proteccio Data
           </div>
           <div style="display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
-            <button id="proteccio-preferences" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.settingsButtonText || 'Preferences'}</button>
-            <button id="proteccio-reject" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.declineButtonText || 'Reject All'}</button>
-            <button id="proteccio-accept" style="background: \${themeColor}; color: \${btnTextColor}; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: \${fontSize}; shadow: 0 4px 12px \${themeColor}40; transition: all 0.2s; transform: scale(1);">\${config.acceptButtonText || 'Accept All'}</button>
+            <button id="proteccio-preferences" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \\\${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \\\${fontSize}; transition: all 0.2s;">\\\${config.settingsButtonText || 'Preferences'}</button>
+            <button id="proteccio-reject" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \\\${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \\\${fontSize}; transition: all 0.2s;">\\\${config.declineButtonText || 'Reject All'}</button>
+            <button id="proteccio-accept" style="background: \\\${themeColor}; color: \\\${btnTextColor}; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: \\\${fontSize}; shadow: 0 4px 12px \\\${themeColor}40; transition: all 0.2s; transform: scale(1);">\\\${config.acceptButtonText || 'Accept All'}</button>
           </div>
         </div>
       </div>
