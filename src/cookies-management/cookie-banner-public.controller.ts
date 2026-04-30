@@ -59,7 +59,7 @@ export class CookieBannerPublicController {
   config.websiteId = '${websiteId}';
   config.baseUrl = '${baseUrl}';
   const categories = ${JSON.stringify(categories)};
-  const logoUrl = \`\${config.baseUrl}/proteccio_logo_new-removebg-preview.png\`;
+  const logoUrl = '${logoUrl}';
   
   let userId = localStorage.getItem('proteccio_user_id');
   if (!userId) {
