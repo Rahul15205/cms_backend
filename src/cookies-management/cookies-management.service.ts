@@ -304,6 +304,45 @@ export class CookiesManagementService {
     return 'Unknown';
   }
 
+  private async generateSmartUserId(ip: string, websiteId: string): Promise<string> {
+    let countryCode = 'XX';
+    let cityCode = 'UNK';
+
+    try {
+      let cleanIp = ip.split(',')[0].trim().replace(/^::ffff:/, '');
+      const isPrivate = 
+        cleanIp === '127.0.0.1' || cleanIp === '::1' || cleanIp.includes('localhost') ||
+        cleanIp.startsWith('10.') || cleanIp.startsWith('192.168.') || 
+        (/^172\.(1[6-9]|2\d|3[0-1])\./.test(cleanIp));
+
+      if (!isPrivate) {
+        // 1. Try local geoip
+        const geo = geoip.lookup(cleanIp);
+        if (geo) {
+          countryCode = geo.country || 'XX';
+          cityCode = (geo.city || geo.region || 'UNK').substring(0, 3).toUpperCase();
+        } else {
+          // 2. Try external fallback
+          const response = await axios.get(`https://ipapi.co/${cleanIp}/json/`, { timeout: 2000 });
+          if (response.data && !response.data.error) {
+            countryCode = response.data.country_code || 'XX';
+            cityCode = (response.data.city || response.data.region_code || 'UNK').substring(0, 3).toUpperCase();
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Proteccio: Smart ID generation geo lookup failed', e.message);
+    }
+
+    // Get sequence number for this website
+    const count = await this.prisma.cookieConsentLog.count({
+      where: { websiteId }
+    });
+    const sequence = (count + 1).toString().padStart(4, '0');
+
+    return `${countryCode}-${cityCode}-USER-${sequence}`;
+  }
+
   async recordPublicConsent(websiteId: string, dto: any) {
     const website = await this.prisma.scannedWebsite.findUnique({
       where: { id: websiteId }
@@ -317,10 +356,16 @@ export class CookiesManagementService {
     else if (rawStatus === 'WITHDRAWN') status = 'WITHDRAWN';
 
     const location = await this.getLocation(dto.ipAddress);
+    
+    // Generate the smart User ID if not provided or if it's the old U-XXXX format
+    let userId = dto.userId;
+    if (!userId || userId.startsWith('U-')) {
+      userId = await this.generateSmartUserId(dto.ipAddress, websiteId);
+    }
 
     return this.prisma.cookieConsentLog.create({
       data: {
-        userId: dto.userId || `USER-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+        userId: userId,
         region: location,
         categories: dto.categories,
         status: status,
