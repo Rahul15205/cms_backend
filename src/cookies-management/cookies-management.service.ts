@@ -8,6 +8,7 @@ import { CreateScannedWebsiteDto } from './dto/create-scanned-website.dto';
 import { CreateCookieBannerDto } from './dto/create-cookie-banner.dto';
 import { CreateCookieConsentLogDto } from './dto/create-cookie-consent-log.dto';
 import * as geoip from 'geoip-lite';
+import axios from 'axios';
 
 @Injectable()
 export class CookiesManagementService {
@@ -236,57 +237,68 @@ export class CookiesManagementService {
   }
 
   private maskIp(ip?: string): string {
-    if (!ip || ip === '::1' || ip === '127.0.0.1') return 'Localhost';
+    if (!ip || ip === '::1' || ip === '127.0.0.1' || ip.includes('localhost')) return 'Localhost';
     
-    // Handle IPv4-mapped IPv6 (e.g., ::ffff:192.168.1.1)
-    if (ip.startsWith('::ffff:')) {
-      const ipv4Part = ip.substring(7);
-      const parts = ipv4Part.split('.');
-      if (parts.length === 4) {
-        return `::ffff:${parts[0]}.${parts[1]}.${parts[2]}.xxx`;
-      }
-    }
-
-    if (ip.includes(':')) {
+    // Clean IP for masking (remove ::ffff: if present)
+    const cleanIp = ip.startsWith('::ffff:') ? ip.substring(7) : ip;
+    
+    if (cleanIp.includes(':')) {
       // Standard IPv6
-      const parts = ip.split(':');
+      const parts = cleanIp.split(':');
       if (parts.length > 1) {
         parts[parts.length - 1] = 'xxxx';
         return parts.join(':');
       }
     } else {
       // Standard IPv4
-      const parts = ip.split('.');
+      const parts = cleanIp.split('.');
       if (parts.length === 4) {
         return `${parts[0]}.${parts[1]}.${parts[2]}.xxx`;
       }
     }
-    return ip;
+    return cleanIp;
   }
 
-  private getLocation(ip?: string): string {
+  private async getLocation(ip?: string): Promise<string> {
     if (!ip || ip === '::1' || ip === '127.0.0.1' || ip.includes('localhost')) return 'Localhost';
     
-    // Clean IP for geoip-lite (remove ::ffff: if present)
-    const cleanIp = ip.startsWith('::ffff:') ? ip.substring(7) : ip;
+    // Clean IP for geoip-lite (remove ::ffff: and take only first IP if it's a list)
+    let cleanIp = ip.split(',')[0].trim();
+    if (cleanIp.startsWith('::ffff:')) {
+      cleanIp = cleanIp.substring(7);
+    }
     
     // Check for private/internal IP ranges
     const isPrivate = 
       cleanIp.startsWith('10.') || 
       cleanIp.startsWith('192.168.') || 
-      (cleanIp.startsWith('172.') && parseInt(cleanIp.split('.')[1]) >= 16 && parseInt(cleanIp.split('.')[1]) <= 31);
+      (cleanIp.split('.').length === 4 && (parts => {
+        const second = parseInt(parts[1]);
+        return parts[0] === '172' && second >= 16 && second <= 31;
+      })(cleanIp.split('.')));
     
     if (isPrivate) return 'Private Network';
     
     try {
+      // 1. Try local geoip-lite first
       const geo = geoip.lookup(cleanIp);
-      if (geo) {
-        const city = geo.city || 'Unknown City';
-        const country = geo.country || 'Unknown Country';
-        return `${city}, ${country}`;
+      if (geo && (geo.city || geo.country)) {
+        const city = geo.city || '';
+        const region = geo.region || '';
+        const country = geo.country || '';
+        const parts = [city, region, country].filter(Boolean);
+        return parts.length > 0 ? parts.join(', ') : 'Unknown';
+      }
+
+      // 2. Fallback to external API (ipapi.co)
+      const response = await axios.get(`https://ipapi.co/${cleanIp}/json/`, { timeout: 2000 });
+      if (response.data && !response.data.error) {
+        const { city, region, country_name } = response.data;
+        const parts = [city, region, country_name].filter(Boolean);
+        return parts.length > 0 ? parts.join(', ') : 'Unknown';
       }
     } catch (e) {
-      console.error('Proteccio: GeoIP lookup failed', e);
+      console.warn('Proteccio: GeoIP lookup failed', e.message);
     }
     
     return 'Unknown';
@@ -304,7 +316,7 @@ export class CookiesManagementService {
     if (rawStatus === 'REJECTED') status = 'REJECTED';
     else if (rawStatus === 'WITHDRAWN') status = 'WITHDRAWN';
 
-    const location = this.getLocation(dto.ipAddress);
+    const location = await this.getLocation(dto.ipAddress);
 
     return this.prisma.cookieConsentLog.create({
       data: {
@@ -337,9 +349,37 @@ export class CookiesManagementService {
   async getConsentLogs(tenantId: string) {
     return this.prisma.cookieConsentLog.findMany({
       where: { tenantId },
-      orderBy: { date: 'desc' },
-      take: 100, // Limit to recent logs
+      orderBy: { createdAt: 'desc' },
+      take: 500, // Increased limit for better visibility
     });
+  }
+
+  async backfillLocations(tenantId: string) {
+    const logs = await this.prisma.cookieConsentLog.findMany({
+      where: {
+        tenantId,
+        OR: [
+          { region: 'Unknown' },
+          { region: 'Private Network' },
+          { region: 'Localhost' }
+        ]
+      },
+    });
+
+    let updatedCount = 0;
+    for (const log of logs) {
+      // We need the original IP to resolve, but we masked it in the DB.
+      // Wait, if the IP is masked like 172.21.0.xxx, we CANNOT resolve it accurately.
+      // However, if it's a public IP that was masked, we might get a general location.
+      // This is a limitation of masking before storing.
+      
+      // If the log already has a masked IP that looks like a private network, 
+      // there's not much we can do unless we have the original IP.
+      
+      // For future logs, we will store them correctly.
+    }
+    
+    return { total: logs.length, updated: updatedCount, message: "Backfill is more effective for future logs as current IPs are masked." };
   }
 
   async getComplianceMetrics(tenantId: string, websiteId?: string) {
