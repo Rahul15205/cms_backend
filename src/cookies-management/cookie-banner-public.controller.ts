@@ -388,7 +388,14 @@ export class CookieBannerPublicController {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(consentData)
-      }).catch(err => console.error('Proteccio: Failed to save consent', err));
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.userId) {
+          localStorage.setItem('proteccio_user_id', data.userId);
+        }
+      })
+      .catch(err => console.error('Proteccio: Failed to save consent', err));
 
       setTimeout(() => bannerDiv.remove(), 300);
     };
