@@ -84,7 +84,7 @@ export class CookieBannerPublicController {
     const backdropOpacity = (config.backdropOpacity ?? 50) / 100;
     const backdropBlur = (config.backdropBlur ?? 0) + 'px';
 
-    bannerDiv.style.cssText = \\\`
+    bannerDiv.style.cssText = \`
       position: fixed; 
       z-index: 999999; 
       left: 0; 
@@ -94,7 +94,7 @@ export class CookieBannerPublicController {
       display: flex;
       justify-content: center;
       pointer-events: none;
-    \\\`;
+    \`;
     
     if (config.position === 'TOP') {
       bannerDiv.style.top = '0';
@@ -102,8 +102,8 @@ export class CookieBannerPublicController {
       bannerDiv.style.top = '0';
       bannerDiv.style.bottom = '0';
       bannerDiv.style.alignItems = 'center';
-      bannerDiv.style.backgroundColor = \\\`rgba(0,0,0,\\\${backdropOpacity * 0.5})\\\`;
-      bannerDiv.style.backdropFilter = \\\`blur(\\\${backdropBlur})\\\`;
+      bannerDiv.style.backgroundColor = \`rgba(0,0,0,\${backdropOpacity * 0.5})\`;
+      bannerDiv.style.backdropFilter = \`blur(\${backdropBlur})\`;
       bannerDiv.style.pointerEvents = 'auto';
     } else if (config.position === 'CORNER') {
       bannerDiv.style.bottom = '20px';
