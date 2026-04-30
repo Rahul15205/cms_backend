@@ -114,23 +114,6 @@ export class CookieBannerPublicController {
       bannerDiv.style.bottom = '0';
     }
 
-    const mainView = \`
-      <div id="proteccio-main-view" style="
-        background: \${bgColor}; 
-        color: \${textColor};
-        border: 1px solid rgba(0,0,0,0.05); 
-        box-shadow: 0 10px 40px rgba(0,0,0,0.1); 
-        padding: \${padding};
-        width: 100%;
-        max-width: \${maxWidth};
-        margin: \${config.position === 'CORNER' ? '0' : padding};
-        border-radius: \${borderRadius};
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-        pointer-events: auto;
-        animation: proteccio-slide-up 0.4s ease-out;
-      ">
     const languages = [
       { code: "en", name: "English", marker: "EN" },
       { code: "as", name: "Assamese", marker: "AS" },

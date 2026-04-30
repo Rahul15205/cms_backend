@@ -36,7 +36,7 @@ export class NoticePublicController {
   };
 
   const ProteccioNotice = {
-    renderNotice: function(notice) {
+    renderModal: function(notice) {
       if (document.getElementById('proteccio-notice-container')) return;
       
       const container = document.createElement('div');
@@ -64,7 +64,7 @@ export class NoticePublicController {
         margin: 0 auto;
       \`;
       
-      const contentHtml = \`
+      container.innerHTML = \`
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="background: #10b98115; padding: 8px; border-radius: 8px;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -81,21 +81,20 @@ export class NoticePublicController {
           </button>
         </div>
         <style>
-          @keyframes proteccioSlideUp {
+          @keyframes proteccio-slide-up {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
           }
-          #proteccio-notice-close:hover { background: #e5e7eb; color: #111827; }
-          #proteccio-notice-ack:hover { background: #059669; transform: translateY(-1px); }
         </style>
       \`;
 
-      document.body.appendChild(modal);
+      document.body.appendChild(container);
 
-      document.getElementById('proteccio-notice-close').onclick = () => modal.remove();
-      document.getElementById('proteccio-notice-ack').onclick = () => {
+      document.getElementById('proteccio-close-notice').onclick = () => container.remove();
+      document.getElementById('proteccio-view-notice').onclick = () => {
         this.acknowledge(notice.id);
-        modal.remove();
+        container.remove();
+        if (notice.contentUrl) window.open(notice.contentUrl, '_blank');
       };
     },
 
@@ -133,8 +132,8 @@ export class NoticePublicController {
             this.renderModal(notice);
             
             // Override the close and ack behavior to show the next one
-            const originalClose = document.getElementById('proteccio-notice-close').onclick;
-            const originalAck = document.getElementById('proteccio-notice-ack').onclick;
+            const originalClose = document.getElementById('proteccio-close-notice').onclick;
+            const originalAck = document.getElementById('proteccio-view-notice').onclick;
             
             const handleNext = () => {
               index++;
@@ -143,11 +142,11 @@ export class NoticePublicController {
               }
             };
 
-            document.getElementById('proteccio-notice-close').onclick = () => {
+            document.getElementById('proteccio-close-notice').onclick = () => {
               originalClose();
               handleNext();
             };
-            document.getElementById('proteccio-notice-ack').onclick = () => {
+            document.getElementById('proteccio-view-notice').onclick = () => {
               originalAck();
               handleNext();
             };
