@@ -50,7 +50,7 @@ export class CookieBannerPublicController {
     const categories = (banner as any).tenant?.cookieCategories || [];
     
     // Logo and Branding URLs
-    const logoUrl = `${baseUrl}/proteccio_logo_new-removebg-preview.png`; 
+    const logoUrl = `https://res.cloudinary.com/dlfzzfdx0/image/upload/v1777286182/Brand_title_with_tagline-removebg-preview_jpjpet.png`;
 
     // Inject settings into a self-executing script
     return `
