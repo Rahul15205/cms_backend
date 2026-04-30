@@ -55,11 +55,11 @@ export class CookieBannerPublicController {
     // Inject settings into a self-executing script
     return `
 (function() {
-  const config = \${JSON.stringify(banner)};
-  config.websiteId = '\${websiteId}';
-  config.baseUrl = '\${baseUrl}';
-  const categories = \${JSON.stringify(categories)};
-  const logoUrl = \\\`\\\${config.baseUrl}/proteccio_logo_new-removebg-preview.png\\\`;
+  const config = ${JSON.stringify(banner)};
+  config.websiteId = '${websiteId}';
+  config.baseUrl = '${baseUrl}';
+  const categories = ${JSON.stringify(categories)};
+  const logoUrl = \`\${config.baseUrl}/proteccio_logo_new-removebg-preview.png\`;
   
   let userId = localStorage.getItem('proteccio_user_id');
   if (!userId) {
@@ -114,17 +114,17 @@ export class CookieBannerPublicController {
       bannerDiv.style.bottom = '0';
     }
 
-    const mainView = \\\`
+    const mainView = \`
       <div id="proteccio-main-view" style="
-        background: \\\${bgColor}; 
-        color: \\\${textColor};
+        background: \${bgColor}; 
+        color: \${textColor};
         border: 1px solid rgba(0,0,0,0.05); 
         box-shadow: 0 10px 40px rgba(0,0,0,0.1); 
-        padding: \\\${padding};
+        padding: \${padding};
         width: 100%;
-        max-width: \\\${maxWidth};
-        margin: \\\${config.position === 'CORNER' ? '0' : padding};
-        border-radius: \\\${borderRadius};
+        max-width: \${maxWidth};
+        margin: \${config.position === 'CORNER' ? '0' : padding};
+        border-radius: \${borderRadius};
         display: flex;
         flex-direction: column;
         gap: 16px;
@@ -132,12 +132,12 @@ export class CookieBannerPublicController {
         animation: proteccio-slide-up 0.4s ease-out;
       ">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <img src="\\\${logoUrl}" alt="Proteccio Logo" style="height: 32px; object-fit: contain;" onerror="this.style.display='none'">
+          <img src="\${logoUrl}" alt="Proteccio Logo" style="height: 32px; object-fit: contain;" onerror="this.style.display='none'">
           <div style="display: flex; align-items: center; gap: 8px;">
             <select id="proteccio-lang-selector" style="
               background: rgba(0,0,0,0.05); 
               border: 1px solid rgba(0,0,0,0.1); 
-              color: \\\${textColor}; 
+              color: \${textColor}; 
               font-size: 12px; 
               padding: 4px 8px; 
               border-radius: 4px; 
@@ -151,18 +151,18 @@ export class CookieBannerPublicController {
           </div>
         </div>
         <div style="display: flex; flex-direction: column; gap: 8px;">
-          <h3 style="margin: 0; font-size: \\\${parseFloat(fontSize) + 4}px; font-weight: 700; color: \\\${textColor};">\\\${config.heading || 'This website uses cookies'}</h3>
-          <p style="margin: 0; font-size: \\\${fontSize}; line-height: 1.6; opacity: 0.9; color: \\\${textColor};">\\\${config.description || 'We use cookies to personalise content and ads, to provide social media features and to analyse our traffic.'}</p>
+          <h3 style="margin: 0; font-size: \${parseFloat(fontSize) + 4}px; font-weight: 700; color: \${textColor};">\${config.heading || 'This website uses cookies'}</h3>
+          <p style="margin: 0; font-size: \${fontSize}; line-height: 1.6; opacity: 0.9; color: \${textColor};">\${config.description || 'We use cookies to personalise content and ads, to provide social media features and to analyse our traffic.'}</p>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-top: 8px; gap: 16px;">
           <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; opacity: 0.6; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-             <img src="\\\${logoUrl}" style="height: 14px; opacity: 0.8;">
+             <img src="\${logoUrl}" style="height: 14px; opacity: 0.8;">
              Powered by Proteccio Data
           </div>
           <div style="display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
-            <button id="proteccio-preferences" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \\\${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \\\${fontSize}; transition: all 0.2s;">\\\${config.settingsButtonText || 'Preferences'}</button>
-            <button id="proteccio-reject" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \\\${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \\\${fontSize}; transition: all 0.2s;">\\\${config.declineButtonText || 'Reject All'}</button>
-            <button id="proteccio-accept" style="background: \\\${themeColor}; color: \\\${btnTextColor}; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: \\\${fontSize}; shadow: 0 4px 12px \\\${themeColor}40; transition: all 0.2s; transform: scale(1);">\\\${config.acceptButtonText || 'Accept All'}</button>
+            <button id="proteccio-preferences" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.settingsButtonText || 'Preferences'}</button>
+            <button id="proteccio-reject" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.declineButtonText || 'Reject All'}</button>
+            <button id="proteccio-accept" style="background: \${themeColor}; color: \${btnTextColor}; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: \${fontSize}; shadow: 0 4px 12px \${themeColor}40; transition: all 0.2s; transform: scale(1);">\${config.acceptButtonText || 'Accept All'}</button>
           </div>
         </div>
       </div>
@@ -174,20 +174,20 @@ export class CookieBannerPublicController {
           to { transform: translateY(0); opacity: 1; }
         }
       </style>
-    \\\`;
+    \`;
 
-    const preferencesView = \\\`
+    const preferencesView = \`
       <div id="proteccio-preferences-view" style="
         display: none;
-        background: \\\${bgColor}; 
-        color: \\\${textColor};
+        background: \${bgColor}; 
+        color: \${textColor};
         border: 1px solid rgba(0,0,0,0.05); 
         box-shadow: 0 10px 40px rgba(0,0,0,0.1); 
-        padding: \\\${padding};
+        padding: \${padding};
         width: 100%;
-        max-width: \\\${maxWidth};
-        margin: \\\${config.position === 'CORNER' ? '0' : padding};
-        border-radius: \\\${borderRadius};
+        max-width: \${maxWidth};
+        margin: \${config.position === 'CORNER' ? '0' : padding};
+        border-radius: \${borderRadius};
         pointer-events: auto;
         max-height: 80vh;
         overflow-y: auto;
@@ -200,31 +200,31 @@ export class CookieBannerPublicController {
         </div>
         
         <div style="display: flex; flex-direction: column; gap: 20px;">
-          \\\${categories.map(cat => \\\\\\\`
+          \${categories.map(cat => \`
             <div style="display: flex; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05);">
               <div style="flex: 1;">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                  <span style="font-weight: 600; font-size: 15px;">\\\\\\\${cat.name}</span>
-                  \\\\\\\${cat.locked ? '<span style="font-size: 10px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Required</span>' : ''}
+                  <span style="font-weight: 600; font-size: 15px;">\${cat.name}</span>
+                  \${cat.locked ? '<span style="font-size: 10px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Required</span>' : ''}
                 </div>
-                <p style="margin: 0; font-size: 13px; opacity: 0.7; line-height: 1.5;">\\\\\\\${cat.description || 'Helps the website function correctly.'}</p>
+                <p style="margin: 0; font-size: 13px; opacity: 0.7; line-height: 1.5;">\${cat.description || 'Helps the website function correctly.'}</p>
               </div>
               <div style="display: flex; align-items: center;">
                 <label style="position: relative; display: inline-block; width: 44px; height: 24px;">
-                  <input type="checkbox" class="proteccio-toggle" \\\\\\\${cat.locked || cat.enabled ? 'checked' : ''} \\\\\\\${cat.locked ? 'disabled' : ''} data-cat-id="\\\\\\\${cat.id}" style="opacity: 0; width: 0; height: 0;">
-                  <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: \\\\\\\${cat.locked || cat.enabled ? themeColor : 'rgba(255,255,255,0.1)'}; transition: .3s; border-radius: 24px;"></span>
-                  <span style="position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; transform: \\\\\\\${cat.locked || cat.enabled ? 'translateX(20px)' : 'translateX(0)'}"></span>
+                  <input type="checkbox" class="proteccio-toggle" \${cat.locked || cat.enabled ? 'checked' : ''} \${cat.locked ? 'disabled' : ''} data-cat-id="\${cat.id}" style="opacity: 0; width: 0; height: 0;">
+                  <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: \${cat.locked || cat.enabled ? themeColor : 'rgba(255,255,255,0.1)'}; transition: .3s; border-radius: 24px;"></span>
+                  <span style="position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; transform: \${cat.locked || cat.enabled ? 'translateX(20px)' : 'translateX(0)'}"></span>
                 </label>
               </div>
             </div>
-          \\\\\\\`).join('')}
+          \`).join('')}
         </div>
 
         <div style="display: flex; justify-content: flex-end; margin-top: 32px; gap: 12px;">
-          <button id="proteccio-save-prefs" style="background: \\\${themeColor}; color: \\\${btnTextColor}; border: none; padding: 12px 32px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; transition: all 0.2s;">Save Preferences</button>
+          <button id="proteccio-save-prefs" style="background: \${themeColor}; color: \${btnTextColor}; border: none; padding: 12px 32px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; transition: all 0.2s;">Save Preferences</button>
         </div>
       </div>
-    \\\`;
+    \`;
 
     bannerDiv.innerHTML = mainView + preferencesView;
     document.body.appendChild(bannerDiv);
