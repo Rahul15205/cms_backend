@@ -36,25 +36,49 @@ export class NoticePublicController {
   };
 
   const ProteccioNotice = {
-    renderModal: function(notice) {
-      if (document.getElementById('proteccio-notice-modal')) return;
-
-      const modal = document.createElement('div');
-      modal.id = 'proteccio-notice-modal';
-      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999999;font-family:sans-serif;';
+    renderNotice: function(notice) {
+      if (document.getElementById('proteccio-notice-container')) return;
       
-      modal.innerHTML = \`
-        <div style="background:white;width:90%;max-width:700px;max-height:85vh;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);animation: proteccioSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
-          <div style="padding:20px 24px;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;background:#fff;">
-            <h2 style="margin:0;font-size:1.25rem;font-weight:700;color:#111827;">\${notice.title}</h2>
-            <button id="proteccio-notice-close" style="background:#f3f4f6;border:none;width:32px;height:32px;border-radius:50%;font-size:1.25rem;cursor:pointer;color:#6b7280;display:flex;align-items:center;justify-content:center;transition:all 0.2s;">&times;</button>
+      const container = document.createElement('div');
+      container.id = 'proteccio-notice-container';
+      
+      // Styling for the Footer Bar
+      container.style.cssText = \`
+        position: fixed; 
+        bottom: 20px; 
+        left: 20px; 
+        right: 20px; 
+        z-index: 999999; 
+        background: #ffffff; 
+        color: #111827;
+        padding: 16px 24px; 
+        border-radius: 12px; 
+        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-family: 'Inter', -apple-system, sans-serif;
+        border: 1px solid rgba(0,0,0,0.05);
+        animation: proteccio-slide-up 0.4s ease-out;
+        max-width: 800px;
+        margin: 0 auto;
+      \`;
+      
+      const contentHtml = \`
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="background: #10b98115; padding: 8px; border-radius: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
-          <div style="padding:24px;overflow-y:auto;flex:1;line-height:1.6;color:#374151;font-size:1rem;background:#fff;">
-            \${notice.content || 'No content available.'}
+          <div>
+            <div style="font-weight: 700; font-size: 14px;">\${notice.title} Update</div>
+            <div style="font-size: 12px; opacity: 0.7;">Please review our updated policy.</div>
           </div>
-          <div style="padding:16px 24px;background:#f9fafb;display:flex;justify-content:flex-end;gap:12px;border-top:1px solid #f3f4f6;">
-            <button id="proteccio-notice-ack" style="background:#10b981;color:white;border:none;padding:12px 28px;border-radius:8px;font-weight:600;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 6px -1px rgba(16, 185, 129, 0.2);">I Acknowledge</button>
-          </div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button id="proteccio-view-notice" style="background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Read Now</button>
+          <button id="proteccio-close-notice" style="background: transparent; border: none; cursor: pointer; padding: 4px; color: #6b7280;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
         </div>
         <style>
           @keyframes proteccioSlideUp {
