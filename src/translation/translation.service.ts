@@ -24,7 +24,11 @@ export class TranslationService {
       batchPromises.push(
         (async () => {
           try {
-            console.log(`Proteccio: Fetching translation batch from ${batchIndex} to ${batchIndex + batch.length}`);
+            console.log(`Proteccio: Request payload to Bhashini:`, JSON.stringify({
+              pipelineTasks: [{ taskType: 'translation', config: { language: { sourceLanguage: sourceLang, targetLanguage: targetLang }, serviceId: "" } }],
+              inputData: { input: batch.map(t => ({ source: t })) }
+            }));
+
             const response = await axios.post(
               this.baseUrl!,
               {
@@ -54,11 +58,19 @@ export class TranslationService {
               },
             );
 
-            console.log('Proteccio: Bhashini Raw Response for batch:', JSON.stringify(response.data).substring(0, 1000));
+            console.log('Proteccio: Bhashini Response Status:', response.status);
+            console.log('Proteccio: Bhashini Full Response:', JSON.stringify(response.data));
 
             const outputs = response.data?.pipelineResponse?.[0]?.output || [];
+            if (outputs.length === 0) {
+              console.warn('Proteccio: Bhashini returned NO outputs for batch');
+            }
+            
             batch.forEach((text, j) => {
               const translated = outputs[j]?.target || outputs.find((o: any) => o.source === text)?.target;
+              if (!translated) {
+                console.warn(`Proteccio: No translation found for item ${j}: "${text.substring(0, 30)}..."`);
+              }
               translatedTexts[batchIndex + j] = translated?.trim() || text;
             });
           } catch (error) {
