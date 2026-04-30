@@ -162,7 +162,7 @@ export class CookieBannerPublicController {
           <div style="display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
             <button id="proteccio-preferences" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.settingsButtonText || 'Preferences'}</button>
             <button id="proteccio-reject" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); color: \${textColor}; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: \${fontSize}; transition: all 0.2s;">\${config.declineButtonText || 'Reject All'}</button>
-            <button id="proteccio-accept" style="background: \${themeColor}; color: \${btnTextColor}; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: \${fontSize}; shadow: 0 4px 12px \${themeColor}40; transition: all 0.2s; transform: scale(1);">\${config.acceptButtonText || 'Accept All'}</button>
+            <button id="proteccio-accept" style="background: \${themeColor}; color: \${btnTextColor}; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: \${fontSize}; box-shadow: 0 4px 12px \${themeColor}40; transition: all 0.2s; transform: scale(1);">\${config.acceptButtonText || 'Accept All'}</button>
           </div>
         </div>
       </div>
@@ -285,7 +285,7 @@ export class CookieBannerPublicController {
       bannerDiv.style.opacity = '0';
       bannerDiv.style.transform = 'translateY(20px)';
       
-      fetch(\\\`\\\${config.baseUrl}/api/v1/public/cookies/consent/\\\${config.websiteId}\\\`, {
+      fetch(\`\${config.baseUrl}/api/v1/public/cookies/consent/\${config.websiteId}\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(consentData)
@@ -317,7 +317,7 @@ export class CookieBannerPublicController {
 
   async function checkConsent() {
     try {
-      const response = await fetch(\\\`\\\${config.baseUrl}/api/v1/public/cookies/consent-status/\\\${config.websiteId}/\\\${userId}\\\`);
+      const response = await fetch(\`\${config.baseUrl}/api/v1/public/cookies/consent-status/\${config.websiteId}/\${userId}\`);
       const data = await response.json();
       
       if (data.status === 'WITHDRAWN' || data.status === 'NONE') {
