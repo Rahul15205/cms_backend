@@ -13,6 +13,8 @@ export class TranslationService {
       return texts;
     }
 
+    console.log(`Proteccio: Translating ${texts.length} items from ${sourceLang} to ${targetLang}`);
+
     try {
       const response = await axios.post(
         this.baseUrl,
@@ -25,6 +27,7 @@ export class TranslationService {
                   sourceLanguage: sourceLang,
                   targetLanguage: targetLang,
                 },
+                serviceId: "",
               },
             },
           ],
@@ -35,17 +38,23 @@ export class TranslationService {
         {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: this.interfaceKey,
-            'ulca-api-key': this.udyatKey,
+            'Accept': 'application/json',
+            'Authorization': this.interfaceKey,
           },
-          timeout: 5000,
+          timeout: 10000,
         },
       );
 
-      const outputs = response.data?.pipelineResponse?.[0]?.output || [];
+      if (!response.data || !response.data.pipelineResponse) {
+        console.warn('Proteccio: Unexpected Bhashini response structure', JSON.stringify(response.data).substring(0, 500));
+        return texts;
+      }
+
+      const outputs = response.data.pipelineResponse[0]?.output || [];
+      console.log(`Proteccio: Translation successful for ${outputs.length} items`);
       return texts.map((text, i) => outputs[i]?.target || text);
     } catch (error) {
-      console.error('Proteccio: Translation failed', error.message);
+      console.error('Proteccio: Translation API error', error.response?.data || error.message);
       return texts;
     }
   }

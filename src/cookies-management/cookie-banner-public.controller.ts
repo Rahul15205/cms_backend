@@ -290,6 +290,7 @@ export class CookieBannerPublicController {
       try {
         langSelector.disabled = true;
         langSelector.style.opacity = '0.5';
+        console.log('Proteccio: Requesting translation to ' + targetLang);
         
         const response = await fetch(\`\${config.baseUrl}/api/v1/public/translation/batch\`, {
           method: 'POST',
@@ -302,6 +303,7 @@ export class CookieBannerPublicController {
         });
         
         const result = await response.json();
+        console.log('Proteccio: Translation result received', result);
         if (result.success && result.data) {
           const t = result.data;
           document.getElementById('proteccio-heading').innerText = t[0];
