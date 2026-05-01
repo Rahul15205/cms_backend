@@ -170,11 +170,14 @@ export class NoticePublicController {
 
   window.ProteccioNotice = ProteccioNotice;
   
+  // Auto-show disabled as per user request to stop popups
+  /*
   if (document.readyState === 'complete') {
     ProteccioNotice.initAutoShow();
   } else {
     window.addEventListener('load', () => ProteccioNotice.initAutoShow());
   }
+  */
 })();
     `;
   }
