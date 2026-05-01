@@ -1110,6 +1110,11 @@ model ScannedWebsite {
   email           String?       // notification contact
   autoCategorize  Boolean       @default(false)
   scanBehindLogin Boolean       @default(false)
+  loginUrl        String?
+  loginUserField  String?       // CSS selector for username input
+  loginPassField  String?       // CSS selector for password input
+  loginUsername   String?
+  loginPassword   String?
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])

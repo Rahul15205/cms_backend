@@ -5,6 +5,7 @@ import { CookieBannerPublicController } from './cookie-banner-public.controller'
 import { CookiesManagementService } from './cookies-management.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { CookieScannerProcessor } from './cookie-scanner.processor';
+import { ScannerSchedulerService } from './scanner-scheduler.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
@@ -16,7 +17,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     ),
   ],
   controllers: [CookiesManagementController, CookieBannerPublicController],
-  providers: [CookiesManagementService, CookieScannerProcessor],
+  providers: [CookiesManagementService, CookieScannerProcessor, ScannerSchedulerService],
   exports: [CookiesManagementService],
 })
 export class CookiesManagementModule {}

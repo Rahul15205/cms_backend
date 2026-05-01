@@ -38,4 +38,24 @@ export class CreateScannedWebsiteDto {
   @IsBoolean()
   @IsOptional()
   scanBehindLogin?: boolean;
+
+  @IsString()
+  @IsOptional()
+  loginUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  loginUserField?: string;
+
+  @IsString()
+  @IsOptional()
+  loginPassField?: string;
+
+  @IsString()
+  @IsOptional()
+  loginUsername?: string;
+
+  @IsString()
+  @IsOptional()
+  loginPassword?: string;
 }

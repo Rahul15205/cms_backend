@@ -57,10 +57,12 @@ import { redisStore } from 'cache-manager-redis-yet';
 
 
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ([

@@ -62,7 +62,33 @@ export class CookieScannerProcessor extends WorkerHost {
       await page.setViewport({ width: 1280, height: 800 });
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Proteccio-Scanner/1.1');
 
-      // 3. Crawling Loop (BFS)
+      // 3. Optional Login
+      if (website.scanBehindLogin && website.loginUrl && website.loginUsername && website.loginPassword) {
+        this.logger.log(`Performing Scan-Behind-Login for ${website.url} at ${website.loginUrl}`);
+        try {
+          await page.goto(website.loginUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+          
+          const userField = website.loginUserField || 'input[type="text"], input[type="email"], input[name="username"]';
+          const passField = website.loginPassField || 'input[type="password"]';
+          
+          await page.waitForSelector(userField, { timeout: 10000 });
+          await page.type(userField, website.loginUsername);
+          await page.type(passField, website.loginPassword);
+          
+          // Find and click submit button
+          await Promise.all([
+            page.keyboard.press('Enter'),
+            page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {}),
+          ]);
+          
+          this.logger.log(`Login successful for ${website.url}`);
+        } catch (loginErr) {
+          this.logger.error(`Login failed for ${website.url}: ${loginErr.message}`);
+          // Continue scanning anyway, maybe some pages are public
+        }
+      }
+
+      // 4. Crawling Loop (BFS)
       while (queue.length > 0 && visited.size < maxPages) {
         const currentUrl = queue.shift()!;
         if (visited.has(currentUrl)) continue;
@@ -137,7 +163,16 @@ export class CookieScannerProcessor extends WorkerHost {
       };
 
       for (const [name, cookie] of discoveredCookies.entries()) {
-        const info = classifyCookie(name);
+        let info = {
+          category: 'UNCATEGORIZED' as any,
+          description: 'Unknown cookie discovered during scan.'
+        };
+
+        // Only categorize if the flag is enabled
+        if (website.autoCategorize) {
+          info = classifyCookie(name);
+        }
+
         categoryCounts[info.category]++;
 
         let category = await this.prisma.cookieCategory.findFirst({
