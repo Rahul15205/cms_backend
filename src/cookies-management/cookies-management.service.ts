@@ -145,10 +145,23 @@ export class CookiesManagementService {
       throw new NotFoundException('Website not found');
     }
 
-    return this.prisma.scannedWebsite.update({
+    const updatedWebsite = await this.prisma.scannedWebsite.update({
       where: { id },
       data: dto,
     });
+
+    // Automatically restart scan after edit
+    await this.cookieScannerQueue.add('scan-website', { websiteId: id });
+
+    await this.prisma.scannedWebsite.update({
+      where: { id },
+      data: {
+        status: 'PENDING',
+        lastScan: new Date(),
+      },
+    });
+
+    return updatedWebsite;
   }
 
   async startScan(id: string, tenantId: string) {

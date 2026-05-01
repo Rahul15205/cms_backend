@@ -192,7 +192,7 @@ export class CookieScannerProcessor extends WorkerHost {
         if (existing) {
           await this.prisma.cookieInventory.update({
             where: { id: existing.id },
-            data: { categoryId: category.id, description: info.description }
+            data: { categoryId: category.id, description: info.description, websiteId }
           });
         } else {
           const inventory = await this.prisma.cookieInventory.create({
@@ -202,7 +202,8 @@ export class CookieScannerProcessor extends WorkerHost {
               categoryId: category.id,
               description: info.description,
               expiration: cookie.expires ? new Date(cookie.expires * 1000).toLocaleDateString() : 'Session',
-              tenantId: website.tenantId
+              tenantId: website.tenantId,
+              websiteId
             }
           });
           results.push(inventory);
