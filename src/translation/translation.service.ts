@@ -73,4 +73,35 @@ export class TranslationService {
     await Promise.all(batchPromises);
     return translatedTexts;
   }
+
+  async translateHtml(html: string, sourceLang: string, targetLang: string): Promise<string> {
+    if (!html) return html;
+    
+    // Split by HTML tags
+    const parts = html.split(/(<[^>]+>)/g);
+    const textParts: { text: string; index: number }[] = [];
+    
+    parts.forEach((part, index) => {
+      // If it's not a tag and not empty/whitespace
+      if (!part.startsWith('<') && part.trim().length > 0) {
+        textParts.push({ text: part, index });
+      }
+    });
+
+    if (textParts.length === 0) return html;
+
+    // Translate only the text parts
+    const translatedTexts = await this.translate(
+      textParts.map(tp => tp.text),
+      sourceLang,
+      targetLang
+    );
+
+    // Replace text parts with translations
+    translatedTexts.forEach((translated, i) => {
+      parts[textParts[i].index] = translated;
+    });
+
+    return parts.join('');
+  }
 }
