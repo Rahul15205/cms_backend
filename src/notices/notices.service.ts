@@ -65,7 +65,7 @@ export class NoticesService {
     const take = filters.limit ? Number(filters.limit) : 50;
     const skip = filters.offset ? Number(filters.offset) : 0;
 
-    const [total, data] = await Promise.all([
+    const [total, rawData] = await Promise.all([
       this.prisma.notice.count({ where }),
       this.prisma.notice.findMany({
         where,
@@ -78,6 +78,17 @@ export class NoticesService {
         },
       }),
     ]);
+
+    const data = await Promise.all(rawData.map(async (notice) => {
+      const stats = await this.prisma.noticeAcknowledgement.aggregate({
+        where: { noticeId: notice.id },
+        _avg: { viewDuration: true }
+      });
+      return {
+        ...notice,
+        avgReadTime: Math.round(stats._avg.viewDuration || 0)
+      };
+    }));
 
     return paginate(data, total, Math.floor(skip / take) + 1, take);
   }
