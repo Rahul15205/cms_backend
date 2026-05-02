@@ -313,17 +313,22 @@ export class NoticesService {
     // Auto-translate if lang is provided and not English
     if (lang && lang.toLowerCase() !== 'en') {
       try {
-        const textsToTranslate = [notice.title, notice.content || ''];
-        const translated = await this.translationService.translate(
-          textsToTranslate,
+        const translatedTitle = await this.translationService.translate(
+          [notice.title],
+          'en',
+          lang.toLowerCase()
+        );
+        
+        const translatedContent = await this.translationService.translateHtml(
+          notice.content || '',
           'en',
           lang.toLowerCase()
         );
         
         return {
           ...notice,
-          title: translated[0],
-          content: translated[1],
+          title: translatedTitle[0],
+          content: translatedContent,
         };
       } catch (error) {
         console.error('Proteccio: Notice translation failed', error);
