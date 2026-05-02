@@ -26,8 +26,9 @@ export class NoticePublicController {
   }
 
   @Post('acknowledge/:noticeId')
-  async acknowledgeNotice(@Param('noticeId') noticeId: string, @Body() dto: any) {
-    return this.noticesService.recordNoticeAcknowledgement(noticeId, dto);
+  async acknowledgeNotice(@Param('noticeId') noticeId: string, @Body() dto: any, @Request() req: any) {
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    return this.noticesService.recordNoticeAcknowledgement(noticeId, { ...dto, ipAddress });
   }
 
   @Get('script/:websiteId')
@@ -128,7 +129,8 @@ export class NoticePublicController {
           timestamp: new Date().toISOString(),
           url: window.location.href,
           userAgent: navigator.userAgent,
-          viewDuration: viewDuration
+          viewDuration: viewDuration,
+          userId: localStorage.getItem('proteccio_consent_id') || localStorage.getItem('userId')
         })
       }).then(() => {
         localStorage.setItem('proteccio_ack_' + noticeId, new Date().getTime());
