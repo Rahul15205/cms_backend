@@ -279,17 +279,30 @@ export class NoticesService {
 
     if (!notice) throw new NotFoundException('Notice not found');
 
+    const data: any = {
+      noticeId,
+      version: notice.currentVersion,
+      userEmail: dto.userEmail || null,
+      userId: dto.userId || null,
+      ipAddress: dto.ipAddress || null,
+      userAgent: dto.userAgent || null,
+      viewDuration: dto.viewDuration ? Number(dto.viewDuration) : null,
+      language: dto.language || 'en',
+      visitId: dto.visitId || null,
+    };
+
+    if (dto.visitId) {
+      return this.prisma.noticeAcknowledgement.upsert({
+        where: { visitId: dto.visitId },
+        update: {
+          viewDuration: data.viewDuration,
+        },
+        create: data,
+      });
+    }
+
     return this.prisma.noticeAcknowledgement.create({
-      data: {
-        noticeId,
-        version: notice.currentVersion,
-        userEmail: dto.userEmail || null,
-        userId: dto.userId || null,
-        ipAddress: dto.ipAddress || null,
-        userAgent: dto.userAgent || null,
-        viewDuration: dto.viewDuration ? Number(dto.viewDuration) : null,
-        language: dto.language || 'en',
-      },
+      data: data,
     });
   }
 

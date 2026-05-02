@@ -1431,6 +1431,7 @@ model NoticeAcknowledgement {
   userAgent     String?  // Browser/Device info
   viewDuration  Int?     // Time spent in seconds
   language      String?  // Language code (e.g., "en", "hi")
+  visitId       String?  @unique // Unique ID for the visit session
 }
 
 // ==========================================

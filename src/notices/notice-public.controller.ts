@@ -130,7 +130,7 @@ export class NoticePublicController {
           url: window.location.href,
           userAgent: navigator.userAgent,
           viewDuration: viewDuration,
-          userId: localStorage.getItem('proteccio_consent_id') || localStorage.getItem('userId')
+          userId: localStorage.getItem('proteccio_user_id') || localStorage.getItem('userId')
         })
       }).then(() => {
         localStorage.setItem('proteccio_ack_' + noticeId, new Date().getTime());
