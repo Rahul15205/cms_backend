@@ -1369,6 +1369,11 @@ model Notice {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  enforceAcknowledgement Boolean @default(false)
+  autoArchive            Boolean @default(true)
+  auditLogging           Boolean @default(true)
+  defaultLanguage        String  @default("en")
+
   versions        NoticeVersion[]
   acknowledgements NoticeAcknowledgement[]
 }

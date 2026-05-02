@@ -27,4 +27,17 @@ export class CreateNoticeDto {
   @IsOptional()
   @IsString()
   tenantId?: string;
+
+  @IsOptional()
+  @IsString()
+  defaultLanguage?: string;
+
+  @IsOptional()
+  enforceAcknowledgement?: boolean;
+
+  @IsOptional()
+  autoArchive?: boolean;
+
+  @IsOptional()
+  auditLogging?: boolean;
 }

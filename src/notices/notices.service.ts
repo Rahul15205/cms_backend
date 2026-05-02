@@ -363,19 +363,22 @@ export class NoticesService {
       throw new NotFoundException(`No active notice found for type: ${typeName}`);
     }
 
-    // Auto-translate if lang is provided and not English
-    if (lang && lang.toLowerCase() !== 'en') {
+    // Determine target language: provided lang or notice's defaultLanguage
+    const targetLang = (lang || notice.defaultLanguage || 'en').toLowerCase();
+
+    // Auto-translate if target language is not English
+    if (targetLang !== 'en') {
       try {
         const translatedTitle = await this.translationService.translate(
           [notice.title],
           'en',
-          lang.toLowerCase()
+          targetLang
         );
         
         const translatedContent = await this.translationService.translateHtml(
           notice.content || '',
           'en',
-          lang.toLowerCase()
+          targetLang
         );
         
         return {
