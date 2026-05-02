@@ -20,8 +20,9 @@ export class NoticePublicController {
     @Request() req
   ) {
     const websiteId = req.query.websiteId;
+    const lang = req.query.lang;
     if (!websiteId) throw new NotFoundException('websiteId query parameter is required');
-    return this.noticesService.getPublicNoticeByType(websiteId as string, typeName);
+    return this.noticesService.getPublicNoticeByType(websiteId as string, typeName, lang as string);
   }
 
   @Post('acknowledge/:noticeId')

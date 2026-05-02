@@ -6,9 +6,14 @@ import { UpdateNoticeDto } from './dto/update-notice.dto';
 import { CreateNoticeTypeDto } from './dto/create-notice-type.dto';
 import { NoticeStatus } from '@prisma/client';
 
+import { TranslationService } from '../translation/translation.service';
+
 @Injectable()
 export class NoticesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private translationService: TranslationService
+  ) {}
 
   // ==========================================
   // NOTICES CRUD
@@ -274,7 +279,7 @@ export class NoticesService {
     });
   }
 
-  async getPublicNoticeByType(websiteId: string, typeName: string) {
+  async getPublicNoticeByType(websiteId: string, typeName: string, lang?: string) {
     // Find the website to get the tenantId
     const website = await this.prisma.scannedWebsite.findUnique({
       where: { id: websiteId },
@@ -303,6 +308,26 @@ export class NoticesService {
 
     if (!notice) {
       throw new NotFoundException(`No active notice found for type: ${typeName}`);
+    }
+
+    // Auto-translate if lang is provided and not English
+    if (lang && lang.toLowerCase() !== 'en') {
+      try {
+        const textsToTranslate = [notice.title, notice.content || ''];
+        const translated = await this.translationService.translate(
+          textsToTranslate,
+          'en',
+          lang.toLowerCase()
+        );
+        
+        return {
+          ...notice,
+          title: translated[0],
+          content: translated[1],
+        };
+      } catch (error) {
+        console.error('Proteccio: Notice translation failed', error);
+      }
     }
 
     return notice;
