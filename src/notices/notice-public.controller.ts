@@ -100,6 +100,7 @@ export class NoticePublicController {
       \`;
 
       document.body.appendChild(container);
+      this.startTime = new Date().getTime();
 
       document.getElementById('proteccio-close-notice').onclick = () => container.remove();
       document.getElementById('proteccio-view-notice').onclick = () => {
@@ -118,13 +119,16 @@ export class NoticePublicController {
     },
 
     acknowledge: function(noticeId) {
+      const viewDuration = Math.round((new Date().getTime() - (this.startTime || new Date().getTime())) / 1000);
       fetch(\`\${config.baseUrl}/api/v1/public/notices/acknowledge/\${noticeId}\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           websiteId: config.websiteId,
           timestamp: new Date().toISOString(),
-          url: window.location.href
+          url: window.location.href,
+          userAgent: navigator.userAgent,
+          viewDuration: viewDuration
         })
       }).then(() => {
         localStorage.setItem('proteccio_ack_' + noticeId, new Date().getTime());

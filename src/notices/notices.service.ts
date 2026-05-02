@@ -275,6 +275,8 @@ export class NoticesService {
         userEmail: dto.userEmail || null,
         userId: dto.userId || null,
         ipAddress: dto.ipAddress || null,
+        userAgent: dto.userAgent || null,
+        viewDuration: dto.viewDuration ? Number(dto.viewDuration) : null,
       },
     });
   }

@@ -1428,6 +1428,8 @@ model NoticeAcknowledgement {
   acknowledgedAt DateTime @default(now())
   version       Int      // Which version was acknowledged
   ipAddress     String?
+  userAgent     String?  // Browser/Device info
+  viewDuration  Int?     // Time spent in seconds
 }
 
 // ==========================================
