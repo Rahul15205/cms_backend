@@ -383,6 +383,7 @@ export class CookiesManagementService {
         categories: dto.categories,
         status: status,
         ipAddress: this.maskIp(dto.ipAddress),
+        language: dto.language || 'en',
         websiteId: websiteId,
         tenantId: website.tenantId,
       },

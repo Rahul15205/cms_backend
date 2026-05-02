@@ -1186,6 +1186,7 @@ model CookieConsentLog {
   userId     String?          // logged in user or anonymous ID
   date       DateTime         @default(now())
   region     String?
+  language   String?          @default("en")
   categories String[]         // IDs of categories accepted
   status     ConsentLogStatus @default(ACCEPTED)
   ipAddress  String?

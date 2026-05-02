@@ -360,11 +360,16 @@ export class CookieBannerPublicController {
     // Actions
     const setConsent = (status, selectedCats = null) => {
       const activeCategories = selectedCats || categories.filter(c => c.locked || c.enabled).map(c => c.name);
+      
+      const langSelector = document.getElementById('proteccio-lang-selector');
+      const currentLang = langSelector ? langSelector.value : 'en';
+
       const consentData = {
         status,
         timestamp: new Date().toISOString(),
         categories: activeCategories,
-        userId: userId
+        userId: userId,
+        language: currentLang
       };
       localStorage.setItem('proteccio-consent', JSON.stringify(consentData));
 
