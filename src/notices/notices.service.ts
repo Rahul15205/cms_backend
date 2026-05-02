@@ -288,8 +288,33 @@ export class NoticesService {
         ipAddress: dto.ipAddress || null,
         userAgent: dto.userAgent || null,
         viewDuration: dto.viewDuration ? Number(dto.viewDuration) : null,
+        language: dto.language || 'en',
       },
     });
+  }
+
+  async getAcknowledgementLogs(filters: { noticeId?: string; tenantId?: string; limit?: number; offset?: number }) {
+    const where: any = {};
+    if (filters.noticeId) where.noticeId = filters.noticeId;
+    if (filters.tenantId) where.tenantId = filters.tenantId;
+
+    const take = filters.limit ? Number(filters.limit) : 50;
+    const skip = filters.offset ? Number(filters.offset) : 0;
+
+    const [total, data] = await Promise.all([
+      this.prisma.noticeAcknowledgement.count({ where }),
+      this.prisma.noticeAcknowledgement.findMany({
+        where,
+        take,
+        skip,
+        orderBy: { acknowledgedAt: 'desc' },
+        include: {
+          notice: { select: { title: true } },
+        },
+      }),
+    ]);
+
+    return paginate(data, total, Math.floor(skip / take) + 1, take);
   }
 
   async getPublicNoticeByType(websiteId: string, typeName: string, lang?: string) {

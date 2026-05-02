@@ -102,6 +102,23 @@ export class NoticesController {
     return this.noticesService.getGlobalHistory();
   }
 
+  @Get('analytics')
+  @Permissions({ module: ModuleName.NOTICES, action: 'view' })
+  @ApiOperation({ summary: 'Get detailed acknowledgement/visitor logs' })
+  getAnalytics(
+    @Query('noticeId') noticeId?: string,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+    @Request() req?: any,
+  ) {
+    return this.noticesService.getAcknowledgementLogs({ 
+      noticeId, 
+      tenantId: req.user.tenantId, 
+      limit, 
+      offset 
+    });
+  }
+
   @Get(':id')
   @Permissions({ module: ModuleName.NOTICES, action: 'view' })
   @ApiOperation({ summary: 'Get a specific notice with its version history' })
