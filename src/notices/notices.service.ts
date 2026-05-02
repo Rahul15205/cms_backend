@@ -296,7 +296,9 @@ export class NoticesService {
   async getAcknowledgementLogs(filters: { noticeId?: string; tenantId?: string; limit?: number; offset?: number }) {
     const where: any = {};
     if (filters.noticeId) where.noticeId = filters.noticeId;
-    if (filters.tenantId) where.tenantId = filters.tenantId;
+    if (filters.tenantId) {
+      where.notice = { tenantId: filters.tenantId };
+    }
 
     const take = filters.limit ? Number(filters.limit) : 50;
     const skip = filters.offset ? Number(filters.offset) : 0;
