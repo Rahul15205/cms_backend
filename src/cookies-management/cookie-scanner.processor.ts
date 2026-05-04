@@ -96,6 +96,18 @@ export class CookieScannerProcessor extends WorkerHost {
         const currentUrl = queue.shift()!;
         if (visited.has(currentUrl)) continue;
 
+        // Check if website still exists (user might have deleted it during scan)
+        const websiteCheck = await this.prisma.scannedWebsite.findUnique({
+          where: { id: websiteId },
+          select: { id: true }
+        });
+
+        if (!websiteCheck) {
+          this.logger.warn(`Website ${websiteId} was deleted during scan. Aborting process.`);
+          if (browser) await browser.close();
+          return { status: 'ABORTED', reason: 'Website deleted' };
+        }
+
         visited.add(currentUrl);
         this.logger.log(`[Crawling] ${visited.size}/${maxPages}: ${currentUrl}`);
 
@@ -172,6 +184,16 @@ export class CookieScannerProcessor extends WorkerHost {
       }
 
       // 4. Process Discovered Cookies
+      const finalCheck = await this.prisma.scannedWebsite.findUnique({
+        where: { id: websiteId },
+        select: { id: true }
+      });
+
+      if (!finalCheck) {
+        this.logger.warn(`Website ${websiteId} was deleted during scan. Aborting processing.`);
+        return { status: 'ABORTED', reason: 'Website deleted' };
+      }
+
       const results: any[] = [];
       const categoryCounts: Record<string, number> = {
         NECESSARY: 0,
@@ -272,11 +294,15 @@ export class CookieScannerProcessor extends WorkerHost {
       return { cookiesFound: discoveredCookies.size, pagesScanned: visited.size };
 
     } catch (error) {
-      this.logger.error(`Scan failed for ${website.url}: ${error.message}`);
-      await this.prisma.scannedWebsite.update({
-        where: { id: websiteId },
-        data: { status: ScanStatus.FAILED }
-      });
+      this.logger.error(`Scan failed for website ${websiteId}: ${error.message}`);
+      try {
+        await this.prisma.scannedWebsite.update({
+          where: { id: websiteId },
+          data: { status: ScanStatus.FAILED }
+        });
+      } catch (dbError) {
+        this.logger.warn(`Could not update failure status for ${websiteId}: ${dbError.message}`);
+      }
       throw error;
     } finally {
       if (browser) await browser.close();
