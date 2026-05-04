@@ -100,27 +100,31 @@ export class CookieScannerProcessor extends WorkerHost {
         this.logger.log(`[Crawling] ${visited.size}/${maxPages}: ${currentUrl}`);
 
         try {
-          await page.goto(currentUrl, { waitUntil: 'networkidle2', timeout: 45000 });
+          // Optimized loading for speed
+          await page.goto(currentUrl, { waitUntil: 'load', timeout: 30000 });
           
-          // Trigger lazy-loaded scripts and cookies by scrolling
-          await page.evaluate(async () => {
-            await new Promise((resolve) => {
-              let totalHeight = 0;
-              const distance = 100;
-              const timer = setInterval(() => {
-                const scrollHeight = document.body.scrollHeight;
-                window.scrollBy(0, distance);
-                totalHeight += distance;
-                if (totalHeight >= scrollHeight || totalHeight > 5000) {
-                  clearInterval(timer);
-                  resolve(true);
-                }
-              }, 100);
+          // Only scroll and wait extensively on the first 5 pages (usually enough for persistent cookies)
+          if (visited.size <= 5) {
+            await page.evaluate(async () => {
+              await new Promise((resolve) => {
+                let totalHeight = 0;
+                const distance = 200; 
+                const timer = setInterval(() => {
+                  const scrollHeight = document.body.scrollHeight;
+                  window.scrollBy(0, distance);
+                  totalHeight += distance;
+                  if (totalHeight >= scrollHeight || totalHeight > 3000) {
+                    clearInterval(timer);
+                    resolve(true);
+                  }
+                }, 50); 
+              });
             });
-          });
-
-          // Wait an extra bit for HubSpot/analytics scripts to fire and set cookies
-          await new Promise(r => setTimeout(r, 5000));
+            await new Promise(r => setTimeout(r, 2000));
+          } else {
+            // Quick wait for deep pages
+            await new Promise(r => setTimeout(r, 500));
+          }
 
           // Capture Cookies (Includes JS and HTTP cookies)
           const cookies = await page.cookies();
