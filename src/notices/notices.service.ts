@@ -141,11 +141,13 @@ export class NoticesService {
     const data = await Promise.all(rawData.map(async (notice) => {
       const stats = await this.prisma.noticeAcknowledgement.aggregate({
         where: { noticeId: notice.id },
-        _avg: { viewDuration: true }
+        _avg: { viewDuration: true },
+        _sum: { viewDuration: true }
       });
       return {
         ...notice,
-        avgReadTime: Math.round(stats._avg.viewDuration || 0)
+        avgReadTime: Math.round(stats._avg.viewDuration || 0),
+        totalReadTime: stats._sum.viewDuration || 0
       };
     }));
 
