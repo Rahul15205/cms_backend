@@ -71,7 +71,7 @@ export class NoticesService {
     });
     const sequence = (count + 1).toString().padStart(4, '0');
 
-    return `${countryCode}-${cityCode}-${sequence}`;
+    return `${countryCode}-${cityCode}-USER-${sequence}`;
   }
 
   // ==========================================
