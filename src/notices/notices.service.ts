@@ -339,7 +339,7 @@ export class NoticesService {
     if (!notice) throw new NotFoundException('Notice not found');
 
     let userId = dto.userId;
-    if (!userId || userId.startsWith('VISIT-')) {
+    if (!userId || userId.startsWith('VISIT-') || userId.startsWith('U-')) {
       userId = await this.generateSmartUserId(dto.ipAddress, notice.tenantId || '');
     }
 
