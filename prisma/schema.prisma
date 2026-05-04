@@ -1126,6 +1126,23 @@ model ScannedWebsite {
   cookieConsentLogs CookieConsentLog[]
   cookies CookieInventory[]
 
+  // Compliance & Scanning Intelligence
+  complianceScore     Float?
+  riskLevel           String?   // LOW, MEDIUM, HIGH
+  complianceGrade     String?   // A, B, C, D, F
+  pagesCrawled        Int?
+  cookiesDetected     Int?
+  thirdPartyScripts   Json?     // Array of detected third party scripts
+  scanResults         Json?     // Detailed breakdown of the 10 indicators
+  previousScore       Float?    
+  nextScheduledScan   DateTime?
+  changeDetected      Boolean   @default(false)
+
+  // Identity & Contact
+  pocName             String?
+  pocEmail            String?
+  organizationName    String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

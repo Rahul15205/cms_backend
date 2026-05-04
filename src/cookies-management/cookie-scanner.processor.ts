@@ -6,6 +6,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import * as puppeteer from 'puppeteer';
 import { classifyCookie } from './cookie-dictionary.util';
 import { ScanStatus, ScanDepth } from '@prisma/client';
+import { ComplianceScannerService } from './compliance-scanner.service';
 
 export interface CookieScanJobData {
   websiteId: string;
@@ -18,6 +19,7 @@ export class CookieScannerProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly complianceScanner: ComplianceScannerService,
   ) {
     super();
   }
@@ -39,6 +41,7 @@ export class CookieScannerProcessor extends WorkerHost {
     const queue: string[] = [website.url];
     const maxPages = website.depth === ScanDepth.DEEP ? 1000 : 100;
     const discoveredCookies = new Map<string, any>();
+    const thirdPartyScriptsSet = new Set<string>();
 
     try {
       // 1. Update status
@@ -130,6 +133,18 @@ export class CookieScannerProcessor extends WorkerHost {
             }
           }
 
+          // Capture Third-party scripts
+          const scripts = await page.$$eval('script[src]', (elements) => elements.map(e => e.src));
+          scripts.forEach(s => {
+             try {
+                const sUrl = new URL(s);
+                const wUrl = new URL(website.url);
+                if (sUrl.hostname !== wUrl.hostname) {
+                   thirdPartyScriptsSet.add(sUrl.hostname);
+                }
+             } catch {}
+          });
+
           // Extract more links if we haven't reached the limit
           if (visited.size < maxPages) {
             const links = await page.$$eval('a', (anchors) => 
@@ -215,9 +230,21 @@ export class CookieScannerProcessor extends WorkerHost {
         where: { id: websiteId },
         data: { 
           status: ScanStatus.COMPLETED,
-          lastScan: new Date()
+          lastScan: new Date(),
+          pagesCrawled: visited.size,
+          cookiesDetected: discoveredCookies.size,
         }
       });
+
+      // Run Compliance Scanner
+      await this.complianceScanner.evaluateCompliance(
+         websiteId,
+         discoveredCookies.size,
+         Array.from(visited),
+         Array.from(thirdPartyScriptsSet)
+      );
+
+      const updatedWebsite = await this.prisma.scannedWebsite.findUnique({ where: { id: websiteId } });
 
       // 6. Send Notification Email
       if (website.email) {
@@ -231,6 +258,8 @@ export class CookieScannerProcessor extends WorkerHost {
             functionalCount: categoryCounts['FUNCTIONAL'],
             analyticsCount: categoryCounts['ANALYTICS'],
             marketingCount: categoryCounts['MARKETING'],
+            complianceScore: updatedWebsite?.complianceScore || 'N/A',
+            riskLevel: updatedWebsite?.riskLevel || 'N/A'
           }
         );
       }
