@@ -5,8 +5,9 @@ import { CreateNoticeDto } from './dto/create-notice.dto';
 import { UpdateNoticeDto } from './dto/update-notice.dto';
 import { CreateNoticeTypeDto } from './dto/create-notice-type.dto';
 import { NoticeStatus } from '@prisma/client';
-
 import { TranslationService } from '../translation/translation.service';
+import * as geoip from 'geoip-lite';
+import axios from 'axios';
 
 @Injectable()
 export class NoticesService {
@@ -14,6 +15,64 @@ export class NoticesService {
     private prisma: PrismaService,
     private translationService: TranslationService
   ) {}
+
+  private maskIp(ip?: string): string {
+    if (!ip || ip === '::1' || ip === '127.0.0.1' || ip.includes('localhost')) return 'Localhost';
+    const cleanIp = ip.startsWith('::ffff:') ? ip.substring(7) : ip;
+    if (cleanIp.includes(':')) {
+      const parts = cleanIp.split(':');
+      if (parts.length > 1) {
+        parts[parts.length - 1] = 'xxxx';
+        return parts.join(':');
+      }
+    } else {
+      const parts = cleanIp.split('.');
+      if (parts.length === 4) {
+        return `${parts[0]}.${parts[1]}.${parts[2]}.xxx`;
+      }
+    }
+    return cleanIp;
+  }
+
+  private async generateSmartUserId(ip: string, tenantId: string): Promise<string> {
+    let countryCode = 'XX';
+    let cityCode = 'UNK';
+
+    try {
+      let cleanIp = ip.split(',')[0].trim().replace(/^::ffff:/, '');
+      const isPrivate = 
+        cleanIp === '127.0.0.1' || cleanIp === '::1' || cleanIp.includes('localhost') ||
+        cleanIp.startsWith('10.') || cleanIp.startsWith('192.168.') || 
+        (/^172\.(1[6-9]|2\d|3[0-1])\./.test(cleanIp));
+
+      if (!isPrivate) {
+        const geo = geoip.lookup(cleanIp);
+        if (geo) {
+          countryCode = geo.country || 'XX';
+          cityCode = (geo.city || geo.region || 'UNK').substring(0, 3).toUpperCase();
+        } else {
+          try {
+            const response = await axios.get(`https://ipapi.co/${cleanIp}/json/`, { timeout: 2000 });
+            if (response.data && !response.data.error) {
+              countryCode = response.data.country_code || 'XX';
+              cityCode = (response.data.city || response.data.region_code || 'UNK').substring(0, 3).toUpperCase();
+            }
+          } catch (e) {
+            // Silently fail external API
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Proteccio: Smart ID generation geo lookup failed', e.message);
+    }
+
+    const count = await this.prisma.noticeAcknowledgement.count({
+      where: { notice: { tenantId } }
+    });
+    const sequence = (count + 1).toString().padStart(4, '0');
+
+    return `${countryCode}-${cityCode}-${sequence}`;
+  }
 
   // ==========================================
   // NOTICES CRUD
@@ -279,12 +338,17 @@ export class NoticesService {
 
     if (!notice) throw new NotFoundException('Notice not found');
 
+    let userId = dto.userId;
+    if (!userId || userId.startsWith('VISIT-')) {
+      userId = await this.generateSmartUserId(dto.ipAddress, notice.tenantId || '');
+    }
+
     const data: any = {
       noticeId,
       version: notice.currentVersion,
       userEmail: dto.userEmail || null,
-      userId: dto.userId || null,
-      ipAddress: dto.ipAddress || null,
+      userId: userId,
+      ipAddress: this.maskIp(dto.ipAddress),
       userAgent: dto.userAgent || null,
       viewDuration: dto.viewDuration ? Number(dto.viewDuration) : null,
       language: dto.language || 'en',
