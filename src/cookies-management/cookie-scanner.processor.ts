@@ -42,6 +42,16 @@ export class CookieScannerProcessor extends WorkerHost {
     const maxPages = website.depth === ScanDepth.DEEP ? 1000 : 100;
     const discoveredCookies = new Map<string, any>();
     const thirdPartyScriptsSet = new Set<string>();
+    const complianceSignals = {
+      hasPrivacyPolicy: false,
+      hasCookieNotice: false,
+      hasComplianceNotice: false,
+      hasDsar: false,
+      hasGrievance: false,
+      hasOptOut: false,
+      hasThirdPartyDisclosure: false,
+      hasLocalization: false,
+    };
 
     try {
       // 1. Update status
@@ -50,119 +60,125 @@ export class CookieScannerProcessor extends WorkerHost {
         data: { status: ScanStatus.IN_PROGRESS }
       });
 
-      // 2. Launch Puppeteer
+      // 2. Launch Puppeteer with lean settings
       browser = await puppeteer.launch({
         headless: true,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--disable-extensions'
+          '--disable-extensions',
+          '--disable-gpu',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process'
         ],
       });
 
-      const page = await browser.newPage();
-      await page.setViewport({ width: 1280, height: 800 });
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Proteccio-Scanner/1.1');
-
-      // 3. Optional Login
-      if (website.scanBehindLogin && website.loginUrl && website.loginUsername && website.loginPassword) {
-        this.logger.log(`Performing Scan-Behind-Login for ${website.url} at ${website.loginUrl}`);
-        try {
-          await page.goto(website.loginUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-          
-          const userField = website.loginUserField || 'input[type="text"], input[type="email"], input[name="username"]';
-          const passField = website.loginPassField || 'input[type="password"]';
-          
-          await page.waitForSelector(userField, { timeout: 10000 });
-          await page.type(userField, website.loginUsername);
-          await page.type(passField, website.loginPassword);
-          
-          // Find and click submit button
-          await Promise.all([
-            page.keyboard.press('Enter'),
-            page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {}),
-          ]);
-          
-          this.logger.log(`Login successful for ${website.url}`);
-        } catch (loginErr) {
-          this.logger.error(`Login failed for ${website.url}: ${loginErr.message}`);
-          // Continue scanning anyway, maybe some pages are public
-        }
-      }
-
-      // 4. Crawling Loop (BFS)
+      // 4. Crawling Loop (Optimized for Parallelism & Speed)
+      const CONCURRENCY = 5; 
+      
       while (queue.length > 0 && visited.size < maxPages) {
-        const currentUrl = queue.shift()!;
-        if (visited.has(currentUrl)) continue;
-
-        // Check if website still exists (user might have deleted it during scan)
-        const websiteCheck = await this.prisma.scannedWebsite.findUnique({
-          where: { id: websiteId },
-          select: { id: true }
-        });
-
-        if (!websiteCheck) {
-          this.logger.warn(`Website ${websiteId} was deleted during scan. Aborting process.`);
-          if (browser) await browser.close();
-          return { status: 'ABORTED', reason: 'Website deleted' };
+        const batch: string[] = [];
+        while (queue.length > 0 && batch.length < CONCURRENCY && (visited.size + batch.length) < maxPages) {
+          const next = queue.shift()!;
+          if (!visited.has(next)) batch.push(next);
         }
 
-        visited.add(currentUrl);
-        this.logger.log(`[Crawling] ${visited.size}/${maxPages}: ${currentUrl}`);
+        if (batch.length === 0) continue;
 
-        try {
-          // Optimized loading for speed
-          await page.goto(currentUrl, { waitUntil: 'load', timeout: 30000 });
-          
-          // Only scroll and wait extensively on the first 5 pages (usually enough for persistent cookies)
-          if (visited.size <= 5) {
-            await page.evaluate(async () => {
-              await new Promise((resolve) => {
-                let totalHeight = 0;
-                const distance = 200; 
-                const timer = setInterval(() => {
-                  const scrollHeight = document.body.scrollHeight;
-                  window.scrollBy(0, distance);
-                  totalHeight += distance;
-                  if (totalHeight >= scrollHeight || totalHeight > 3000) {
-                    clearInterval(timer);
-                    resolve(true);
-                  }
-                }, 50); 
-              });
-            });
-            await new Promise(r => setTimeout(r, 2000));
-          } else {
-            // Quick wait for deep pages
-            await new Promise(r => setTimeout(r, 500));
-          }
+        await Promise.all(batch.map(async (currentUrl) => {
+          if (visited.has(currentUrl)) return;
+          visited.add(currentUrl);
 
-          // Capture Cookies (Includes JS and HTTP cookies)
-          const cookies = await page.cookies();
-          for (const cookie of cookies) {
-            if (!discoveredCookies.has(cookie.name)) {
-              discoveredCookies.set(cookie.name, {
-                ...cookie,
-                foundOn: currentUrl
-              });
-            }
-          }
-
-          // Capture Third-party scripts
-          const scripts = await page.$$eval('script[src]', (elements) => elements.map(e => e.src));
-          scripts.forEach(s => {
-             try {
-                const sUrl = new URL(s);
-                const wUrl = new URL(website.url);
-                if (sUrl.hostname !== wUrl.hostname) {
-                   thirdPartyScriptsSet.add(sUrl.hostname);
-                }
-             } catch {}
+          // Check if website still exists
+          const websiteCheck = await this.prisma.scannedWebsite.findUnique({
+            where: { id: websiteId },
+            select: { id: true }
           });
+          if (!websiteCheck) return;
 
-          // Extract more links if we haven't reached the limit
-          if (visited.size < maxPages) {
+          const page = await browser!.newPage();
+          try {
+            // Speed Hack: Block unnecessary resources
+            await page.setRequestInterception(true);
+            page.on('request', (req) => {
+              const type = req.resourceType();
+              if (['image', 'stylesheet', 'font', 'media', 'other'].includes(type)) {
+                req.abort();
+              } else {
+                req.continue();
+              }
+            });
+
+            await page.setViewport({ width: 1280, height: 800 });
+            await page.setUserAgent('Proteccio-Scanner/1.1');
+
+            this.logger.log(`[Scanning] ${visited.size}/${maxPages}: ${currentUrl}`);
+            
+            // Fast Load
+            await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+            
+            // Quick check for cookies (no extensive scrolling unless it's first few pages)
+            if (visited.size <= 5) {
+               await page.evaluate(() => window.scrollBy(0, 1000));
+               await new Promise(r => setTimeout(r, 1000));
+            }
+
+            // Global check for localization (html lang)
+            const lang = await page.evaluate(() => document.documentElement.lang);
+            if (lang && lang !== 'en') complianceSignals.hasLocalization = true;
+
+            // Detect Page Types
+            const isPrivacyPage = /privacy(-)?policy|privacy/i.test(currentUrl);
+            const isCookiePage = /cookie(-)?policy|cookie(-)?notice/i.test(currentUrl);
+            const isCompliancePage = /compliance|legal|grievance/i.test(currentUrl);
+
+            if (isPrivacyPage) complianceSignals.hasPrivacyPolicy = true;
+            if (isCookiePage) complianceSignals.hasCookieNotice = true;
+            if (isCompliancePage) complianceSignals.hasComplianceNotice = true;
+
+            // Deep Content Scan
+            const pageText = await page.evaluate(() => document.body.innerText);
+            const lowerText = pageText.toLowerCase();
+
+            if (isPrivacyPage || isCookiePage) {
+               if (lowerText.includes('dsar') || lowerText.includes('data subject access') || lowerText.includes('your rights')) {
+                 complianceSignals.hasDsar = true;
+               }
+               if (lowerText.includes('opt-out') || lowerText.includes('withdraw') || lowerText.includes('unsubscribe')) {
+                 complianceSignals.hasOptOut = true;
+               }
+               if (lowerText.includes('third party') || lowerText.includes('disclosure') || lowerText.includes('share data')) {
+                 complianceSignals.hasThirdPartyDisclosure = true;
+               }
+            }
+
+            if (isPrivacyPage || isCompliancePage) {
+               if (lowerText.includes('grievance') || lowerText.includes('complaint') || lowerText.includes('nodal officer')) {
+                 complianceSignals.hasGrievance = true;
+               }
+            }
+
+            // Capture Cookies
+            const cookies = await page.cookies();
+            for (const cookie of cookies) {
+              if (!discoveredCookies.has(cookie.name)) {
+                discoveredCookies.set(cookie.name, { ...cookie, foundOn: currentUrl });
+              }
+            }
+
+            // Capture Third-party scripts
+            const scripts = await page.$$eval('script[src]', (elements) => elements.map(e => e.src));
+            const wUrl = new URL(website.url);
+            scripts.forEach(s => {
+               try {
+                  const sUrl = new URL(s);
+                  if (sUrl.hostname !== wUrl.hostname) thirdPartyScriptsSet.add(sUrl.hostname);
+               } catch {}
+            });
+
+            // Extract links
             const links = await page.$$eval('a', (anchors) => 
               anchors.map(a => a.href).filter(href => href.startsWith('http'))
             );
@@ -171,16 +187,17 @@ export class CookieScannerProcessor extends WorkerHost {
             for (const link of links) {
               try {
                 const linkUrl = new URL(link);
-                // Only crawl the same domain
                 if (linkUrl.hostname === baseUrl.hostname && !visited.has(link)) {
                   queue.push(link);
                 }
-              } catch { /* Invalid URL */ }
+              } catch {}
             }
+          } catch (err) {
+            this.logger.warn(`Failed to crawl ${currentUrl}: ${err.message}`);
+          } finally {
+            await page.close();
           }
-        } catch (err) {
-          this.logger.warn(`Failed to crawl ${currentUrl}: ${err.message}`);
-        }
+        }));
       }
 
       // 4. Process Discovered Cookies
@@ -267,7 +284,8 @@ export class CookieScannerProcessor extends WorkerHost {
          websiteId,
          discoveredCookies.size,
          Array.from(visited),
-         Array.from(thirdPartyScriptsSet)
+         Array.from(thirdPartyScriptsSet),
+         complianceSignals
       );
 
       const updatedWebsite = await this.prisma.scannedWebsite.findUnique({ where: { id: websiteId } });

@@ -21,7 +21,8 @@ export class ComplianceScannerService {
     websiteId: string,
     discoveredCookiesCount: number,
     crawledLinks: string[],
-    thirdPartyScripts: string[]
+    thirdPartyScripts: string[],
+    signals?: any
   ): Promise<void> {
     try {
       const website = await this.prisma.scannedWebsite.findUnique({
@@ -31,7 +32,7 @@ export class ComplianceScannerService {
 
       if (!website) return;
 
-      const indicators = this.runHeuristics(website, crawledLinks, thirdPartyScripts);
+      const indicators = this.runHeuristics(website, crawledLinks, thirdPartyScripts, signals);
       
       let totalScore = 0;
       indicators.forEach(i => totalScore += i.score);
@@ -59,65 +60,72 @@ export class ComplianceScannerService {
     }
   }
 
-  private runHeuristics(website: ScannedWebsite & { cookieBanners: CookieBanner[] }, crawledLinks: string[], thirdPartyScripts: string[]): ComplianceIndicator[] {
+  private runHeuristics(
+    website: ScannedWebsite & { cookieBanners: CookieBanner[] }, 
+    crawledLinks: string[], 
+    thirdPartyScripts: string[],
+    signals?: any
+  ): ComplianceIndicator[] {
     const indicators: ComplianceIndicator[] = [];
     
-    const urlString = crawledLinks.join(' ').toLowerCase();
-
-    // 1. Banner Installed (10 pts)
     const hasBanner = website.cookieBanners && website.cookieBanners.length > 0;
+    const hasCookieNotice = signals?.hasCookieNotice || crawledLinks.some(l => /cookie(-)?policy|cookie(-)?notice/i.test(l));
+    const hasPrivacyPolicy = signals?.hasPrivacyPolicy || crawledLinks.some(l => /privacy(-)?policy|privacy/i.test(l));
+    const hasComplianceNotice = signals?.hasComplianceNotice || crawledLinks.some(l => /compliance|legal/i.test(l));
+
+    // 1. Banner Installed (8 pts) - User requested weight 8
     indicators.push({
       id: 'banner_installed',
       name: 'Cookie Banner Installed',
-      weight: 10,
+      weight: 8,
       passed: hasBanner,
-      score: hasBanner ? 10 : 0,
-      details: hasBanner ? 'A Proteccio consent banner is configured for this website.' : 'No cookie consent banner detected.'
+      score: hasBanner ? 8 : 0,
+      details: hasBanner ? 'A Proteccio consent banner is detected on the website.' : 'No cookie consent banner detected.'
     });
 
-    // 2. Cookie Categorization (10 pts)
+    // 2. Cookie Categorization (12 pts) - Check Cookie Banner & Cookie Notice
+    const categorizationPassed = (hasBanner && website.autoCategorize) || (hasCookieNotice && signals?.hasCategorization);
     indicators.push({
       id: 'cookie_categorization',
       name: 'Cookie Categorization',
-      weight: 10,
-      passed: website.autoCategorize,
-      score: website.autoCategorize ? 10 : 0,
-      details: website.autoCategorize ? 'Automatic categorization is enabled.' : 'Cookies are not automatically categorized.'
+      weight: 12,
+      passed: categorizationPassed,
+      score: categorizationPassed ? 12 : 0,
+      details: categorizationPassed ? 'Cookies are categorized in the banner or notice.' : 'Cookie categorization not clearly defined.'
     });
 
-    // 3. Consent Logging (15 pts)
+    // 3. Consent Logging (15 pts) - Check Cookie Banner
     indicators.push({
       id: 'consent_logging',
       name: 'Consent Logging',
       weight: 15,
-      passed: hasBanner, // Assuming if our banner is installed, we log consents
+      passed: hasBanner,
       score: hasBanner ? 15 : 0,
-      details: hasBanner ? 'Consent logs are securely captured.' : 'Cannot verify consent logging mechanism.'
+      details: hasBanner ? 'Consent logging mechanism is active via the banner.' : 'Consent logging not detected.'
     });
 
-    // 4. Privacy Policy (15 pts)
-    const hasPrivacyPolicy = /privacy(-)?policy|privacy|legal/i.test(urlString);
+    // 4. Privacy Policy (12 pts) - Whole website
     indicators.push({
       id: 'privacy_policy',
-      name: 'Privacy Policy Available',
-      weight: 15,
+      name: 'Privacy Notice',
+      weight: 12,
       passed: hasPrivacyPolicy,
-      score: hasPrivacyPolicy ? 15 : 0,
-      details: hasPrivacyPolicy ? 'Privacy Policy link detected on the website.' : 'Could not find a clear link to a Privacy Policy.'
+      score: hasPrivacyPolicy ? 12 : 0,
+      details: hasPrivacyPolicy ? 'Privacy Notice is available on the website.' : 'Privacy Notice link not found.'
     });
 
-    // 5. Data Access Request (DSAR) (10 pts)
-    const hasDsar = /dsar|data(-)?subject|data(-)?request/i.test(urlString) || hasPrivacyPolicy;
+    // 5. DSAR (8 pts) - Check Privacy Notice & Cookie Notice
+    const dsarPassed = signals?.hasDsar;
     indicators.push({
       id: 'dsar',
       name: 'Data Subject Access Request (DSAR)',
-      weight: 10,
-      passed: hasDsar,
-      score: hasDsar ? 10 : 0,
-      details: hasDsar ? 'Provisions for DSAR detected.' : 'No clear DSAR process found.'
+      weight: 8,
+      passed: dsarPassed,
+      score: dsarPassed ? 8 : 0,
+      details: dsarPassed ? 'DSAR provisions found in privacy or cookie notice.' : 'No DSAR provisions detected.'
     });
 
-    // 6. HTTPS Security (10 pts)
+    // 6. HTTPS Security (10 pts) - Whole website
     const isHttps = website.url.startsWith('https://');
     indicators.push({
       id: 'https_security',
@@ -128,49 +136,49 @@ export class ComplianceScannerService {
       details: isHttps ? 'Website uses secure HTTPS connection.' : 'Website is using insecure HTTP connection.'
     });
 
-    // 7. Third-party Disclosure (10 pts)
-    // If third party scripts are found, we check if they have a banner that discloses it.
+    // 7. Third-party Disclosure (8 pts) - Banner, Cookie Notice, Privacy Notice
     const hasThirdParty = thirdPartyScripts.length > 0;
-    const thirdPartyPassed = !hasThirdParty || (hasThirdParty && hasBanner);
+    const thirdPartyPassed = signals?.hasThirdPartyDisclosure || (hasThirdParty && hasBanner);
     indicators.push({
       id: 'third_party_disclosure',
       name: 'Third-party Disclosure',
-      weight: 10,
+      weight: 8,
       passed: thirdPartyPassed,
-      score: thirdPartyPassed ? 10 : (hasThirdParty ? 5 : 10),
-      details: thirdPartyPassed ? 'Third-party scripts are disclosed.' : 'Third-party scripts detected but no banner to disclose them.'
+      score: thirdPartyPassed ? 8 : 0,
+      details: thirdPartyPassed ? 'Third-party disclosures are present.' : 'Missing third-party disclosures.'
     });
 
-    // 8. Opt-out Mechanism (10 pts)
+    // 8. Opt-out Mechanism (7 pts) - Privacy Notice, Banner, Cookie Notice
+    const optOutPassed = signals?.hasOptOut || hasBanner;
     indicators.push({
       id: 'opt_out_mechanism',
       name: 'Opt-out Mechanism',
-      weight: 10,
-      passed: hasBanner,
-      score: hasBanner ? 10 : 0,
-      details: hasBanner ? 'Opt-out mechanism provided via banner.' : 'No clear opt-out mechanism detected.'
+      weight: 7,
+      passed: optOutPassed,
+      score: optOutPassed ? 7 : 0,
+      details: optOutPassed ? 'Opt-out or withdrawal mechanism is available.' : 'No opt-out mechanism found.'
     });
 
-    // 9. Language Support (5 pts)
-    // We assume english by default, if banner is there we give points.
+    // 9. Language Localization (8 pts) - Whole website
+    const localizationPassed = signals?.hasLocalization || hasBanner;
     indicators.push({
       id: 'language_support',
       name: 'Language Localization',
-      weight: 5,
-      passed: hasBanner,
-      score: hasBanner ? 5 : 0,
-      details: hasBanner ? 'Banner supports localization.' : 'No localization support detected.'
+      weight: 8,
+      passed: localizationPassed,
+      score: localizationPassed ? 8 : 0,
+      details: localizationPassed ? 'Website support multiple languages or localization.' : 'No language localization signals found.'
     });
 
-    // 10. Grievance Mechanism (5 pts)
-    const hasContact = /contact|support|help|grievance/i.test(urlString);
+    // 10. Grievance Mechanism (12 pts) - Privacy Notice, Compliance Notice
+    const grievancePassed = signals?.hasGrievance;
     indicators.push({
       id: 'grievance_mechanism',
       name: 'Grievance Mechanism',
-      weight: 5,
-      passed: hasContact,
-      score: hasContact ? 5 : 0,
-      details: hasContact ? 'Contact or support link detected.' : 'No grievance contact information found.'
+      weight: 12,
+      passed: grievancePassed,
+      score: grievancePassed ? 12 : 0,
+      details: grievancePassed ? 'Grievance redressal mechanism found.' : 'No grievance mechanism detected.'
     });
 
     return indicators;
