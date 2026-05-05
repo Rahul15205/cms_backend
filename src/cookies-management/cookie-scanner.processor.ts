@@ -51,6 +51,7 @@ export class CookieScannerProcessor extends WorkerHost {
       hasOptOut: false,
       hasThirdPartyDisclosure: false,
       hasLocalization: false,
+      hasCategorization: false,
     };
 
     try {
@@ -60,7 +61,7 @@ export class CookieScannerProcessor extends WorkerHost {
         data: { status: ScanStatus.IN_PROGRESS }
       });
 
-      // 2. Launch Puppeteer with lean settings
+      // 2. Launch Puppeteer with stable settings
       browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -68,15 +69,42 @@ export class CookieScannerProcessor extends WorkerHost {
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-extensions',
-          '--disable-gpu',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process'
+          '--disable-gpu'
         ],
       });
 
-      // 4. Crawling Loop (Optimized for Parallelism & Speed)
-      const CONCURRENCY = 5; 
+      const page = await browser.newPage();
+      await page.setViewport({ width: 1280, height: 800 });
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Proteccio-Scanner/1.1');
+
+      // 3. Optional Login (Restored)
+      if (website.scanBehindLogin && website.loginUrl && website.loginUsername && website.loginPassword) {
+        this.logger.log(`Performing Scan-Behind-Login for ${website.url} at ${website.loginUrl}`);
+        try {
+          await page.goto(website.loginUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+          
+          const userField = website.loginUserField || 'input[type="text"], input[type="email"], input[name="username"]';
+          const passField = website.loginPassField || 'input[type="password"]';
+          
+          await page.waitForSelector(userField, { timeout: 10000 });
+          await page.type(userField, website.loginUsername);
+          await page.type(passField, website.loginPassword);
+          
+          // Find and click submit button
+          await Promise.all([
+            page.keyboard.press('Enter'),
+            page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {}),
+          ]);
+          
+          this.logger.log(`Login successful for ${website.url}`);
+        } catch (loginErr) {
+          this.logger.error(`Login failed for ${website.url}: ${loginErr.message}`);
+        }
+      }
+      await page.close(); // Close login page, we will open fresh ones for crawling
+
+      // 4. Crawling Loop (Balanced for Speed vs Accuracy)
+      const CONCURRENCY = 3; 
       
       while (queue.length > 0 && visited.size < maxPages) {
         const batch: string[] = [];
@@ -87,24 +115,29 @@ export class CookieScannerProcessor extends WorkerHost {
 
         if (batch.length === 0) continue;
 
+        // Existence check once per batch
+        const websiteCheck = await this.prisma.scannedWebsite.findUnique({
+          where: { id: websiteId },
+          select: { id: true }
+        });
+
+        if (!websiteCheck) {
+          this.logger.warn(`Website ${websiteId} was deleted during scan. Aborting process.`);
+          if (browser) await browser.close();
+          return { status: 'ABORTED', reason: 'Website deleted' };
+        }
+
         await Promise.all(batch.map(async (currentUrl) => {
           if (visited.has(currentUrl)) return;
           visited.add(currentUrl);
 
-          // Check if website still exists
-          const websiteCheck = await this.prisma.scannedWebsite.findUnique({
-            where: { id: websiteId },
-            select: { id: true }
-          });
-          if (!websiteCheck) return;
-
           const page = await browser!.newPage();
           try {
-            // Speed Hack: Block unnecessary resources
+            // Balanced Blocking: Keep stylesheets as they are often needed for JS-based banners
             await page.setRequestInterception(true);
             page.on('request', (req) => {
               const type = req.resourceType();
-              if (['image', 'stylesheet', 'font', 'media', 'other'].includes(type)) {
+              if (['image', 'font', 'media', 'other'].includes(type)) {
                 req.abort();
               } else {
                 req.continue();
@@ -114,17 +147,18 @@ export class CookieScannerProcessor extends WorkerHost {
             await page.setViewport({ width: 1280, height: 800 });
             await page.setUserAgent('Proteccio-Scanner/1.1');
 
-            this.logger.log(`[Scanning] ${visited.size}/${maxPages}: ${currentUrl}`);
+            // Reliable Load: Use 'load' and a small wait for all pages
+            const waitCondition = visited.size <= 1 ? 'networkidle2' : 'load';
+            this.logger.log(`[Scanning] ${visited.size}/${maxPages}: ${currentUrl} (Mode: Balanced)`);
             
-            // Fast Load
-            await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+            await page.goto(currentUrl, { waitUntil: waitCondition, timeout: 45000 });
             
-            // Quick check for cookies (no extensive scrolling unless it's first few pages)
-            if (visited.size <= 5) {
-               await page.evaluate(() => window.scrollBy(0, 1000));
-               await new Promise(r => setTimeout(r, 1000));
-            }
-
+            // Interaction: Scroll slightly to trigger 'on-scroll' scripts
+            await page.evaluate(() => window.scrollBy(0, 1000));
+            
+            // Wait for JS execution (Increased from 1s to 2s for better accuracy)
+            await new Promise(r => setTimeout(r, 2000));
+            
             // Global check for localization (html lang)
             const lang = await page.evaluate(() => document.documentElement.lang);
             if (lang && lang !== 'en') complianceSignals.hasLocalization = true;
@@ -151,6 +185,9 @@ export class CookieScannerProcessor extends WorkerHost {
                }
                if (lowerText.includes('third party') || lowerText.includes('disclosure') || lowerText.includes('share data')) {
                  complianceSignals.hasThirdPartyDisclosure = true;
+               }
+               if (isCookiePage && (lowerText.includes('necessary') || lowerText.includes('analytics') || lowerText.includes('marketing'))) {
+                 complianceSignals.hasCategorization = true;
                }
             }
 
