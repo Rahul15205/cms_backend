@@ -42,7 +42,22 @@ export class CookieScannerProcessor extends WorkerHost {
     const maxPages = website.depth === ScanDepth.DEEP ? 1000 : 100;
     const discoveredCookies = new Map<string, any>();
     const thirdPartyScriptsSet = new Set<string>();
-    const complianceSignals = {
+    const complianceSignals: {
+      hasPrivacyPolicy: boolean;
+      hasCookieNotice: boolean;
+      hasComplianceNotice: boolean;
+      hasDsar: boolean;
+      hasGrievance: boolean;
+      hasOptOut: boolean;
+      hasThirdPartyDisclosure: boolean;
+      hasLocalization: boolean;
+      hasCategorization: boolean;
+      dsarEvidence?: { url: string; snippet: string };
+      optOutEvidence?: { url: string; snippet: string };
+      thirdPartyEvidence?: { url: string; snippet: string };
+      categorizationEvidence?: { url: string; snippet: string };
+      grievanceEvidence?: { url: string; snippet: string };
+    } = {
       hasPrivacyPolicy: false,
       hasCookieNotice: false,
       hasComplianceNotice: false,
@@ -176,24 +191,37 @@ export class CookieScannerProcessor extends WorkerHost {
             const pageText = await page.evaluate(() => document.body.innerText);
             const lowerText = pageText.toLowerCase();
 
+            const extractEvidence = (text: string, keyword: string) => {
+               const index = text.toLowerCase().indexOf(keyword.toLowerCase());
+               if (index === -1) return "";
+               const start = Math.max(0, index - 40);
+               const end = Math.min(text.length, index + 100);
+               return "..." + text.substring(start, end).replace(/\n/g, ' ').trim() + "...";
+            };
+
             if (isPrivacyPage || isCookiePage) {
                if (lowerText.includes('dsar') || lowerText.includes('data subject access') || lowerText.includes('your rights')) {
                  complianceSignals.hasDsar = true;
+                 complianceSignals.dsarEvidence = { url: currentUrl, snippet: extractEvidence(pageText, 'dsar') || extractEvidence(pageText, 'data') };
                }
                if (lowerText.includes('opt-out') || lowerText.includes('withdraw') || lowerText.includes('unsubscribe')) {
                  complianceSignals.hasOptOut = true;
+                 complianceSignals.optOutEvidence = { url: currentUrl, snippet: extractEvidence(pageText, 'opt-out') || extractEvidence(pageText, 'withdraw') };
                }
                if (lowerText.includes('third party') || lowerText.includes('disclosure') || lowerText.includes('share data')) {
                  complianceSignals.hasThirdPartyDisclosure = true;
+                 complianceSignals.thirdPartyEvidence = { url: currentUrl, snippet: extractEvidence(pageText, 'third party') || extractEvidence(pageText, 'disclosure') };
                }
                if (isCookiePage && (lowerText.includes('necessary') || lowerText.includes('analytics') || lowerText.includes('marketing'))) {
                  complianceSignals.hasCategorization = true;
+                 complianceSignals.categorizationEvidence = { url: currentUrl, snippet: extractEvidence(pageText, 'necessary') || extractEvidence(pageText, 'analytics') };
                }
             }
 
             if (isPrivacyPage || isCompliancePage) {
                if (lowerText.includes('grievance') || lowerText.includes('complaint') || lowerText.includes('nodal officer')) {
                  complianceSignals.hasGrievance = true;
+                 complianceSignals.grievanceEvidence = { url: currentUrl, snippet: extractEvidence(pageText, 'grievance') || extractEvidence(pageText, 'complaint') };
                }
             }
 

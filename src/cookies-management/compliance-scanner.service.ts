@@ -9,6 +9,7 @@ export interface ComplianceIndicator {
   passed: boolean;
   score: number;
   details: string;
+  evidence?: { url: string; snippet: string };
 }
 
 @Injectable()
@@ -86,12 +87,13 @@ export class ComplianceScannerService {
     // 2. Cookie Categorization (12 pts) - Check Cookie Banner & Cookie Notice
     const categorizationPassed = (hasBanner && website.autoCategorize) || (hasCookieNotice && signals?.hasCategorization);
     indicators.push({
-      id: 'cookie_categorization',
+      id: 'categorization',
       name: 'Cookie Categorization',
       weight: 12,
       passed: categorizationPassed,
       score: categorizationPassed ? 12 : 0,
-      details: categorizationPassed ? 'Cookies are categorized in the banner or notice.' : 'Cookie categorization not clearly defined.'
+      details: categorizationPassed ? 'Cookies are categorized (Necessary, Analytics, etc.).' : 'Automatic categorization not active or detected.',
+      evidence: signals?.categorizationEvidence
     });
 
     // 3. Consent Logging (15 pts) - Check Cookie Banner
@@ -122,7 +124,8 @@ export class ComplianceScannerService {
       weight: 8,
       passed: dsarPassed,
       score: dsarPassed ? 8 : 0,
-      details: dsarPassed ? 'DSAR provisions found in privacy or cookie notice.' : 'No DSAR provisions detected.'
+      details: dsarPassed ? 'DSAR provisions found in privacy or cookie notice.' : 'No DSAR provisions detected.',
+      evidence: signals?.dsarEvidence
     });
 
     // 6. HTTPS Security (10 pts) - Whole website
@@ -145,18 +148,20 @@ export class ComplianceScannerService {
       weight: 8,
       passed: thirdPartyPassed,
       score: thirdPartyPassed ? 8 : 0,
-      details: thirdPartyPassed ? 'Third-party disclosures are present.' : 'Missing third-party disclosures.'
+      details: thirdPartyPassed ? 'Third-party disclosures are present.' : 'Missing third-party disclosures.',
+      evidence: signals?.thirdPartyEvidence
     });
 
     // 8. Opt-out Mechanism (7 pts) - Privacy Notice, Banner, Cookie Notice
-    const optOutPassed = signals?.hasOptOut || hasBanner;
+    const optOutPassed = (hasBanner && website.cookieBanners.length > 0) || signals?.hasOptOut;
     indicators.push({
-      id: 'opt_out_mechanism',
+      id: 'opt_out',
       name: 'Opt-out Mechanism',
       weight: 7,
       passed: optOutPassed,
       score: optOutPassed ? 7 : 0,
-      details: optOutPassed ? 'Opt-out or withdrawal mechanism is available.' : 'No opt-out mechanism found.'
+      details: optOutPassed ? 'Opt-out or withdrawal mechanism is available.' : 'No clear opt-out mechanism detected.',
+      evidence: signals?.optOutEvidence
     });
 
     // 9. Language Localization (8 pts) - Whole website
@@ -178,7 +183,8 @@ export class ComplianceScannerService {
       weight: 12,
       passed: grievancePassed,
       score: grievancePassed ? 12 : 0,
-      details: grievancePassed ? 'Grievance redressal mechanism found.' : 'No grievance mechanism detected.'
+      details: grievancePassed ? 'Grievance redressal mechanism found.' : 'No grievance mechanism detected.',
+      evidence: signals?.grievanceEvidence
     });
 
     return indicators;
