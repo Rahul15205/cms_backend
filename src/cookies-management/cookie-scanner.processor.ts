@@ -41,7 +41,7 @@ export class CookieScannerProcessor extends WorkerHost {
     const isDeep = website.depth === ScanDepth.DEEP;
     const MAX_PAGES = isDeep ? 100000 : 100;
     const CONCURRENCY = isDeep ? 10 : 5;
-    const TIME_BUDGET_MS = isDeep ? 8 * 60 * 1000 : 3 * 60 * 1000; // 8 mins for DEEP, 3 mins for STANDARD
+    const TIME_BUDGET_MS = isDeep ? 60 * 60 * 1000 : 15 * 60 * 1000; // 60 mins for DEEP, 15 mins for STANDARD
     const DEFAULT_WAIT_MS = isDeep ? 1000 : 500;
 
     let browser: puppeteer.Browser | null = null;
@@ -127,10 +127,11 @@ export class CookieScannerProcessor extends WorkerHost {
 
           // Navigation optimization
           try {
+             // 15s timeout for fast loads. If it times out, the DOM might still be partially ready.
              await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
           } catch (e) {
-             // Fallback
-             await page.goto(currentUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+             // Catch and proceed instead of adding another 30 seconds of waiting.
+             // Often cookies and basic DOM are available even if it didn't fully finish.
           }
 
           // Trigger interaction
