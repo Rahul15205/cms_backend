@@ -200,10 +200,15 @@ export class NotificationsService {
   async sendCookieScanCompletionEmail(email: string, websiteName: string, stats: any): Promise<boolean> {
     try {
       this.logger.log(`Dispatching cookie scan report for ${websiteName} to ${email}`);
+      const template = stats.isPeriodic ? 'cookie-scan-periodic-report' : 'cookie-scan-report';
+      const subject = stats.isPeriodic 
+        ? `Your Scheduled Website Compliance Report – ${websiteName}`
+        : `Your Website Scan Report is Ready – Compliance & Risk Summary`;
+
       await this.mailerService.sendMail({
         to: email,
-        subject: `Scan Completed: ${websiteName}`,
-        template: 'cookie-scan-report',
+        subject: subject,
+        template: template,
         context: {
           websiteName,
           ...stats,

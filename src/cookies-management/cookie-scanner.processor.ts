@@ -357,18 +357,60 @@ export class CookieScannerProcessor extends WorkerHost {
 
       // 6. Send Notification Email
       if (website.email) {
+        const isPeriodic = !!website.lastScan;
+        const indicators = updatedWebsite?.scanResults as any[] || [];
+
+        const getStatus = (id: string) => {
+          const ind = indicators.find(i => i.id === id);
+          if (!ind) return { icon: '✖', text: 'Missing' };
+          if (ind.passed) return { icon: '✔', text: 'Present' };
+          return { icon: '✖', text: 'Missing' };
+        };
+
+        const keyRisks = indicators.filter(i => !i.passed).map(i => i.name + ' issue detected.').slice(0, 5);
+        const recommendedActions = indicators.filter(i => !i.passed).map(i => `Implement or fix ${i.name}`).slice(0, 5);
+
+        const changesDetected: string[] = [];
+        if (website.lastScan && updatedWebsite?.complianceScore !== website.complianceScore) {
+          changesDetected.push(`Compliance score changed from ${website.complianceScore || 0}% to ${updatedWebsite?.complianceScore}%`);
+        }
+
         await this.notificationsService.sendCookieScanCompletionEmail(
           website.email,
           website.name,
           {
-            totalCookies: discoveredCookies.size,
-            pagesScanned: visited.size,
+            isPeriodic,
+            userName: website.pocName || website.name || 'Website Owner',
+            websiteUrl: website.url,
+            complianceScore: updatedWebsite?.complianceScore || 0,
+            riskScore: 100 - (updatedWebsite?.complianceScore || 0),
+            riskLevel: updatedWebsite?.riskLevel || 'N/A',
+            previousScore: website.complianceScore || 0,
+            scoreDifference: (updatedWebsite?.complianceScore || 0) - (website.complianceScore || 0),
+            totalPages: visited.size,
+            scanType: website.depth,
+            scanFrequency: website.frequency,
+            scanDate: new Date().toLocaleString(),
+            cookieCount: discoveredCookies.size,
             necessaryCount: categoryCounts['NECESSARY'],
             functionalCount: categoryCounts['FUNCTIONAL'],
             analyticsCount: categoryCounts['ANALYTICS'],
             marketingCount: categoryCounts['MARKETING'],
-            complianceScore: updatedWebsite?.complianceScore || 'N/A',
-            riskLevel: updatedWebsite?.riskLevel || 'N/A'
+            unknownCount: categoryCounts['UNCATEGORIZED'],
+            thirdPartyDomains: Array.from(thirdPartyScriptsSet),
+            bannerIcon: getStatus('banner_installed').icon, bannerText: getStatus('banner_installed').text,
+            categorizationIcon: getStatus('categorization').icon, categorizationText: getStatus('categorization').text,
+            loggingIcon: getStatus('consent_logging').icon, loggingText: getStatus('consent_logging').text,
+            privacyIcon: getStatus('privacy_policy').icon, privacyText: getStatus('privacy_policy').text,
+            dsarIcon: getStatus('dsar').icon, dsarText: getStatus('dsar').text,
+            httpsIcon: getStatus('https_security').icon, httpsText: getStatus('https_security').text,
+            thirdPartyIcon: getStatus('third_party_disclosure').icon, thirdPartyText: getStatus('third_party_disclosure').text,
+            optOutIcon: getStatus('opt_out').icon, optOutText: getStatus('opt_out').text,
+            languageIcon: getStatus('language_support').icon, languageText: getStatus('language_support').text,
+            grievanceIcon: getStatus('grievance_mechanism').icon, grievanceText: getStatus('grievance_mechanism').text,
+            keyRisks,
+            recommendedActions,
+            changesDetected
           }
         );
       }

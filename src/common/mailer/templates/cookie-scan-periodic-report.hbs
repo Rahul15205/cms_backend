@@ -19,20 +19,22 @@
             <p style="color:#2ecc71; margin:0; font-size:10px; letter-spacing:1px; font-weight: bold; text-transform: uppercase;">
                 Data Privacy • Compliance • Implementation
             </p>
-            <h1 class="title">Your Website Scan Report is Ready – Compliance & Risk Summary</h1>
+            <h1 class="title">Your Scheduled Website Compliance Report – {{websiteUrl}}</h1>
         </div>
         
         <div class="card">
             <p>Hi {{userName}},</p>
-            <p>Your website <strong>{{websiteUrl}}</strong> has been successfully scanned. Here’s a complete summary of your website’s compliance, cookies, and risk insights:</p>
+            <p>Your scheduled scan for <strong>{{websiteUrl}}</strong> has been completed. Here’s your latest compliance and risk summary:</p>
             
             <p><strong>Compliance Score:</strong> {{complianceScore}}%<br/>
+            <strong>Previous:</strong> {{previousScore}}% | <strong>Change:</strong> {{scoreDifference}}%<br/>
             <strong>Risk Score:</strong> {{riskScore}} / 100 ({{riskLevel}})</p>
 
             <h3>Scan Summary</h3>
             <ul>
                 <li><strong>Pages Scanned:</strong> {{totalPages}}</li>
                 <li><strong>Scan Type:</strong> {{scanType}}</li>
+                <li><strong>Scan Frequency:</strong> {{scanFrequency}}</li>
                 <li><strong>Scan Date:</strong> {{scanDate}}</li>
             </ul>
             
@@ -57,7 +59,7 @@
             <p>None detected.</p>
             {{/if}}
 
-            <h3>Compliance Overview</h3>
+            <h3>Compliance Overview (Latest)</h3>
             <ul style="list-style-type: none; padding-left: 0;">
                 <li>{{bannerIcon}} Banner Installed: {{bannerText}}</li>
                 <li>{{categorizationIcon}} Cookie Categorization: {{categorizationText}}</li>
@@ -70,6 +72,17 @@
                 <li>{{languageIcon}} Language Support: {{languageText}}</li>
                 <li>{{grievanceIcon}} Grievance Mechanism: {{grievanceText}}</li>
             </ul>
+
+            <h3>What Changed Since Last Scan</h3>
+            {{#if changesDetected.length}}
+            <ul>
+                {{#each changesDetected}}
+                <li>{{this}}</li>
+                {{/each}}
+            </ul>
+            {{else}}
+            <p>No significant changes detected.</p>
+            {{/if}}
 
             <h3>Key Risks Identified</h3>
             {{#if keyRisks.length}}
@@ -94,14 +107,12 @@
             {{/if}}
 
             <h3>Next Steps</h3>
-            <p>Are you excited to make your website fully compliant?</p>
+            <p>Are you excited to keep your website consistently compliant?</p>
             <ol>
-                <li>Install the script on your website</li>
-                <li>Verify the installation</li>
-                <li>Customize your cookie banner</li>
-                <li>Save & Publish your banner</li>
-                <li>Customize your privacy notice, cookie notice</li>
-                <li>Save & Publish your banner</li>
+                <li>Verify banner installation (if changes were made)</li>
+                <li>Review and update banner customization</li>
+                <li>Re-scan after implementing fixes</li>
+                <li>Ensure continuous compliance monitoring</li>
             </ol>
 
             <div style="text-align: center;">
