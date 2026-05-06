@@ -38,7 +38,9 @@ export class CookieScannerProcessor extends WorkerHost {
 
     let browser: puppeteer.Browser | null = null;
     const visited = new Set<string>();
+    const enqueued = new Set<string>();
     const queue: string[] = [website.url];
+    enqueued.add(website.url);
     const maxPages = website.depth === ScanDepth.DEEP ? Infinity : 100;
     const discoveredCookies = new Map<string, any>();
     const thirdPartyScriptsSet = new Set<string>();
@@ -119,7 +121,7 @@ export class CookieScannerProcessor extends WorkerHost {
       await page.close(); // Close login page, we will open fresh ones for crawling
 
       // 4. Crawling Loop (Balanced for Speed vs Accuracy)
-      const CONCURRENCY = 3; 
+      const CONCURRENCY = 5; 
       
       while (queue.length > 0 && visited.size < maxPages) {
         const batch: string[] = [];
@@ -171,17 +173,21 @@ export class CookieScannerProcessor extends WorkerHost {
             // Interaction: Scroll slightly to trigger 'on-scroll' scripts
             await page.evaluate(() => window.scrollBy(0, 1000));
             
-            // Wait for JS execution (Increased from 1s to 2s for better accuracy)
-            await new Promise(r => setTimeout(r, 2000));
-            
-            // Global check for localization (html lang)
-            const lang = await page.evaluate(() => document.documentElement.lang);
-            if (lang && lang !== 'en') complianceSignals.hasLocalization = true;
-
             // Detect Page Types
             const isPrivacyPage = /privacy(-)?policy|privacy/i.test(currentUrl);
             const isCookiePage = /cookie(-)?policy|cookie(-)?notice/i.test(currentUrl);
             const isCompliancePage = /compliance|legal|grievance/i.test(currentUrl);
+
+            // Dynamic Wait Time: 2s for first 3 pages and policy pages, 500ms for others
+            const isKeyPage = visited.size <= 3 || isPrivacyPage || isCookiePage || isCompliancePage;
+            const waitTime = isKeyPage ? 2000 : 500;
+            
+            // Wait for JS execution
+            await new Promise(r => setTimeout(r, waitTime));
+            
+            // Global check for localization (html lang)
+            const lang = await page.evaluate(() => document.documentElement.lang);
+            if (lang && lang !== 'en') complianceSignals.hasLocalization = true;
 
             if (isPrivacyPage) complianceSignals.hasPrivacyPolicy = true;
             if (isCookiePage) complianceSignals.hasCookieNotice = true;
@@ -252,8 +258,13 @@ export class CookieScannerProcessor extends WorkerHost {
             for (const link of links) {
               try {
                 const linkUrl = new URL(link);
-                if (linkUrl.hostname === baseUrl.hostname && !visited.has(link)) {
-                  queue.push(link);
+                // URL Normalization: Remove hash fragment to avoid crawling same page twice
+                linkUrl.hash = '';
+                const normalizedLink = linkUrl.href;
+
+                if (linkUrl.hostname === baseUrl.hostname && !visited.has(normalizedLink) && !enqueued.has(normalizedLink)) {
+                  enqueued.add(normalizedLink);
+                  queue.push(normalizedLink);
                 }
               } catch {}
             }
