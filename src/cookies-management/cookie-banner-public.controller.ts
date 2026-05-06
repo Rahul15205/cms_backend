@@ -449,6 +449,18 @@ export class CookieBannerPublicController {
   link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap';
   document.head.appendChild(link);
 
+  // Expose Global API for the website owner to trigger the banner manually
+  window.Proteccio = window.Proteccio || {};
+  window.Proteccio.showBanner = function() {
+    initBanner();
+  };
+  window.Proteccio.withdrawConsent = function() {
+    localStorage.removeItem('proteccio-consent');
+    // Call backend to log withdrawal if necessary, or just show banner:
+    initBanner();
+  };
+  window.Proteccio.resetConsent = window.Proteccio.withdrawConsent;
+
   checkConsent();
 })();
     `;
