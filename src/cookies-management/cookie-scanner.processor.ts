@@ -39,7 +39,7 @@ export class CookieScannerProcessor extends WorkerHost {
     let browser: puppeteer.Browser | null = null;
     const visited = new Set<string>();
     const queue: string[] = [website.url];
-    const maxPages = website.depth === ScanDepth.DEEP ? 1000 : 100;
+    const maxPages = website.depth === ScanDepth.DEEP ? Infinity : 100;
     const discoveredCookies = new Map<string, any>();
     const thirdPartyScriptsSet = new Set<string>();
     const complianceSignals: {
