@@ -178,4 +178,10 @@ export class CookiesManagementController {
     const tenantId = req.user.tenantId;
     return this.cookiesManagementService.getComplianceMetrics(tenantId, websiteId);
   }
+
+  @Post('verify/:id')
+  verifyInstallation(@Param('id') id: string, @Request() req) {
+    const tenantId = req.user.tenantId;
+    return this.cookiesManagementService.verifyIntegration(id, tenantId);
+  }
 }

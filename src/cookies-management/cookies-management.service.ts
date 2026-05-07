@@ -273,9 +273,8 @@ export class CookiesManagementService {
   }
 
   private async getLocation(ip?: string): Promise<string> {
-    if (!ip || ip === '::1' || ip === '127.0.0.1' || ip.includes('localhost')) return 'Localhost';
+    if (!ip || ip === '::1' || ip === '127.0.0.1' || ip.includes('localhost')) return 'Localhost (Internal)';
     
-    // Clean IP for geoip-lite (remove ::ffff: and take only first IP if it's a list)
     let cleanIp = ip.split(',')[0].trim();
     if (cleanIp.startsWith('::ffff:')) {
       cleanIp = cleanIp.substring(7);
@@ -295,26 +294,36 @@ export class CookiesManagementService {
     try {
       // 1. Try local geoip-lite first
       const geo = geoip.lookup(cleanIp);
-      if (geo && (geo.city || geo.country)) {
-        const city = geo.city || '';
-        const region = geo.region || '';
-        const country = geo.country || '';
-        const parts = [city, region, country].filter(Boolean);
-        return parts.length > 0 ? parts.join(', ') : 'Unknown';
+      if (geo) {
+        const city = geo.city;
+        const region = geo.region;
+        const country = geo.country;
+        
+        const parts: string[] = [];
+        if (city) parts.push(city);
+        if (region && region !== city) parts.push(region);
+        if (country) parts.push(country);
+        
+        if (parts.length > 0) return parts.join(', ');
       }
 
       // 2. Fallback to external API (ipapi.co)
-      const response = await axios.get(`https://ipapi.co/${cleanIp}/json/`, { timeout: 2000 });
+      const response = await axios.get(`https://ipapi.co/${cleanIp}/json/`, { timeout: 3000 });
       if (response.data && !response.data.error) {
-        const { city, region, country_name } = response.data;
-        const parts = [city, region, country_name].filter(Boolean);
-        return parts.length > 0 ? parts.join(', ') : 'Unknown';
+        const { city, region, country_name, country_code } = response.data;
+        const parts: string[] = [];
+        if (city) parts.push(city);
+        if (region && region !== city) parts.push(region);
+        if (country_name) parts.push(country_name);
+        else if (country_code) parts.push(country_code);
+        
+        if (parts.length > 0) return parts.join(', ');
       }
     } catch (e) {
       console.warn('Proteccio: GeoIP lookup failed', e.message);
     }
     
-    return 'Unknown';
+    return 'Global Access';
   }
 
   private async generateSmartUserId(ip: string, websiteId: string): Promise<string> {
@@ -333,13 +342,17 @@ export class CookiesManagementService {
         const geo = geoip.lookup(cleanIp);
         if (geo) {
           countryCode = geo.country || 'XX';
-          cityCode = (geo.city || geo.region || 'UNK').substring(0, 3).toUpperCase();
-        } else {
-          // 2. Try external fallback
-          const response = await axios.get(`https://ipapi.co/${cleanIp}/json/`, { timeout: 2000 });
+          const rawCity = geo.city || geo.region || 'UNK';
+          cityCode = rawCity.substring(0, 3).toUpperCase();
+        } 
+        
+        // 2. If local failed or city is unknown, try external fallback
+        if (countryCode === 'XX' || cityCode === 'UNK') {
+          const response = await axios.get(`https://ipapi.co/${cleanIp}/json/`, { timeout: 3000 });
           if (response.data && !response.data.error) {
-            countryCode = response.data.country_code || 'XX';
-            cityCode = (response.data.city || response.data.region_code || 'UNK').substring(0, 3).toUpperCase();
+            countryCode = response.data.country_code || countryCode;
+            const rawCity = response.data.city || response.data.region_code || 'UNK';
+            cityCode = rawCity.substring(0, 3).toUpperCase();
           }
         }
       }
@@ -652,5 +665,65 @@ export class CookiesManagementService {
     }
 
     return finalBanner;
+  }
+
+  async verifyIntegration(websiteId: string, tenantId: string) {
+    const website = await this.prisma.scannedWebsite.findUnique({
+      where: { id: websiteId }
+    });
+
+    if (!website || website.tenantId !== tenantId) {
+      throw new NotFoundException('Website not found');
+    }
+
+    try {
+      // 1. Fetch the website HTML
+      const response = await axios.get(website.url, { 
+        timeout: 8000, // Slightly longer timeout for verification
+        headers: { 
+          'User-Agent': 'Proteccio-Integration-Scanner/1.0',
+          'Cache-Control': 'no-cache'
+        },
+        validateStatus: () => true // Accept any status to check even if error page loads script
+      });
+      
+      const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+      
+      // 2. Look for the script pattern
+      // Pattern: /api/v1/public/cookies/banner-script/{id}
+      const scriptFound = html.includes(`/api/v1/public/cookies/banner-script/${websiteId}`);
+      const globalScriptFound = html.includes(`/api/v1/public/cookies/banner-script/GLOBAL_ID`);
+
+      if (scriptFound || globalScriptFound) {
+        return {
+          success: true,
+          message: 'Installation verified successfully! The script is active on your website.',
+          details: {
+            scriptType: scriptFound ? 'Website-specific' : 'Global Template',
+            urlChecked: website.url,
+            timestamp: new Date().toISOString()
+          }
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Could not find the Proteccio script tag on your website. Please ensure you have pasted the code correctly before the </body> tag.',
+        details: {
+          urlChecked: website.url,
+          timestamp: new Date().toISOString()
+        }
+      };
+    } catch (e) {
+      console.warn(`Proteccio: Verification failed for ${website.url}`, e.message);
+      return {
+        success: false,
+        message: `Failed to reach the website: ${e.message}. Please ensure the URL is public and accessible.`,
+        details: { 
+          urlChecked: website.url,
+          error: e.message
+        }
+      };
+    }
   }
 }
