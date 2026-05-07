@@ -495,7 +495,6 @@ export class CookiesManagementService {
       include: { category: true }
     });
 
-    // Get all enabled categories for this tenant
     const allCategories = await this.prisma.cookieCategory.findMany({
       where: { tenantId, enabled: true },
     });
@@ -504,8 +503,6 @@ export class CookiesManagementService {
     allCategories.forEach(cat => {
       distributionMap.set(cat.name, 0);
     });
-    
-    // Also include Uncategorized as a potential bucket
     distributionMap.set('Uncategorized', 0);
 
     inventory.forEach(item => {
@@ -513,36 +510,57 @@ export class CookiesManagementService {
       distributionMap.set(catName, (distributionMap.get(catName) || 0) + 1);
     });
 
-    // Filter out Uncategorized if it has 0 cookies to keep it clean, 
-    // but keep defined categories even if they are 0
     if (distributionMap.get('Uncategorized') === 0) {
       distributionMap.delete('Uncategorized');
     }
 
-    const palette = [
-      '#10b981', // Emerald
-      '#3b82f6', // Blue
-      '#f59e0b', // Amber
-      '#8b5cf6', // Violet
-      '#ef4444', // Red
-      '#06b6d4', // Cyan
-      '#ec4899', // Pink
-      '#f97316', // Orange
-      '#14b8a6', // Teal
-      '#6366f1', // Indigo
-    ];
-
+    const palette = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#f97316', '#14b8a6', '#6366f1'];
     let colorIndex = 0;
     const distribution = Array.from(distributionMap.entries()).map(([name, value]) => {
-      let color;
-      if (name.toUpperCase() === 'UNCATEGORIZED') {
-        color = '#94a3b8'; // Slate/Gray for uncategorized
-      } else {
-        color = palette[colorIndex % palette.length];
-        colorIndex++;
-      }
+      const color = name.toUpperCase() === 'UNCATEGORIZED' ? '#94a3b8' : palette[colorIndex++ % palette.length];
       return { name, value, color };
     });
+
+    // Calculate trends
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const [
+      newCookiesThisWeek,
+      newCookiesLastWeek,
+      consentsThisWeek,
+      consentsLastWeek,
+      optOutsThisWeek,
+      optOutsLastWeek
+    ] = await Promise.all([
+      this.prisma.cookieInventory.count({ where: { ...cookieWhere, createdAt: { gte: oneWeekAgo } } }),
+      this.prisma.cookieInventory.count({ where: { ...cookieWhere, createdAt: { gte: twoWeeksAgo, lt: oneWeekAgo } } }),
+      this.prisma.cookieConsentLog.count({ where: { ...whereClause, createdAt: { gte: oneWeekAgo }, status: 'ACCEPTED' } }),
+      this.prisma.cookieConsentLog.count({ where: { ...whereClause, createdAt: { gte: twoWeeksAgo, lt: oneWeekAgo }, status: 'ACCEPTED' } }),
+      this.prisma.cookieConsentLog.count({ where: { ...whereClause, createdAt: { gte: oneWeekAgo }, status: 'REJECTED' } }),
+      this.prisma.cookieConsentLog.count({ where: { ...whereClause, createdAt: { gte: twoWeeksAgo, lt: oneWeekAgo }, status: 'REJECTED' } }),
+    ]);
+
+    const calculateTrend = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return Math.round(((current - previous) / previous) * 100);
+    };
+
+    const kpiTrends = {
+      cookies: { 
+        value: calculateTrend(newCookiesThisWeek, newCookiesLastWeek), 
+        direction: newCookiesThisWeek >= newCookiesLastWeek ? 'up' : 'down' 
+      },
+      consents: { 
+        value: calculateTrend(consentsThisWeek, consentsLastWeek), 
+        direction: consentsThisWeek >= consentsLastWeek ? 'up' : 'down' 
+      },
+      optOut: { 
+        value: calculateTrend(optOutsThisWeek, optOutsLastWeek), 
+        direction: optOutsThisWeek >= optOutsLastWeek ? 'up' : 'down' 
+      }
+    };
 
     // Get trend data for the last 7 days
     const sevenDaysAgo = new Date();
@@ -579,7 +597,7 @@ export class CookiesManagementService {
       }
     });
 
-    const trends = Array.from(trendMap.entries())
+    const trendArray = Array.from(trendMap.entries())
       .map(([name, stats]) => ({ name, ...stats }))
       .reverse(); // Chronological order
 
@@ -587,9 +605,10 @@ export class CookiesManagementService {
       totalCookies,
       categories: categoriesCount,
       activeConsents: acceptedCount,
-      optOutRate: totalLogs > 0 ? Math.round((withdrawnCount / totalLogs) * 100) : 0,
+      optOutRate: totalLogs > 0 ? Math.round(((totalLogs - acceptedCount) / totalLogs) * 100) : 0,
       distribution,
-      trends,
+      trends: trendArray,
+      kpiTrends,
       consentLogs: {
         total: totalLogs,
         accepted: acceptedCount,
