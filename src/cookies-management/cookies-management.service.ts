@@ -565,12 +565,12 @@ export class CookiesManagementService {
     for (let i = 0; i < 7; i++) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       trendMap.set(dateStr, { accepted: 0, withdrawn: 0, rejected: 0 });
     }
 
     trendLogs.forEach(log => {
-      const dateStr = new Date(log.createdAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      const dateStr = new Date(log.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       const stats = trendMap.get(dateStr);
       if (stats) {
         if (log.status === 'ACCEPTED') stats.accepted++;
