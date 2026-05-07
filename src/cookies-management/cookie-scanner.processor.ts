@@ -4,9 +4,29 @@ import { Job } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import * as puppeteer from 'puppeteer';
-import { classifyCookie } from './cookie-dictionary.util';
+import { CookieClassifierService } from './cookie-classifier.service';
 import { ScanStatus, ScanDepth } from '@prisma/client';
 import { ComplianceScannerService } from './compliance-scanner.service';
+
+/**
+ * Normalizes a URL to prevent duplicate crawling of the same content with different tracking parameters.
+ */
+function normalizeUrl(urlStr: string): string {
+  try {
+    const parsed = new URL(urlStr);
+    parsed.hash = '';
+    // Remove common tracking parameters
+    const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid'];
+    for (const param of paramsToRemove) {
+      parsed.searchParams.delete(param);
+    }
+    parsed.searchParams.sort(); // Consistent parameter ordering
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+    return parsed.href.toLowerCase();
+  } catch {
+    return urlStr;
+  }
+}
 
 export interface CookieScanJobData {
   websiteId: string;
@@ -20,13 +40,13 @@ export class CookieScannerProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
     private readonly complianceScanner: ComplianceScannerService,
+    private readonly cookieClassifier: CookieClassifierService,
   ) {
     super();
   }
 
   async process(job: Job<CookieScanJobData>): Promise<any> {
     const { websiteId } = job.data;
-    const startTime = Date.now();
     this.logger.log(`Starting Advanced Professional Scan for website: ${websiteId}`);
 
     const website = await this.prisma.scannedWebsite.findUnique({
@@ -37,23 +57,37 @@ export class CookieScannerProcessor extends WorkerHost {
       throw new Error(`Website not found: ${websiteId}`);
     }
 
-    // 1. Smart Configuration based on Depth
-    const isDeep = website.depth === ScanDepth.DEEP;
-    const MAX_PAGES = isDeep ? 100000 : 100;
-    const CONCURRENCY = isDeep ? 10 : 5;
-    const TIME_BUDGET_MS = isDeep ? 60 * 60 * 1000 : 15 * 60 * 1000; // 60 mins for DEEP, 15 mins for STANDARD
-    const DEFAULT_WAIT_MS = isDeep ? 1000 : 500;
-
     let browser: puppeteer.Browser | null = null;
+    let context: puppeteer.BrowserContext | null = null;
+    
     const visited = new Set<string>();
     const enqueued = new Set<string>();
-    const queue: string[] = [website.url];
-    enqueued.add(website.url);
     
+    const normalizedStart = normalizeUrl(website.url);
+    const queue: string[] = [normalizedStart];
+    enqueued.add(normalizedStart);
+    
+    const maxPages = website.depth === ScanDepth.DEEP ? Infinity : 100;
+    const MAX_SCAN_TIME_MS = website.depth === ScanDepth.DEEP ? 30 * 60 * 1000 : 10 * 60 * 1000; // 30 mins deep, 10 mins fast/balanced
+    const scanStartTime = Date.now();
     const discoveredCookies = new Map<string, any>();
     const thirdPartyScriptsSet = new Set<string>();
-    
-    const complianceSignals = {
+    const complianceSignals: {
+      hasPrivacyPolicy: boolean;
+      hasCookieNotice: boolean;
+      hasComplianceNotice: boolean;
+      hasDsar: boolean;
+      hasGrievance: boolean;
+      hasOptOut: boolean;
+      hasThirdPartyDisclosure: boolean;
+      hasLocalization: boolean;
+      hasCategorization: boolean;
+      dsarEvidence?: { url: string; snippet: string };
+      optOutEvidence?: { url: string; snippet: string };
+      thirdPartyEvidence?: { url: string; snippet: string };
+      categorizationEvidence?: { url: string; snippet: string };
+      grievanceEvidence?: { url: string; snippet: string };
+    } = {
       hasPrivacyPolicy: false,
       hasCookieNotice: false,
       hasComplianceNotice: false,
@@ -63,20 +97,16 @@ export class CookieScannerProcessor extends WorkerHost {
       hasThirdPartyDisclosure: false,
       hasLocalization: false,
       hasCategorization: false,
-      dsarEvidence: undefined as any,
-      optOutEvidence: undefined as any,
-      thirdPartyEvidence: undefined as any,
-      categorizationEvidence: undefined as any,
-      grievanceEvidence: undefined as any,
     };
 
     try {
+      // 1. Update status
       await this.prisma.scannedWebsite.update({
         where: { id: websiteId },
         data: { status: ScanStatus.IN_PROGRESS }
       });
 
-      // 2. Browser Launch Options
+      // 2. Launch Puppeteer with stable settings
       browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -84,325 +114,438 @@ export class CookieScannerProcessor extends WorkerHost {
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-extensions',
-          '--disable-gpu',
-          '--disable-blink-features=AutomationControlled',
+          '--disable-gpu'
         ],
       });
 
-      // 3. Setup Authenticated Context if needed
-      const context = browser.defaultBrowserContext();
-      
+      // Create an isolated context for this scan to prevent data leakage
+      context = await browser.createBrowserContext();
+
+      const page = await context.newPage();
+      await page.setViewport({ width: 1280, height: 800 });
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Proteccio-Scanner/1.1');
+
+      // 3. Optional Login (Restored)
       if (website.scanBehindLogin && website.loginUrl && website.loginUsername && website.loginPassword) {
-        this.logger.log(`Performing Login for ${website.url}`);
-        const loginPage = await context.newPage();
+        this.logger.log(`Performing Scan-Behind-Login for ${website.url} at ${website.loginUrl}`);
         try {
-          await loginPage.goto(website.loginUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+          await page.goto(website.loginUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+          
           const userField = website.loginUserField || 'input[type="text"], input[type="email"], input[name="username"]';
           const passField = website.loginPassField || 'input[type="password"]';
-          await loginPage.waitForSelector(userField, { timeout: 10000 });
-          await loginPage.type(userField, website.loginUsername);
-          await loginPage.type(passField, website.loginPassword);
+          
+          await page.waitForSelector(userField, { timeout: 10000 });
+          await page.type(userField, website.loginUsername);
+          await page.type(passField, website.loginPassword);
+          
+          // Find and click submit button
           await Promise.all([
-            loginPage.keyboard.press('Enter'),
-            loginPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {}),
+            page.keyboard.press('Enter'),
+            page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {}),
           ]);
+          
           this.logger.log(`Login successful for ${website.url}`);
         } catch (loginErr) {
           this.logger.error(`Login failed for ${website.url}: ${loginErr.message}`);
-        } finally {
-          await loginPage.close();
         }
       }
+      await page.close(); // Close login page, we will open fresh ones for crawling
 
-      // 4. Concurrency Queue Execution
-      let lastDbUpdateTime = Date.now();
+      // 4. Crawling Loop (Optimized for Speed via Context Pooling)
+      // We process pages in batches to control concurrency.
+      const CONCURRENCY = website.depth === ScanDepth.DEEP ? 8 : 5; 
+      
+      while (queue.length > 0 && visited.size < maxPages) {
+        // Time budget check
+        if (Date.now() - scanStartTime > MAX_SCAN_TIME_MS) {
+          this.logger.warn(`Scan for ${website.url} exceeded time budget (${MAX_SCAN_TIME_MS}ms). Stopping crawl.`);
+          break;
+        }
 
-      const processPage = async (currentUrl: string, page: puppeteer.Page) => {
-        try {
-          // Identify if it's a key policy page
-          const isPrivacyPage = /privacy(-)?policy|privacy/i.test(currentUrl);
-          const isCookiePage = /cookie(-)?policy|cookie(-)?notice/i.test(currentUrl);
-          const isCompliancePage = /compliance|legal|grievance/i.test(currentUrl);
-          const isKeyPage = visited.size <= 3 || isPrivacyPage || isCookiePage || isCompliancePage;
+        const batch: string[] = [];
+        while (queue.length > 0 && batch.length < CONCURRENCY && (visited.size + batch.length) < maxPages) {
+          const next = queue.shift()!;
+          if (!visited.has(next)) batch.push(next);
+        }
 
-          // Navigation optimization
+        if (batch.length === 0) continue;
+
+        // Existence check once per batch
+        const websiteCheck = await this.prisma.scannedWebsite.findUnique({
+          where: { id: websiteId },
+          select: { id: true }
+        });
+
+        if (!websiteCheck) {
+          this.logger.warn(`Website ${websiteId} was deleted during scan. Aborting process.`);
+          if (browser) await browser.close();
+          return { status: 'ABORTED', reason: 'Website deleted' };
+        }
+
+        await Promise.all(batch.map(async (currentUrl) => {
+          if (visited.has(currentUrl)) return;
+          visited.add(currentUrl);
+
+          const page = await context!.newPage();
           try {
-             // 15s timeout for fast loads. If it times out, the DOM might still be partially ready.
-             await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-          } catch (e) {
-             // Catch and proceed instead of adding another 30 seconds of waiting.
-             // Often cookies and basic DOM are available even if it didn't fully finish.
-          }
+            // CDP Setup for Set-Cookie header interception
+            const cdpSession = await page.target().createCDPSession();
+            await cdpSession.send('Network.enable');
 
-          // Trigger interaction
-          await page.evaluate(() => window.scrollBy(0, 1000));
-          await new Promise(r => setTimeout(r, isKeyPage ? 2000 : DEFAULT_WAIT_MS));
-
-          // Auto-Accept Consent Banner
-          try {
-            const clicked = await page.evaluate(() => {
-              const selectors = [
-                '#onetrust-accept-btn-handler',
-                'button[id*="accept" i]',
-                'button[class*="accept" i]',
-                'button[aria-label*="accept" i]',
-                'a[id*="accept" i]',
-                'a[class*="accept" i]'
-              ];
-              for (const sel of selectors) {
-                const btn = document.querySelector(sel) as HTMLElement;
-                if (btn && btn.offsetHeight > 0) { btn.click(); return true; }
+            const setCookieHeaders: string[] = [];
+            cdpSession.on('Network.responseReceived', (params) => {
+              const headers = params.response.headers;
+              const setCookie = headers['set-cookie'] || headers['Set-Cookie'];
+              if (setCookie) {
+                const cookiesArray = Array.isArray(setCookie) ? setCookie : setCookie.split('\n');
+                setCookieHeaders.push(...cookiesArray);
               }
-              const buttons = Array.from(document.querySelectorAll('button, a'));
-              for (const btn of buttons) {
-                const text = (btn.textContent || '').trim().toLowerCase();
-                if (['accept', 'allow all', 'i agree', 'accept all', 'accept all cookies'].includes(text)) {
-                   const el = btn as HTMLElement;
-                   if (el.offsetHeight > 0) { el.click(); return true; }
+            });
+
+            // Aggressive Blocking for Speed: Block everything visual since we only care about cookies/scripts
+            await page.setRequestInterception(true);
+            page.on('request', (req) => {
+              const type = req.resourceType();
+              // Allow documents, scripts, and fetch/xhr (for API calls that might set cookies). Block the rest.
+              if (['image', 'font', 'media', 'stylesheet', 'websocket'].includes(type)) {
+                req.abort();
+              } else {
+                req.continue();
+              }
+            });
+
+            await page.setViewport({ width: 1280, height: 800 });
+            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Proteccio-Scanner/2.0');
+
+            this.logger.log(`[Scanning] ${visited.size}/${maxPages === Infinity ? '∞' : maxPages}: ${currentUrl}`);
+            
+            // Smart Navigation: Use networkidle2, but if it takes too long, just proceed. We don't need a perfect visual render.
+            await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            
+            // Interaction: Scroll slightly to trigger 'on-scroll' lazy loaded scripts
+            await page.evaluate(() => window.scrollBy(0, 1000));
+            
+            // CMP Interaction: Auto-click "Accept All" banners to trigger marketing cookies
+            try {
+              const CMP_SELECTORS = [
+                '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll', // Cookiebot
+                '#onetrust-accept-btn-handler', // OneTrust
+                '.cky-btn-accept', // CookieYes
+                '.osano-cm-accept-all', // Osano
+                '.iubenda-cs-accept-btn', // Iubenda
+                'button[id*="accept" i]', 'button[class*="accept" i]',
+                'a[id*="accept" i]', '[data-action="accept" i]',
+                'button:has-text("Accept All")', 'button:has-text("Accept Cookies")',
+                'button:has-text("I Agree")', 'button:has-text("Got it")',
+                'button:has-text("Allow All")'
+              ];
+
+              for (const selector of CMP_SELECTORS) {
+                const clicked = await page.evaluate((sel) => {
+                  let btn = document.querySelector(sel) as HTMLElement;
+                  // Handle custom :has-text pseudo-class since it's not standard CSS
+                  if (!btn && sel.includes(':has-text')) {
+                    const textToFind = sel.match(/:has-text\("(.*?)"\)/)?.[1]?.toLowerCase();
+                    if (textToFind) {
+                      const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+                      btn = buttons.find(b => b.textContent?.toLowerCase().includes(textToFind)) as HTMLElement;
+                    }
+                  }
+                  if (btn && btn.offsetHeight > 0) { // Only click if visible
+                    btn.click();
+                    return true;
+                  }
+                  return false;
+                }, selector);
+
+                if (clicked) {
+                  // Wait a short moment specifically for the banner click to register before standard network wait
+                  await new Promise(r => setTimeout(r, 500));
+                  break;
                 }
               }
-              return false;
-            });
-            if (clicked) {
-              await new Promise(r => setTimeout(r, 2000));
+            } catch (e) {
+              // Ignore CMP interaction errors (e.g., cross-origin frame issues)
             }
-          } catch (e) {}
+            
+            // Detect Page Types for Compliance
+            const isPrivacyPage = /privacy(-)?policy|privacy/i.test(currentUrl);
+            const isCookiePage = /cookie(-)?policy|cookie(-)?notice/i.test(currentUrl);
+            const isCompliancePage = /compliance|legal|grievance/i.test(currentUrl);
 
-          // Single DOM Evaluation
-          const domData = await page.evaluate((isKey: boolean) => {
-             const scripts = Array.from(document.querySelectorAll('script[src]')).map((e: any) => e.src);
-             const links = Array.from(document.querySelectorAll('a')).map((a: any) => a.href).filter(href => href.startsWith('http'));
-             const lang = document.documentElement.lang;
-             const bodyText = isKey ? document.body.innerText.toLowerCase() : '';
-             return { scripts, links, lang, bodyText };
-          }, isKeyPage);
+            // Smart Wait: Instead of hard setTimeout, wait until network is idle, with a max hard cap
+            try {
+              const isKeyPage = visited.size <= 3 || isPrivacyPage || isCookiePage || isCompliancePage;
+              const maxWaitMs = isKeyPage ? 5000 : 2000; 
+              
+              // Wait for network to settle after DOM load (scripts firing)
+              await Promise.race([
+                 page.waitForNetworkIdle({ idleTime: 500, timeout: maxWaitMs }),
+                 new Promise(resolve => setTimeout(resolve, maxWaitMs)) // hard cap
+              ]);
+            } catch (e) {
+              // Ignore wait errors
+            }
+            
+            // Global check for localization (html lang)
+            const lang = await page.evaluate(() => document.documentElement.lang);
+            if (lang && lang !== 'en') complianceSignals.hasLocalization = true;
 
-          if (domData.lang && domData.lang !== 'en') complianceSignals.hasLocalization = true;
+            if (isPrivacyPage) complianceSignals.hasPrivacyPolicy = true;
+            if (isCookiePage) complianceSignals.hasCookieNotice = true;
+            if (isCompliancePage) complianceSignals.hasComplianceNotice = true;
 
-          // Text analysis only on key pages
-          if (isKeyPage && domData.bodyText) {
-             const text = domData.bodyText;
-             const extractEvidence = (keyword: string) => {
-               const index = text.indexOf(keyword);
+            // Deep Content Scan
+            const pageText = await page.evaluate(() => document.body.innerText);
+            const lowerText = pageText.toLowerCase();
+
+            const extractEvidence = (text: string, keyword: string) => {
+               const index = text.toLowerCase().indexOf(keyword.toLowerCase());
                if (index === -1) return "";
                const start = Math.max(0, index - 40);
                const end = Math.min(text.length, index + 100);
                return "..." + text.substring(start, end).replace(/\n/g, ' ').trim() + "...";
-             };
+            };
 
-             if (isPrivacyPage || isCookiePage) {
-                if (text.includes('dsar') || text.includes('data subject access') || text.includes('your rights')) {
-                  complianceSignals.hasDsar = true;
-                  complianceSignals.dsarEvidence = { url: currentUrl, snippet: extractEvidence('dsar') || extractEvidence('data') };
-                }
-                if (text.includes('opt-out') || text.includes('withdraw') || text.includes('unsubscribe')) {
-                  complianceSignals.hasOptOut = true;
-                  complianceSignals.optOutEvidence = { url: currentUrl, snippet: extractEvidence('opt-out') || extractEvidence('withdraw') };
-                }
-                if (text.includes('third party') || text.includes('disclosure') || text.includes('share data')) {
-                  complianceSignals.hasThirdPartyDisclosure = true;
-                  complianceSignals.thirdPartyEvidence = { url: currentUrl, snippet: extractEvidence('third party') || extractEvidence('disclosure') };
-                }
-                if (isCookiePage && (text.includes('necessary') || text.includes('analytics') || text.includes('marketing'))) {
-                  complianceSignals.hasCategorization = true;
-                  complianceSignals.categorizationEvidence = { url: currentUrl, snippet: extractEvidence('necessary') || extractEvidence('analytics') };
-                }
-             }
-             if (isPrivacyPage || isCompliancePage) {
-                if (text.includes('grievance') || text.includes('complaint') || text.includes('nodal officer')) {
-                  complianceSignals.hasGrievance = true;
-                  complianceSignals.grievanceEvidence = { url: currentUrl, snippet: extractEvidence('grievance') || extractEvidence('complaint') };
-                }
-             }
-          }
-
-          // Capture Cookies
-          // [CURRENT LIMITATION] page.cookies() only captures cookies accessible to the document 
-          // and for the current domain. 
-          // [FUTURE UPGRADE PATH] Migrate to CDP: 
-          // const client = await page.target().createCDPSession();
-          // const { cookies } = await client.send('Network.getAllCookies');
-          const cookies = await page.cookies();
-          for (const cookie of cookies) {
-            if (!discoveredCookies.has(cookie.name)) {
-              discoveredCookies.set(cookie.name, { ...cookie, foundOn: currentUrl });
-            }
-          }
-
-          // Third-party detection
-          const wUrl = new URL(website.url);
-          domData.scripts.forEach(s => {
-             try {
-                const sUrl = new URL(s);
-                if (sUrl.hostname !== wUrl.hostname) thirdPartyScriptsSet.add(sUrl.hostname);
-             } catch {}
-          });
-
-          // Enqueue new links
-          const blockedPatterns = ['logout', 'calendar', 'search', 'filter', 'sort=', 'page='];
-          for (const link of domData.links) {
-             try {
-               const linkUrl = new URL(link);
-               linkUrl.hash = '';
-               // Aggressively remove known infinite loop params
-               linkUrl.searchParams.delete('session');
-               linkUrl.searchParams.delete('ref');
-               linkUrl.searchParams.delete('utm_source');
-               linkUrl.searchParams.delete('utm_medium');
-               linkUrl.searchParams.delete('utm_campaign');
-               
-               let normalizedLink = linkUrl.href;
-               if (normalizedLink.endsWith('/')) normalizedLink = normalizedLink.slice(0, -1);
-
-               if (linkUrl.hostname === wUrl.hostname && !enqueued.has(normalizedLink)) {
-                 const isBlocked = blockedPatterns.some(bp => normalizedLink.toLowerCase().includes(bp));
-                 if (!isBlocked && queue.length < 5000) {
-                   enqueued.add(normalizedLink);
-                   queue.push(normalizedLink);
-                 }
+            if (isPrivacyPage || isCookiePage) {
+               if (lowerText.includes('dsar') || lowerText.includes('data subject access') || lowerText.includes('your rights')) {
+                 complianceSignals.hasDsar = true;
+                 complianceSignals.dsarEvidence = { url: currentUrl, snippet: extractEvidence(pageText, 'dsar') || extractEvidence(pageText, 'data') };
                }
-             } catch {}
-          }
-        } catch (err) {
-          this.logger.warn(`Failed to crawl ${currentUrl}: ${err.message}`);
-        }
-      };
-
-      const workerPages = await Promise.all(Array(CONCURRENCY).fill(0).map(async () => {
-         const p = await context.newPage();
-         await p.setViewport({ width: 1280, height: 800 });
-         await p.setUserAgent('Proteccio-Scanner/1.2 (Optimized)');
-         await p.setRequestInterception(true);
-         
-         const cmpWhitelist = ['onetrust.com', 'cookiebot.com', 'trustarc.com', 'didomi.io', 'iubenda.com', 'usercentrics.eu'];
-         
-         p.on('request', (req) => {
-            const type = req.resourceType();
-            const url = req.url();
-            const isWhitelisted = cmpWhitelist.some(cmp => url.includes(cmp));
-            
-            if (['image', 'font', 'media'].includes(type)) {
-               req.abort();
-            } else if (type === 'stylesheet' && !isWhitelisted) {
-               req.abort(); // Block aggressively
-            } else {
-               req.continue();
+               if (lowerText.includes('opt-out') || lowerText.includes('withdraw') || lowerText.includes('unsubscribe')) {
+                 complianceSignals.hasOptOut = true;
+                 complianceSignals.optOutEvidence = { url: currentUrl, snippet: extractEvidence(pageText, 'opt-out') || extractEvidence(pageText, 'withdraw') };
+               }
+               if (lowerText.includes('third party') || lowerText.includes('disclosure') || lowerText.includes('share data')) {
+                 complianceSignals.hasThirdPartyDisclosure = true;
+                 complianceSignals.thirdPartyEvidence = { url: currentUrl, snippet: extractEvidence(pageText, 'third party') || extractEvidence(pageText, 'disclosure') };
+               }
+               if (isCookiePage && (lowerText.includes('necessary') || lowerText.includes('analytics') || lowerText.includes('marketing'))) {
+                 complianceSignals.hasCategorization = true;
+                 complianceSignals.categorizationEvidence = { url: currentUrl, snippet: extractEvidence(pageText, 'necessary') || extractEvidence(pageText, 'analytics') };
+               }
             }
-         });
-         return p;
-      }));
 
-      // Worker loop
-      const worker = async (page: puppeteer.Page) => {
-         while (queue.length > 0 && visited.size < MAX_PAGES) {
-            if (Date.now() - startTime > TIME_BUDGET_MS) break; // Time budget check
+            if (isPrivacyPage || isCompliancePage) {
+               if (lowerText.includes('grievance') || lowerText.includes('complaint') || lowerText.includes('nodal officer')) {
+                 complianceSignals.hasGrievance = true;
+                 complianceSignals.grievanceEvidence = { url: currentUrl, snippet: extractEvidence(pageText, 'grievance') || extractEvidence(pageText, 'complaint') };
+               }
+            }
 
-            const currentUrl = queue.shift();
-            if (!currentUrl) continue;
-            
-            if (visited.has(currentUrl)) continue;
-            visited.add(currentUrl);
+            // 1. Capture HTTP Cookies
+            const cookies = await page.cookies();
+            for (const cookie of cookies) {
+              if (!discoveredCookies.has(cookie.name)) {
+                discoveredCookies.set(cookie.name, { ...cookie, foundOn: currentUrl, type: 'HTTP_COOKIE' });
+              }
+            }
 
-            await processPage(currentUrl, page);
+            // 2. Capture Network Set-Cookie Headers
+            for (const headerStr of setCookieHeaders) {
+              const parts = headerStr.split(';');
+              const nameValue = parts[0].split('=');
+              if (nameValue.length >= 2) {
+                const name = nameValue[0].trim();
+                if (!discoveredCookies.has(name)) {
+                   discoveredCookies.set(name, { name, value: nameValue[1], domain: currentUrl, type: 'HTTP_COOKIE' });
+                }
+              }
+            }
 
-            // Throttle progress updates (every 5 seconds)
-            if (Date.now() - lastDbUpdateTime > 5000) {
-               lastDbUpdateTime = Date.now();
+            // 3. Capture LocalStorage & SessionStorage
+            const storageData = await page.evaluate(() => {
+              const ls: Record<string, string> = {};
+              const ss: Record<string, string> = {};
+              try {
+                for (let i = 0; i < localStorage.length; i++) {
+                  const key = localStorage.key(i);
+                  if (key) ls[key] = 'hidden';
+                }
+                for (let i = 0; i < sessionStorage.length; i++) {
+                  const key = sessionStorage.key(i);
+                  if (key) ss[key] = 'hidden';
+                }
+              } catch (e) {}
+              return { localStorage: ls, sessionStorage: ss };
+            });
+
+            for (const key of Object.keys(storageData.localStorage)) {
+              const mapKey = `[LS] ${key}`;
+              if (!discoveredCookies.has(mapKey)) {
+                discoveredCookies.set(mapKey, { name: key, type: 'LOCAL_STORAGE', foundOn: currentUrl });
+              }
+            }
+            for (const key of Object.keys(storageData.sessionStorage)) {
+              const mapKey = `[SS] ${key}`;
+              if (!discoveredCookies.has(mapKey)) {
+                discoveredCookies.set(mapKey, { name: key, type: 'SESSION_STORAGE', foundOn: currentUrl });
+              }
+            }
+
+            // Capture Third-party scripts
+            const scripts = await page.$$eval('script[src]', (elements) => elements.map(e => e.src));
+            const wUrl = new URL(website.url);
+            scripts.forEach(s => {
                try {
-                 await this.prisma.scannedWebsite.update({
-                   where: { id: websiteId },
-                   data: { pagesCrawled: visited.size, cookiesDetected: discoveredCookies.size }
-                 });
-               } catch (e) {}
+                  const sUrl = new URL(s);
+                  if (sUrl.hostname !== wUrl.hostname) thirdPartyScriptsSet.add(sUrl.hostname);
+               } catch {}
+            });
+
+            // Extract links
+            const links = await page.$$eval('a', (anchors) => 
+              anchors.map(a => a.href).filter(href => href.startsWith('http'))
+            );
+
+            const baseUrl = new URL(website.url);
+            for (const link of links) {
+              try {
+                const normalizedLink = normalizeUrl(link);
+                const linkUrl = new URL(normalizedLink);
+
+                if (linkUrl.hostname === baseUrl.hostname && !visited.has(normalizedLink) && !enqueued.has(normalizedLink)) {
+                  // Prioritize policy pages by putting them at the front of the queue
+                  if (/privacy|cookie|legal|terms/i.test(normalizedLink)) {
+                    queue.unshift(normalizedLink);
+                  } else {
+                    queue.push(normalizedLink);
+                  }
+                  enqueued.add(normalizedLink);
+                }
+              } catch {}
             }
-         }
-      };
+          } catch (err) {
+            this.logger.warn(`Failed to crawl ${currentUrl}: ${err.message}`);
+          } finally {
+            await page.close();
+          }
+        }));
+      }
 
-      // Run workers concurrently
-      await Promise.all(workerPages.map(p => worker(p)));
+      if (context) await context.close();
 
-      // Cleanup worker pages
-      await Promise.all(workerPages.map(p => p.close().catch(() => {})));
-
-      // 5. Process Discovered Cookies (Optimized DB Ops)
-      const categoryCounts: Record<string, number> = {
-        NECESSARY: 0, FUNCTIONAL: 0, ANALYTICS: 0, MARKETING: 0, UNCATEGORIZED: 0
-      };
-
-      // Preload categories
-      const categoriesMap = new Map<string, string>(); // categoryName -> categoryId
-      const existingCategories = await this.prisma.cookieCategory.findMany({ where: { tenantId: website.tenantId } });
-      existingCategories.forEach(c => categoriesMap.set(c.category, c.id));
-
-      const newInventoryItems: any[] = [];
-      const updateInventoryItems: any[] = [];
-      
-      const existingCookies = await this.prisma.cookieInventory.findMany({
-         where: { domain: website.url, tenantId: website.tenantId },
-         select: { id: true, name: true }
+      // 4. Process Discovered Cookies
+      const finalCheck = await this.prisma.scannedWebsite.findUnique({
+        where: { id: websiteId },
+        select: { id: true }
       });
-      const existingCookiesMap = new Map<string, string>();
-      existingCookies.forEach(c => existingCookiesMap.set(c.name, c.id));
+
+      if (!finalCheck) {
+        this.logger.warn(`Website ${websiteId} was deleted during scan. Aborting processing.`);
+        return { status: 'ABORTED', reason: 'Website deleted' };
+      }
+
+      const results: any[] = [];
+      const categoryCounts: Record<string, number> = {
+        NECESSARY: 0,
+        FUNCTIONAL: 0,
+        ANALYTICS: 0,
+        MARKETING: 0,
+        UNCATEGORIZED: 0
+      };
 
       for (const [name, cookie] of discoveredCookies.entries()) {
-        let info = { category: 'UNCATEGORIZED' as any, description: 'Unknown cookie discovered during scan.' };
-        if (website.autoCategorize) info = classifyCookie(name);
+        let info = {
+          category: 'UNCATEGORIZED' as any,
+          description: 'Unknown cookie discovered during scan.'
+        };
+
+        // Only categorize if the flag is enabled
+        if (website.autoCategorize) {
+          try {
+             const hostname = new URL(website.url).hostname;
+             let classification;
+             let realName = name;
+             
+             if (name.startsWith('[LS] ') || cookie.type === 'LOCAL_STORAGE') {
+                realName = name.replace('[LS] ', '');
+                classification = this.cookieClassifier.classifyStorageKey(realName, 'localStorage');
+             } else if (name.startsWith('[SS] ') || cookie.type === 'SESSION_STORAGE') {
+                realName = name.replace('[SS] ', '');
+                classification = this.cookieClassifier.classifyStorageKey(realName, 'sessionStorage');
+             } else {
+                classification = this.cookieClassifier.classify(realName, hostname);
+             }
+             
+             info = {
+               category: classification.category as any,
+               description: classification.description
+             };
+          } catch (e) {
+             const classification = this.cookieClassifier.classify(name);
+             info = {
+               category: classification.category as any,
+               description: classification.description
+             };
+          }
+        }
 
         categoryCounts[info.category]++;
 
-        let catId = categoriesMap.get(info.category);
-        if (!catId) {
-          const newCat = await this.prisma.cookieCategory.create({
+        let category = await this.prisma.cookieCategory.findFirst({
+          where: { category: info.category, tenantId: website.tenantId }
+        });
+
+        if (!category) {
+          category = await this.prisma.cookieCategory.create({
             data: { name: info.category, category: info.category, tenantId: website.tenantId }
           });
-          catId = newCat.id;
-          categoriesMap.set(info.category, catId);
         }
 
-        const exp = cookie.expires ? new Date(cookie.expires * 1000).toLocaleDateString() : 'Session';
+        const existing = await this.prisma.cookieInventory.findFirst({
+           where: { name: name.trim(), domain: website.url, tenantId: website.tenantId }
+        });
 
-        if (existingCookiesMap.has(name)) {
-           updateInventoryItems.push({
-             where: { id: existingCookiesMap.get(name)! },
-             data: { categoryId: catId, description: info.description, websiteId }
-           });
+        if (existing) {
+          await this.prisma.cookieInventory.update({
+            where: { id: existing.id },
+            data: { categoryId: category.id, description: info.description, websiteId }
+          });
         } else {
-           newInventoryItems.push({
-             name: name.trim(), domain: website.url, categoryId: catId!,
-             description: info.description, expiration: exp,
-             tenantId: website.tenantId, websiteId
-           });
+          const inventory = await this.prisma.cookieInventory.create({
+            data: {
+              name: name.trim(),
+              domain: website.url,
+              categoryId: category.id,
+              description: info.description,
+              expiration: cookie.expires ? new Date(cookie.expires * 1000).toLocaleDateString() : 'Session',
+              tenantId: website.tenantId,
+              websiteId
+            }
+          });
+          results.push(inventory);
         }
       }
 
-      // Execute bulk DB operations
-      if (newInventoryItems.length > 0) {
-         await this.prisma.cookieInventory.createMany({ data: newInventoryItems, skipDuplicates: true });
-      }
-      for (const update of updateInventoryItems) {
-         await this.prisma.cookieInventory.update(update);
-      }
-
-      // 6. Finalize Scan
+      // 5. Finalize Scan
       await this.prisma.scannedWebsite.update({
         where: { id: websiteId },
         data: { 
-          status: ScanStatus.COMPLETED, lastScan: new Date(),
-          pagesCrawled: visited.size, cookiesDetected: discoveredCookies.size,
+          status: ScanStatus.COMPLETED,
+          lastScan: new Date(),
+          pagesCrawled: visited.size,
+          cookiesDetected: discoveredCookies.size,
         }
       });
 
+      // Run Compliance Scanner
       await this.complianceScanner.evaluateCompliance(
-         websiteId, discoveredCookies.size, Array.from(visited),
-         Array.from(thirdPartyScriptsSet), complianceSignals
+         websiteId,
+         discoveredCookies.size,
+         Array.from(visited),
+         Array.from(thirdPartyScriptsSet),
+         complianceSignals,
+         Array.from(discoveredCookies.values())
       );
 
       const updatedWebsite = await this.prisma.scannedWebsite.findUnique({ where: { id: websiteId } });
 
-      // 7. Notification
+      // 6. Send Notification Email
       if (website.email) {
         const isPeriodic = !!website.lastScan;
         const indicators = updatedWebsite?.scanResults as any[] || [];
+
         const getStatus = (id: string) => {
           const ind = indicators.find(i => i.id === id);
           if (!ind) return { icon: '✖', text: 'Missing' };
@@ -419,18 +562,28 @@ export class CookieScannerProcessor extends WorkerHost {
         }
 
         await this.notificationsService.sendCookieScanCompletionEmail(
-          website.email, website.name,
+          website.email,
+          website.name,
           {
-            isPeriodic, userName: website.pocName || website.name || 'Website Owner',
-            websiteUrl: website.url, complianceScore: updatedWebsite?.complianceScore || 0,
-            riskScore: 100 - (updatedWebsite?.complianceScore || 0), riskLevel: updatedWebsite?.riskLevel || 'N/A',
+            isPeriodic,
+            userName: website.pocName || website.name || 'Website Owner',
+            websiteUrl: website.url,
+            complianceScore: updatedWebsite?.complianceScore || 0,
+            riskScore: 100 - (updatedWebsite?.complianceScore || 0),
+            riskLevel: updatedWebsite?.riskLevel || 'N/A',
             previousScore: website.complianceScore || 0,
             scoreDifference: (updatedWebsite?.complianceScore || 0) - (website.complianceScore || 0),
-            totalPages: visited.size, scanType: website.depth, scanFrequency: website.frequency,
-            scanDate: new Date().toLocaleString(), cookieCount: discoveredCookies.size,
-            necessaryCount: categoryCounts['NECESSARY'], functionalCount: categoryCounts['FUNCTIONAL'],
-            analyticsCount: categoryCounts['ANALYTICS'], marketingCount: categoryCounts['MARKETING'],
-            unknownCount: categoryCounts['UNCATEGORIZED'], thirdPartyDomains: Array.from(thirdPartyScriptsSet),
+            totalPages: visited.size,
+            scanType: website.depth,
+            scanFrequency: website.frequency,
+            scanDate: new Date().toLocaleString(),
+            cookieCount: discoveredCookies.size,
+            necessaryCount: categoryCounts['NECESSARY'],
+            functionalCount: categoryCounts['FUNCTIONAL'],
+            analyticsCount: categoryCounts['ANALYTICS'],
+            marketingCount: categoryCounts['MARKETING'],
+            unknownCount: categoryCounts['UNCATEGORIZED'],
+            thirdPartyDomains: Array.from(thirdPartyScriptsSet),
             bannerIcon: getStatus('banner_installed').icon, bannerText: getStatus('banner_installed').text,
             categorizationIcon: getStatus('categorization').icon, categorizationText: getStatus('categorization').text,
             loggingIcon: getStatus('consent_logging').icon, loggingText: getStatus('consent_logging').text,
@@ -441,24 +594,29 @@ export class CookieScannerProcessor extends WorkerHost {
             optOutIcon: getStatus('opt_out').icon, optOutText: getStatus('opt_out').text,
             languageIcon: getStatus('language_support').icon, languageText: getStatus('language_support').text,
             grievanceIcon: getStatus('grievance_mechanism').icon, grievanceText: getStatus('grievance_mechanism').text,
-            keyRisks, recommendedActions, changesDetected
+            keyRisks,
+            recommendedActions,
+            changesDetected
           }
         );
       }
 
-      this.logger.log(`Optimized Scan complete for ${website.url}. Pages: ${visited.size}, Cookies: ${discoveredCookies.size}`);
+      this.logger.log(`Professional Scan complete for ${website.url}. Pages: ${visited.size}, Cookies: ${discoveredCookies.size}`);
       return { cookiesFound: discoveredCookies.size, pagesScanned: visited.size };
 
     } catch (error) {
       this.logger.error(`Scan failed for website ${websiteId}: ${error.message}`);
       try {
         await this.prisma.scannedWebsite.update({
-          where: { id: websiteId }, data: { status: ScanStatus.FAILED }
+          where: { id: websiteId },
+          data: { status: ScanStatus.FAILED }
         });
-      } catch (dbError) {}
+      } catch (dbError) {
+        this.logger.warn(`Could not update failure status for ${websiteId}: ${dbError.message}`);
+      }
       throw error;
     } finally {
-      if (browser) await browser.close().catch(() => {});
+      if (browser) await browser.close();
     }
   }
 }

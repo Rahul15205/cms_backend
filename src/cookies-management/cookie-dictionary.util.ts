@@ -4,8 +4,18 @@ export interface CookieInfo {
   name: string;
   description: string;
   category: CookieCategoryType;
+  platform?: string;
+  retention?: string;
+  dataController?: string;
+  confidence?: number;
+  classificationTier?: number;
 }
 
+/**
+ * Legacy hardcoded dictionary — kept as a fast in-memory fallback.
+ * The primary classification is now done by CookieClassifierService (2,200+ entries).
+ * This file is only used if the classifier service is not injected (e.g., in tests).
+ */
 export const COOKIE_DICTIONARY: Record<string, CookieInfo> = {
   // Analytics
   '_ga': { name: 'Google Analytics', description: 'Used to distinguish users.', category: 'ANALYTICS' },
@@ -46,6 +56,10 @@ export const COOKIE_DICTIONARY: Record<string, CookieInfo> = {
   '_clsk': { name: 'Microsoft Clarity', description: 'Used to connect multiple page views by a single user into a single Clarity session recording.', category: 'ANALYTICS' },
 };
 
+/**
+ * Legacy classify function — kept for backward compatibility.
+ * For new code, inject CookieClassifierService instead.
+ */
 export function classifyCookie(name: string): CookieInfo {
   // Check exact match
   if (COOKIE_DICTIONARY[name]) return COOKIE_DICTIONARY[name];

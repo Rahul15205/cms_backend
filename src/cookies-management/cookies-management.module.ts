@@ -8,6 +8,7 @@ import { CookieScannerProcessor } from './cookie-scanner.processor';
 import { ScannerSchedulerService } from './scanner-scheduler.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ComplianceScannerService } from './compliance-scanner.service';
+import { CookieClassifierService } from './cookie-classifier.service';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { ComplianceScannerService } from './compliance-scanner.service';
     ),
   ],
   controllers: [CookiesManagementController, CookieBannerPublicController],
-  providers: [CookiesManagementService, CookieScannerProcessor, ScannerSchedulerService, ComplianceScannerService],
-  exports: [CookiesManagementService, ComplianceScannerService],
+  providers: [CookiesManagementService, CookieScannerProcessor, ScannerSchedulerService, ComplianceScannerService, CookieClassifierService],
+  exports: [CookiesManagementService, ComplianceScannerService, CookieClassifierService],
 })
 export class CookiesManagementModule {}
