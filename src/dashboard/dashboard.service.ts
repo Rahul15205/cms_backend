@@ -214,7 +214,7 @@ export class DashboardService {
           const d = new Date();
           d.setMonth(d.getMonth() - i);
           trendData.push({
-            name: months[d.getMonth()],
+            name: `${months[d.getMonth()]} ${d.getFullYear()}`,
             active: 0,
             withdrawn: 0,
             rights: 0,
@@ -223,8 +223,8 @@ export class DashboardService {
         }
 
         consents.forEach((c) => {
-          const m = months[c.grantedAt.getMonth()];
-          const entry = trendData.find((t) => t.name === m);
+          const label = `${months[c.grantedAt.getMonth()]} ${c.grantedAt.getFullYear()}`;
+          const entry = trendData.find((t) => t.name === label);
           if (entry) {
             if (c.status === 'GRANTED') entry.active++;
             if (c.status === 'REVOKED') entry.withdrawn++;
@@ -232,14 +232,14 @@ export class DashboardService {
         });
 
         rights.forEach((r) => {
-          const m = months[r.createdAt.getMonth()];
-          const entry = trendData.find((t) => t.name === m);
+          const label = `${months[r.createdAt.getMonth()]} ${r.createdAt.getFullYear()}`;
+          const entry = trendData.find((t) => t.name === label);
           if (entry) entry.rights++;
         });
 
         grievances.forEach((g) => {
-          const m = months[g.createdAt.getMonth()];
-          const entry = trendData.find((t) => t.name === m);
+          const label = `${months[g.createdAt.getMonth()]} ${g.createdAt.getFullYear()}`;
+          const entry = trendData.find((t) => t.name === label);
           if (entry) entry.grievances++;
         });
 

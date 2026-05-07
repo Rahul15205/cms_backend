@@ -61,7 +61,7 @@ export class SecurityService {
       d.setDate(d.getDate() - i);
       const key = d.toISOString().split('T')[0];
       activityMap[key] = {
-        name: daysOfWeek[d.getDay()],
+        name: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
         logins: 0,
         failed: 0,
       };
