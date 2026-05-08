@@ -342,18 +342,113 @@ export class CookieScannerProcessor extends WorkerHost {
             // ── Scroll + CMP Interaction ───────────────────────────────────
             await page.evaluate(() => window.scrollBy(0, 500));
 
-            // Detect CMP banner (industry-grade fingerprinting)
+            // ── CMP Detection (timing-aware) ──────────────────────────────
+            // PROBLEM: domcontentloaded ke baad banner DOM mein nahi hota
+            // CMP scripts (OneTrust, Cookiebot etc) asynchronously inject karte hain banner
+            // SOLUTION: networkidle ke BAAD check karo, aur agar DOM mein na mile
+            //           to <script src> attributes se fingerprint karo (scripts synchronously load hote hain)
+
             if (!complianceSignals.hasCmpBanner) {
-              for (const { selector, name: cmpName } of CMP_FINGERPRINTS) {
-                try {
-                  const found = await page.$(selector);
-                  if (found) {
+              try {
+                // Method 1: Script src fingerprinting — ALWAYS reliable
+                // CMP scripts page ke <head> mein hote hain, DOM ready hone se pehle load ho jaate hain
+                // Ye method timing se independent hai
+                const scriptSrcs = await page.$$eval(
+                  'script[src]',
+                  (els) => els.map(e => (e as HTMLScriptElement).src.toLowerCase())
+                );
+
+                const CMP_SCRIPT_PATTERNS: { pattern: RegExp; name: string }[] = [
+                  { pattern: /cookiebot\.com\/uc\.js|cookiebot\.com\/botmanifest/,  name: 'Cookiebot' },
+                  { pattern: /cdn\.cookielaw\.org|onetrust\.com/,                   name: 'OneTrust' },
+                  { pattern: /app\.cookiefirst\.com/,                               name: 'CookieFirst' },
+                  { pattern: /cookieyescdn\.com|cookieyes\.com/,                    name: 'CookieYes' },
+                  { pattern: /osano\.com\/dsr\.js/,                                 name: 'Osano' },
+                  { pattern: /iubenda\.com\/cs\/consent/,                           name: 'Iubenda' },
+                  { pattern: /cookie-script\.com/,                                  name: 'Cookie-Script' },
+                  { pattern: /app\.termly\.io/,                                     name: 'Termly' },
+                  { pattern: /app\.usercentrics\.eu/,                               name: 'Usercentrics' },
+                  { pattern: /cookiehub\.com/,                                      name: 'CookieHub' },
+                  { pattern: /privacy-mgmt\.com|sourcepoint\.com/,                  name: 'Sourcepoint' },
+                  { pattern: /quantcast\.mgr\.consensu\.org/,                       name: 'Quantcast Choice' },
+                ];
+
+                for (const { pattern, name: cmpName } of CMP_SCRIPT_PATTERNS) {
+                  if (scriptSrcs.some(src => pattern.test(src))) {
                     complianceSignals.hasCmpBanner = true;
                     complianceSignals.cmpProvider = cmpName;
-                    this.logger.log(`CMP detected: ${cmpName} on ${currentUrl}`);
+                    this.logger.log(`CMP detected via script: ${cmpName} on ${currentUrl}`);
                     break;
                   }
-                } catch {}
+                }
+
+                // Method 2: DOM element check — sirf HOME page pe karo with proper wait
+                // General pages pe mat karo (slow aur unreliable)
+                if (!complianceSignals.hasCmpBanner && allTypes.includes('HOME')) {
+                  // HOME page pe thoda extra wait — banner inject hone ka time do
+                  await new Promise(r => setTimeout(r, 1500));
+
+                  const CMP_DOM_SELECTORS = [
+                    '#CybotCookiebotDialog',
+                    '#onetrust-banner-sdk',
+                    '.cky-consent-container',
+                    '.osano-cm-window',
+                    '[data-cookiefirst-action]',
+                    '#cookie-law-info-bar',
+                    '.cc-window',
+                    '#CookieConsent',
+                    '[id*="cookieconsent" i]',
+                    '[class*="cookie-consent" i]',
+                    '[class*="cookiebanner" i]',
+                    '[id*="gdpr-cookie" i]',
+                    // IAB TCF framework — agar koi bhi CMP IAB compliant hai to ye hoga
+                    '#__tppd',
+                  ];
+
+                  for (const sel of CMP_DOM_SELECTORS) {
+                    try {
+                      const el = await page.$(sel);
+                      if (el) {
+                        // Visible hai ya nahi check karo — hidden elements count nahi karte
+                        const isVisible = await page.evaluate((s) => {
+                          const el = document.querySelector(s);
+                          if (!el) return false;
+                          const style = window.getComputedStyle(el);
+                          return style.display !== 'none' && style.visibility !== 'hidden' && (el as HTMLElement).offsetHeight > 0;
+                        }, sel);
+
+                        if (isVisible) {
+                          complianceSignals.hasCmpBanner = true;
+                          // Provider name selector se guess karo
+                          complianceSignals.cmpProvider = complianceSignals.cmpProvider || 'Unknown CMP';
+                          this.logger.log(`CMP detected via DOM: ${sel} on ${currentUrl}`);
+                          break;
+                        }
+                      }
+                    } catch {}
+                  }
+                }
+
+                // Method 3: Proteccio ka apna banner check (window variable ya custom element)
+                // Agar Proteccio banner inject karta hai koi global variable, use karo
+                if (!complianceSignals.hasCmpBanner) {
+                  const hasProteccioBannerOnPage = await page.evaluate(() => {
+                    // Proteccio banner ka custom element ya window flag — apne hisab se adjust karo
+                    return !!(
+                      document.querySelector('[data-proteccio-banner]') ||
+                      document.querySelector('#proteccio-consent') ||
+                      (window as any).__proteccioCMP
+                    );
+                  }).catch(() => false);
+
+                  if (hasProteccioBannerOnPage) {
+                    complianceSignals.hasCmpBanner = true;
+                    complianceSignals.cmpProvider = 'Proteccio';
+                  }
+                }
+
+              } catch (e) {
+                this.logger.warn(`CMP detection error on ${currentUrl}: ${e.message}`);
               }
             }
 
