@@ -325,9 +325,8 @@ export class CookieScannerProcessor extends WorkerHost {
                   // Filter out noise: only meaningful third-party domains
                   const isNoiseDomain = /\.(woff2?|ttf|eot|css)($|\?)/.test(params.response.url);
                   if (!isNoiseDomain) {
-                    // Store root domain only (e.g., cdn.google.com → google.com)
-                    const parts = reqUrl.hostname.split('.');
-                    const rootDomain = parts.slice(-2).join('.');
+                    // Fix: Use getBaseDomain to correctly identify third-party root domains
+                    const rootDomain = getBaseDomain(reqUrl.hostname);
                     thirdPartyDomainsSet.add(rootDomain);
                   }
                 }
@@ -744,10 +743,21 @@ export class CookieScannerProcessor extends WorkerHost {
                   const anchors = Array.from(root.querySelectorAll('a')) as HTMLAnchorElement[];
                   anchors.forEach(a => { 
                     try {
-                      if (a.href && a.href.startsWith('http')) allLinks.push(a.href); 
+                      // Get absolute href
+                      const href = a.href;
+                      if (href && href.startsWith('http')) {
+                        allLinks.push(href);
+                      }
                     } catch {}
                   });
                   
+                  // Also look for links in buttons/divs with data-href or similar (common in SPAs)
+                  const clickable = Array.from(root.querySelectorAll('[data-href], [onclick*="location.href"]'));
+                  clickable.forEach(el => {
+                    const href = el.getAttribute('data-href');
+                    if (href && href.startsWith('http')) allLinks.push(href);
+                  });
+
                   const children = Array.from(root.querySelectorAll('*'));
                   children.forEach(child => {
                     if (child.shadowRoot) extractFrom(child.shadowRoot);
@@ -758,7 +768,10 @@ export class CookieScannerProcessor extends WorkerHost {
               return [...new Set(allLinks)];
             }).catch(() => [] as string[]);
 
+            this.logger.log(`Found ${links.length} potential links on ${currentUrl}`);
+
             const baseUrl = new URL(website.url);
+            let enqueuedThisPage = 0;
             for (const link of links) {
               try {
                 const normalizedLink = normalizeUrl(link);
@@ -779,8 +792,12 @@ export class CookieScannerProcessor extends WorkerHost {
                     queue.push(normalizedLink);
                   }
                   enqueued.add(normalizedLink);
+                  enqueuedThisPage++;
                 }
               } catch {}
+            }
+            if (enqueuedThisPage > 0) {
+              this.logger.log(`Enqueued ${enqueuedThisPage} new links from ${currentUrl}`);
             }
 
           } catch (err) {
