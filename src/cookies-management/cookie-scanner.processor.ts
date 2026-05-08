@@ -257,18 +257,18 @@ export class CookieScannerProcessor extends WorkerHost {
 
       const CONCURRENCY = website.depth === ScanDepth.DEEP ? 8 : 5;
       const baseUrl = new URL(website.url);
-      const getBaseDomain = (hostname: string) => {
-        const parts = hostname.split('.');
-        if (parts.length <= 2) return hostname.toLowerCase().replace(/^www\./i, '');
+       const getBaseDomain = (hostname: string) => {
+        const parts = hostname.toLowerCase().split('.');
+        if (parts.length <= 2) return parts.join('.').replace(/^www\./i, '');
         // Handle common TLDs like .co.in or .com.au
-        const tld2 = parts.slice(-2).join('.').toLowerCase();
+        const tld2 = parts.slice(-2).join('.');
         if (['co.in', 'com.au', 'co.uk', 'org.in', 'net.in', 'co.nz', 'co.jp'].includes(tld2)) {
-          return parts.slice(-3).join('.').toLowerCase().replace(/^www\./i, '');
+          return parts.slice(-3).join('.').replace(/^www\./i, '');
         }
-        return parts.slice(-2).join('.').toLowerCase().replace(/^www\./i, '');
+        return parts.slice(-2).join('.').replace(/^www\./i, '');
       };
       let baseDomain = getBaseDomain(baseUrl.hostname);
-      let baseHostname = baseUrl.hostname;
+      let baseHostname = baseUrl.hostname.toLowerCase();
 
       // ── Main Crawl Loop ─────────────────────────────────────────────────
       while (queue.length > 0 && visited.size < maxPages) {
@@ -277,29 +277,14 @@ export class CookieScannerProcessor extends WorkerHost {
           break;
         }
 
-        const batch: string[] = [];
-        while (queue.length > 0 && batch.length < CONCURRENCY && (visited.size + batch.length) < maxPages) {
-          const next = queue.shift()!;
-          if (!visited.has(next)) batch.push(next);
-        }
-        if (!batch.length) continue;
+        const currentUrl = queue.shift()!;
+        if (visited.has(currentUrl)) continue;
+        visited.add(currentUrl);
 
-        const websiteCheck = await this.prisma.scannedWebsite.findUnique({
-          where: { id: websiteId },
-          select: { id: true },
-        });
-        if (!websiteCheck) {
-          this.logger.warn(`Website ${websiteId} deleted during scan. Aborting.`);
-          if (browser) await browser.close();
-          return { status: 'ABORTED', reason: 'Website deleted' };
-        }
-
-        await Promise.all(batch.map(async (currentUrl) => {
-          if (visited.has(currentUrl)) return;
-          visited.add(currentUrl);
-
-          const page = await context!.newPage();
-          try {
+        const page = await context!.newPage();
+        try {
+          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Proteccio-Scanner/2.1');
+          this.logger.log(`[Crawl ${visited.size}] ${currentUrl}`);
             // ── CDP: Intercept ALL network requests for third-party detection ──
             // This is how professional scanners detect third parties:
             // Ghostery, Cookiebot etc. use network-level interception, not DOM scraping
@@ -718,62 +703,26 @@ export class CookieScannerProcessor extends WorkerHost {
               }
             }
 
-            // ── Smart Scroll to bottom (triggers lazy-loaded links/footers) ──
-            await page.evaluate(async () => {
-              await new Promise<void>((resolve) => {
-                let totalHeight = 0;
-                const distance = 400;
-                const timer = setInterval(() => {
-                  const scrollHeight = document.body.scrollHeight;
-                  window.scrollBy(0, distance);
-                  totalHeight += distance;
-                  if (totalHeight >= scrollHeight || totalHeight > 10000) {
-                    clearInterval(timer);
-                    resolve();
-                  }
-                }, 100);
-              });
-            }).catch(() => {});
-
-            // ── Deep Link Extraction (Shadow DOM piercing) ──────────────────
+            // ── Link Extraction ────────────────────────────────────────────
             const links = await page.evaluate(() => {
-              const allLinks: string[] = [];
-              const extractFrom = (root: Document | ShadowRoot) => {
-                try {
-                  const anchors = Array.from(root.querySelectorAll('a')) as HTMLAnchorElement[];
-                  anchors.forEach(a => { 
-                    try {
-                      // Get absolute href
-                      const href = a.href;
-                      if (href && href.startsWith('http')) {
-                        allLinks.push(href);
-                      }
-                    } catch {}
-                  });
-                  
-                  // Also look for links in buttons/divs with data-href or similar (common in SPAs)
-                  const clickable = Array.from(root.querySelectorAll('[data-href], [onclick*="location.href"]'));
-                  clickable.forEach(el => {
-                    const href = el.getAttribute('data-href');
-                    if (href && href.startsWith('http')) allLinks.push(href);
-                  });
-
-                  const children = Array.from(root.querySelectorAll('*'));
-                  children.forEach(child => {
-                    if (child.shadowRoot) extractFrom(child.shadowRoot);
-                  });
-                } catch {}
+              const results: string[] = [];
+              // Standard links
+              document.querySelectorAll('a').forEach(a => { if (a.href) results.push(a.href); });
+              // Shadow DOM links
+              const walk = (node: Node) => {
+                if (node instanceof HTMLElement && node.shadowRoot) {
+                  node.shadowRoot.querySelectorAll('a').forEach(a => { if (a.href) results.push(a.href); });
+                  Array.from(node.shadowRoot.children).forEach(walk);
+                }
+                Array.from(node.childNodes).forEach(walk);
               };
-              extractFrom(document);
-              return [...new Set(allLinks)];
-            }).catch(() => [] as string[]);
+              walk(document.body);
+              return results;
+            }).catch(() => []);
 
-            this.logger.log(`Found ${links.length} potential links on ${currentUrl}`);
-
-            const baseUrl = new URL(website.url);
-            let enqueuedThisPage = 0;
             for (const link of links) {
               try {
+                if (!link || !link.startsWith('http')) continue;
                 const normalizedLink = normalizeUrl(link);
                 const linkUrl = new URL(normalizedLink);
                 const linkDomain = getBaseDomain(linkUrl.hostname);
@@ -781,23 +730,12 @@ export class CookieScannerProcessor extends WorkerHost {
                 const isInternal = linkDomain === baseDomain;
                 const isPolicyLink = /privacy|cookie|legal|terms|gdpr|compliance|grievance/.test(normalizedLink);
                 
-                // Allow internal links OR external policy links (to find policies on other domains)
                 if ((isInternal || isPolicyLink) && !visited.has(normalizedLink) && !enqueued.has(normalizedLink)) {
-                  // Limit external policy links to avoid crawling the whole internet
-                  if (!isInternal && enqueued.size > 50) continue; 
-                  
-                  if (isPolicyLink) {
-                    queue.unshift(normalizedLink);
-                  } else {
-                    queue.push(normalizedLink);
-                  }
+                  if (isPolicyLink) queue.unshift(normalizedLink);
+                  else queue.push(normalizedLink);
                   enqueued.add(normalizedLink);
-                  enqueuedThisPage++;
                 }
               } catch {}
-            }
-            if (enqueuedThisPage > 0) {
-              this.logger.log(`Enqueued ${enqueuedThisPage} new links from ${currentUrl}`);
             }
 
           } catch (err) {
@@ -805,12 +743,11 @@ export class CookieScannerProcessor extends WorkerHost {
           } finally {
             await page.close();
           }
-        }));
-      }
+        }
 
-      if (context) await context.close();
+        if (context) await context.close();
 
-      // ── Final website existence check ──────────────────────────────────
+        // ── Final website existence check ──────────────────────────────────
       const finalCheck = await this.prisma.scannedWebsite.findUnique({
         where: { id: websiteId },
         select: { id: true },
