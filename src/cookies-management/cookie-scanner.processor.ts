@@ -256,7 +256,14 @@ export class CookieScannerProcessor extends WorkerHost {
       }
 
       const CONCURRENCY = website.depth === ScanDepth.DEEP ? 8 : 5;
-      const baseHostname = new URL(website.url).hostname;
+      const baseUrl = new URL(website.url);
+      const baseHostname = baseUrl.hostname;
+      const getBaseDomain = (hostname: string) => {
+        const parts = hostname.split('.');
+        if (parts.length <= 2) return hostname.replace(/^www\./i, '');
+        return parts.slice(-2).join('.').replace(/^www\./i, '');
+      };
+      const baseDomain = getBaseDomain(baseHostname);
 
       // ── Main Crawl Loop ─────────────────────────────────────────────────
       while (queue.length > 0 && visited.size < maxPages) {
@@ -428,6 +435,13 @@ export class CookieScannerProcessor extends WorkerHost {
                     '[class*="cookie-consent" i]',
                     '[class*="cookiebanner" i]',
                     '[id*="gdpr-cookie" i]',
+                    '[id*="cookie-banner" i]',
+                    '[class*="cookie-banner" i]',
+                    '[class*="cookie-policy-banner" i]',
+                    '[role="dialog"][aria-label*="cookie" i]',
+                    '[role="alertdialog"][aria-label*="cookie" i]',
+                    '#sp-consent-notice', // Sourcepoint
+                    '#qc-cmp2-container', // Quantcast
                     // IAB TCF framework — agar koi bhi CMP IAB compliant hai to ye hoga
                     '#__tppd',
                   ];
@@ -690,7 +704,9 @@ export class CookieScannerProcessor extends WorkerHost {
               try {
                 const normalizedLink = normalizeUrl(link);
                 const linkUrl = new URL(normalizedLink);
-                if (linkUrl.hostname === baseUrl.hostname && !visited.has(normalizedLink) && !enqueued.has(normalizedLink)) {
+                const linkDomain = getBaseDomain(linkUrl.hostname);
+                
+                if (linkDomain === baseDomain && !visited.has(normalizedLink) && !enqueued.has(normalizedLink)) {
                   // Prioritize compliance-relevant pages
                   if (/privacy|cookie|legal|terms|gdpr|compliance|grievance/.test(normalizedLink)) {
                     queue.unshift(normalizedLink);
