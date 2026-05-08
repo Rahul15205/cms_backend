@@ -505,8 +505,15 @@ export class CookieScannerProcessor extends WorkerHost {
                 }, sel);
                 
                 if (clicked) {
-                  // Wait 1.5 seconds to let scripts load and inject cookies after click
-                  await new Promise(r => setTimeout(r, 1500));
+                  // If we successfully clicked an "Accept" button but haven't marked the banner as found yet, mark it now!
+                  if (!complianceSignals.hasCmpBanner) {
+                    complianceSignals.hasCmpBanner = true;
+                    complianceSignals.cmpProvider = complianceSignals.cmpProvider || 'Custom/Generic CMP';
+                    this.logger.log(`CMP detected via fallback clicker on ${currentUrl}`);
+                  }
+                  
+                  // Wait 3 seconds to let third-party scripts load and inject tracking cookies after consent
+                  await new Promise(r => setTimeout(r, 3000));
                   break;
                 }
               } catch {}
