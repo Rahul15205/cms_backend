@@ -464,24 +464,33 @@ export class CookieScannerProcessor extends WorkerHost {
 
                   for (const sel of CMP_DOM_SELECTORS) {
                     try {
-                      const el = await page.$(sel);
-                      if (el) {
-                        // Visible hai ya nahi check karo — hidden elements count nahi karte
-                        const isVisible = await page.evaluate((s) => {
-                          const el = document.querySelector(s);
-                          if (!el) return false;
-                          const style = window.getComputedStyle(el);
-                          return style.display !== 'none' && style.visibility !== 'hidden' && (el as HTMLElement).offsetHeight > 0;
-                        }, sel);
+                      // Visible hai ya nahi check karo — handles Shadow DOM
+                      const isVisible = await page.evaluate((s) => {
+                        const deepQuerySelector = (selector: string, root: Document | ShadowRoot = document): HTMLElement | null => {
+                          const el = root.querySelector(selector) as HTMLElement;
+                          if (el) return el;
+                          const allNodes = Array.from(root.querySelectorAll('*'));
+                          for (const node of allNodes) {
+                            if (node.shadowRoot) {
+                              const found = deepQuerySelector(selector, node.shadowRoot);
+                              if (found) return found;
+                            }
+                          }
+                          return null;
+                        };
 
-                        if (isVisible) {
-                          complianceSignals.hasCmpBanner = true;
-                          // Provider name selector se guess karo
-                          complianceSignals.cmpProvider = complianceSignals.cmpProvider || 'Unknown CMP';
-                          complianceSignals.bannerEvidence = { url: currentUrl, snippet: `CMP detected via DOM element: ${sel}` };
-                          this.logger.log(`CMP detected via DOM: ${sel} on ${currentUrl}`);
-                          break;
-                        }
+                        const el = deepQuerySelector(s);
+                        if (!el) return false;
+                        const style = window.getComputedStyle(el);
+                        return style.display !== 'none' && style.visibility !== 'hidden' && (el as HTMLElement).offsetHeight > 0;
+                      }, sel);
+
+                      if (isVisible) {
+                        complianceSignals.hasCmpBanner = true;
+                        complianceSignals.cmpProvider = complianceSignals.cmpProvider || 'Unknown CMP';
+                        complianceSignals.bannerEvidence = { url: currentUrl, snippet: `CMP detected via deep DOM element: ${sel}` };
+                        this.logger.log(`CMP detected via deep DOM: ${sel} on ${currentUrl}`);
+                        break;
                       }
                     } catch {}
                   }
@@ -710,10 +719,22 @@ export class CookieScannerProcessor extends WorkerHost {
               }
             }
 
-            // ── Link Extraction ────────────────────────────────────────────
-            const links = await page.$$eval('a', (anchors) =>
-              anchors.map(a => a.href).filter(href => href.startsWith('http'))
-            );
+            // ── Deep Link Extraction ───────────────────────────────────────
+            // Pierce Shadow DOM to find links in SPAs (like Claude.ai)
+            const links = await page.evaluate(() => {
+              const allLinks: string[] = [];
+              const extractFrom = (root: Document | ShadowRoot) => {
+                const anchors = Array.from(root.querySelectorAll('a')) as HTMLAnchorElement[];
+                anchors.forEach(a => { if (a.href && a.href.startsWith('http')) allLinks.push(a.href); });
+                
+                const children = Array.from(root.querySelectorAll('*'));
+                children.forEach(child => {
+                  if (child.shadowRoot) extractFrom(child.shadowRoot);
+                });
+              };
+              extractFrom(document);
+              return [...new Set(allLinks)];
+            });
 
             const baseUrl = new URL(website.url);
             for (const link of links) {
