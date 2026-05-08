@@ -257,13 +257,18 @@ export class CookieScannerProcessor extends WorkerHost {
 
       const CONCURRENCY = website.depth === ScanDepth.DEEP ? 8 : 5;
       const baseUrl = new URL(website.url);
-      const baseHostname = baseUrl.hostname;
       const getBaseDomain = (hostname: string) => {
         const parts = hostname.split('.');
         if (parts.length <= 2) return hostname.replace(/^www\./i, '');
+        // Handle common TLDs like .co.in or .com.au
+        const tld2 = parts.slice(-2).join('.');
+        if (['co.in', 'com.au', 'co.uk', 'org.in', 'net.in'].includes(tld2)) {
+          return parts.slice(-3).join('.').replace(/^www\./i, '');
+        }
         return parts.slice(-2).join('.').replace(/^www\./i, '');
       };
-      const baseDomain = getBaseDomain(baseHostname);
+      let baseDomain = getBaseDomain(baseUrl.hostname);
+      let baseHostname = baseUrl.hostname;
 
       // ── Main Crawl Loop ─────────────────────────────────────────────────
       while (queue.length > 0 && visited.size < maxPages) {
@@ -343,7 +348,18 @@ export class CookieScannerProcessor extends WorkerHost {
             await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Proteccio-Scanner/2.1');
 
             this.logger.log(`[Crawl ${visited.size}] ${currentUrl}`);
-            await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            const response = await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            
+            // Handle Redirects: update base domain if we redirected on the first page
+            if (visited.size === 1) {
+              const finalUrl = new URL(page.url());
+              const finalDomain = getBaseDomain(finalUrl.hostname);
+              if (finalDomain !== baseDomain) {
+                this.logger.log(`Redirect detected: updating base domain to ${finalDomain}`);
+                baseDomain = finalDomain;
+                baseHostname = finalUrl.hostname;
+              }
+            }
 
             // ── Page Classification (Content-based) ────────────────────────
             // Do this BEFORE compliance checks so we know what page type we're on
@@ -706,9 +722,15 @@ export class CookieScannerProcessor extends WorkerHost {
                 const linkUrl = new URL(normalizedLink);
                 const linkDomain = getBaseDomain(linkUrl.hostname);
                 
-                if (linkDomain === baseDomain && !visited.has(normalizedLink) && !enqueued.has(normalizedLink)) {
-                  // Prioritize compliance-relevant pages
-                  if (/privacy|cookie|legal|terms|gdpr|compliance|grievance/.test(normalizedLink)) {
+                const isInternal = linkDomain === baseDomain;
+                const isPolicyLink = /privacy|cookie|legal|terms|gdpr|compliance|grievance/.test(normalizedLink);
+                
+                // Allow internal links OR external policy links (to find policies on other domains)
+                if ((isInternal || isPolicyLink) && !visited.has(normalizedLink) && !enqueued.has(normalizedLink)) {
+                  // Limit external policy links to avoid crawling the whole internet
+                  if (!isInternal && enqueued.size > 50) continue; 
+                  
+                  if (isPolicyLink) {
                     queue.unshift(normalizedLink);
                   } else {
                     queue.push(normalizedLink);
