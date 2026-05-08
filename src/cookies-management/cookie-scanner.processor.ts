@@ -145,6 +145,11 @@ const CMP_ACCEPT_SELECTORS = [
   'button[id*="accept" i]',
   'button[class*="accept" i]',
   '[data-action="accept" i]',
+  ':has-text("Accept All")',
+  ':has-text("Accept Cookies")',
+  ':has-text("I Agree")',
+  ':has-text("Allow All")',
+  ':has-text("Got it")'
 ];
 
 export interface CookieScanJobData {
@@ -456,12 +461,27 @@ export class CookieScannerProcessor extends WorkerHost {
             for (const sel of CMP_ACCEPT_SELECTORS) {
               try {
                 const clicked = await page.evaluate((s) => {
-                  const btn = document.querySelector(s) as HTMLElement;
-                  if (btn?.offsetHeight > 0) { btn.click(); return true; }
+                  let btn = document.querySelector(s) as HTMLElement;
+                  
+                  // Handle custom :has-text selector fallback
+                  if (!btn && s.includes(':has-text')) {
+                    const textToFind = s.match(/:has-text\("(.*?)"\)/)?.[1]?.toLowerCase();
+                    if (textToFind) {
+                      const elements = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+                      btn = elements.find(b => b.textContent?.toLowerCase().includes(textToFind)) as HTMLElement;
+                    }
+                  }
+                  
+                  if (btn && btn.offsetHeight > 0) { 
+                    btn.click(); 
+                    return true; 
+                  }
                   return false;
                 }, sel);
+                
                 if (clicked) {
-                  await new Promise(r => setTimeout(r, 500));
+                  // Wait 1.5 seconds to let scripts load and inject cookies
+                  await new Promise(r => setTimeout(r, 1500));
                   break;
                 }
               } catch {}
