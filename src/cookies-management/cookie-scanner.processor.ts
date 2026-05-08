@@ -120,6 +120,14 @@ interface ComplianceSignals {
   thirdPartyEvidence?: { url: string; snippet: string };
   categorizationEvidence?: { url: string; snippet: string };
   grievanceEvidence?: { url: string; snippet: string };
+  bannerEvidence?: { url: string; snippet: string };
+  privacyPolicyEvidence?: { url: string; snippet: string };
+  languageEvidence?: { url: string; snippet: string };
+  consentLoggingEvidence?: { url: string; snippet: string };
+  httpsEvidence?: { url: string; snippet: string };
+  secureFlagEvidence?: { cookieName: string };
+  httpOnlyFlagEvidence?: { cookieName: string };
+  expiryFlagEvidence?: { cookieName: string };
 }
 
 // Known CMP fingerprints — detect by DOM element or script
@@ -340,7 +348,10 @@ export class CookieScannerProcessor extends WorkerHost {
             classifiedPages.push({ url: currentUrl, types: allTypes, title: '' });
 
             // Update top-level signals based on page type
-            if (allTypes.includes('PRIVACY_POLICY')) complianceSignals.hasPrivacyPolicy = true;
+            if (allTypes.includes('PRIVACY_POLICY')) {
+              complianceSignals.hasPrivacyPolicy = true;
+              complianceSignals.privacyPolicyEvidence = { url: currentUrl, snippet: 'Privacy Policy page detected.' };
+            }
             if (allTypes.includes('COOKIE_POLICY')) complianceSignals.hasCookieNotice = true;
             if (allTypes.includes('COMPLIANCE')) complianceSignals.hasComplianceNotice = true;
 
@@ -392,6 +403,7 @@ export class CookieScannerProcessor extends WorkerHost {
                   if (scriptSrcs.some(src => pattern.test(src))) {
                     complianceSignals.hasCmpBanner = true;
                     complianceSignals.cmpProvider = cmpName;
+                    complianceSignals.bannerEvidence = { url: currentUrl, snippet: `CMP detected via script: ${cmpName}` };
                     this.logger.log(`CMP detected via script: ${cmpName} on ${currentUrl}`);
                     break;
                   }
@@ -436,6 +448,7 @@ export class CookieScannerProcessor extends WorkerHost {
                           complianceSignals.hasCmpBanner = true;
                           // Provider name selector se guess karo
                           complianceSignals.cmpProvider = complianceSignals.cmpProvider || 'Unknown CMP';
+                          complianceSignals.bannerEvidence = { url: currentUrl, snippet: `CMP detected via DOM element: ${sel}` };
                           this.logger.log(`CMP detected via DOM: ${sel} on ${currentUrl}`);
                           break;
                         }
@@ -459,6 +472,7 @@ export class CookieScannerProcessor extends WorkerHost {
                   if (hasProteccioBannerOnPage) {
                     complianceSignals.hasCmpBanner = true;
                     complianceSignals.cmpProvider = 'Proteccio';
+                    complianceSignals.bannerEvidence = { url: currentUrl, snippet: 'Proteccio consent banner detected on page.' };
                   }
                 }
 
@@ -509,6 +523,7 @@ export class CookieScannerProcessor extends WorkerHost {
                   if (!complianceSignals.hasCmpBanner) {
                     complianceSignals.hasCmpBanner = true;
                     complianceSignals.cmpProvider = complianceSignals.cmpProvider || 'Custom/Generic CMP';
+                    complianceSignals.bannerEvidence = { url: currentUrl, snippet: 'Consent banner detected and accepted via generic clicker.' };
                     this.logger.log(`CMP detected via fallback clicker on ${currentUrl}`);
                   }
                   
@@ -519,9 +534,11 @@ export class CookieScannerProcessor extends WorkerHost {
               } catch {}
             }
 
-            // ── Language Detection ─────────────────────────────────────────
             const lang = await page.evaluate(() => document.documentElement.lang).catch(() => '');
-            if (lang && lang.toLowerCase() !== 'en') complianceSignals.hasLocalization = true;
+            if (lang && lang.toLowerCase() !== 'en') {
+              complianceSignals.hasLocalization = true;
+              complianceSignals.languageEvidence = { url: currentUrl, snippet: `Page language detected as: ${lang}` };
+            }
 
             // ── CONDITIONAL COMPLIANCE SCANNING ───────────────────────────
             // Only scan for signals on pages that are relevant to that indicator.
@@ -593,6 +610,10 @@ export class CookieScannerProcessor extends WorkerHost {
               if ((allTypes.includes('COOKIE_POLICY') || allTypes.includes('PRIVACY_POLICY')) && !complianceSignals.hasConsentLogging) {
                 if (lowerText.includes('consent log') || lowerText.includes('record your consent') || lowerText.includes('consent management')) {
                   complianceSignals.hasConsentLogging = true;
+                  complianceSignals.consentLoggingEvidence = {
+                    url: currentUrl,
+                    snippet: extractSnippet(pageText, 'consent log') || extractSnippet(pageText, 'record your consent'),
+                  };
                 }
               }
 
