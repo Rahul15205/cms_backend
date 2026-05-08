@@ -344,6 +344,16 @@ export class CookieScannerProcessor extends WorkerHost {
             if (allTypes.includes('COOKIE_POLICY')) complianceSignals.hasCookieNotice = true;
             if (allTypes.includes('COMPLIANCE')) complianceSignals.hasComplianceNotice = true;
 
+            // ── Smart Wait for Page Load ───────────────────────────────────
+            // Wait for network to settle SO THAT async CMP scripts are injected
+            const isKeyPage = visited.size <= 3 || allTypes.some(t => t !== 'GENERAL');
+            try {
+              await Promise.race([
+                page.waitForNetworkIdle({ idleTime: 500, timeout: isKeyPage ? 5000 : 2000 }),
+                new Promise(r => setTimeout(r, isKeyPage ? 5000 : 2000)),
+              ]);
+            } catch {}
+
             // ── Scroll + CMP Interaction ───────────────────────────────────
             await page.evaluate(() => window.scrollBy(0, 500));
 
@@ -461,15 +471,30 @@ export class CookieScannerProcessor extends WorkerHost {
             for (const sel of CMP_ACCEPT_SELECTORS) {
               try {
                 const clicked = await page.evaluate((s) => {
-                  let btn = document.querySelector(s) as HTMLElement;
+                  let btn: HTMLElement | null = null;
+                  
+                  // Helper to pierce shadow DOMs (many CMPs like Usercentrics use Shadow DOM)
+                  const deepQuerySelectorAll = (selector: string, root: Document | ShadowRoot = document): HTMLElement[] => {
+                    const elements = Array.from(root.querySelectorAll(selector)) as HTMLElement[];
+                    const allNodes = Array.from(root.querySelectorAll('*'));
+                    for (const node of allNodes) {
+                      if (node.shadowRoot) {
+                        elements.push(...deepQuerySelectorAll(selector, node.shadowRoot));
+                      }
+                    }
+                    return elements;
+                  };
                   
                   // Handle custom :has-text selector fallback
-                  if (!btn && s.includes(':has-text')) {
+                  if (s.includes(':has-text')) {
                     const textToFind = s.match(/:has-text\("(.*?)"\)/)?.[1]?.toLowerCase();
                     if (textToFind) {
-                      const elements = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
-                      btn = elements.find(b => b.textContent?.toLowerCase().includes(textToFind)) as HTMLElement;
+                      const elements = deepQuerySelectorAll('button, a, div[role="button"]');
+                      btn = elements.find(b => b.textContent?.toLowerCase().includes(textToFind)) || null;
                     }
+                  } else {
+                    const matches = deepQuerySelectorAll(s);
+                    if (matches.length > 0) btn = matches[0];
                   }
                   
                   if (btn && btn.offsetHeight > 0) { 
@@ -480,21 +505,12 @@ export class CookieScannerProcessor extends WorkerHost {
                 }, sel);
                 
                 if (clicked) {
-                  // Wait 1.5 seconds to let scripts load and inject cookies
+                  // Wait 1.5 seconds to let scripts load and inject cookies after click
                   await new Promise(r => setTimeout(r, 1500));
                   break;
                 }
               } catch {}
             }
-
-            // Smart wait
-            const isKeyPage = visited.size <= 3 || allTypes.some(t => t !== 'GENERAL');
-            try {
-              await Promise.race([
-                page.waitForNetworkIdle({ idleTime: 500, timeout: isKeyPage ? 5000 : 2000 }),
-                new Promise(r => setTimeout(r, isKeyPage ? 5000 : 2000)),
-              ]);
-            } catch {}
 
             // ── Language Detection ─────────────────────────────────────────
             const lang = await page.evaluate(() => document.documentElement.lang).catch(() => '');
