@@ -259,13 +259,13 @@ export class CookieScannerProcessor extends WorkerHost {
       const baseUrl = new URL(website.url);
       const getBaseDomain = (hostname: string) => {
         const parts = hostname.split('.');
-        if (parts.length <= 2) return hostname.replace(/^www\./i, '');
+        if (parts.length <= 2) return hostname.toLowerCase().replace(/^www\./i, '');
         // Handle common TLDs like .co.in or .com.au
-        const tld2 = parts.slice(-2).join('.');
-        if (['co.in', 'com.au', 'co.uk', 'org.in', 'net.in'].includes(tld2)) {
-          return parts.slice(-3).join('.').replace(/^www\./i, '');
+        const tld2 = parts.slice(-2).join('.').toLowerCase();
+        if (['co.in', 'com.au', 'co.uk', 'org.in', 'net.in', 'co.nz', 'co.jp'].includes(tld2)) {
+          return parts.slice(-3).join('.').toLowerCase().replace(/^www\./i, '');
         }
-        return parts.slice(-2).join('.').replace(/^www\./i, '');
+        return parts.slice(-2).join('.').toLowerCase().replace(/^www\./i, '');
       };
       let baseDomain = getBaseDomain(baseUrl.hostname);
       let baseHostname = baseUrl.hostname;
@@ -719,22 +719,44 @@ export class CookieScannerProcessor extends WorkerHost {
               }
             }
 
-            // ── Deep Link Extraction ───────────────────────────────────────
-            // Pierce Shadow DOM to find links in SPAs (like Claude.ai)
+            // ── Smart Scroll to bottom (triggers lazy-loaded links/footers) ──
+            await page.evaluate(async () => {
+              await new Promise<void>((resolve) => {
+                let totalHeight = 0;
+                const distance = 400;
+                const timer = setInterval(() => {
+                  const scrollHeight = document.body.scrollHeight;
+                  window.scrollBy(0, distance);
+                  totalHeight += distance;
+                  if (totalHeight >= scrollHeight || totalHeight > 10000) {
+                    clearInterval(timer);
+                    resolve();
+                  }
+                }, 100);
+              });
+            }).catch(() => {});
+
+            // ── Deep Link Extraction (Shadow DOM piercing) ──────────────────
             const links = await page.evaluate(() => {
               const allLinks: string[] = [];
               const extractFrom = (root: Document | ShadowRoot) => {
-                const anchors = Array.from(root.querySelectorAll('a')) as HTMLAnchorElement[];
-                anchors.forEach(a => { if (a.href && a.href.startsWith('http')) allLinks.push(a.href); });
-                
-                const children = Array.from(root.querySelectorAll('*'));
-                children.forEach(child => {
-                  if (child.shadowRoot) extractFrom(child.shadowRoot);
-                });
+                try {
+                  const anchors = Array.from(root.querySelectorAll('a')) as HTMLAnchorElement[];
+                  anchors.forEach(a => { 
+                    try {
+                      if (a.href && a.href.startsWith('http')) allLinks.push(a.href); 
+                    } catch {}
+                  });
+                  
+                  const children = Array.from(root.querySelectorAll('*'));
+                  children.forEach(child => {
+                    if (child.shadowRoot) extractFrom(child.shadowRoot);
+                  });
+                } catch {}
               };
               extractFrom(document);
               return [...new Set(allLinks)];
-            });
+            }).catch(() => [] as string[]);
 
             const baseUrl = new URL(website.url);
             for (const link of links) {
