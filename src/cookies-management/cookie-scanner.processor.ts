@@ -236,7 +236,7 @@ async function classifyPageByContent(page: puppeteer.Page, url: string): Promise
       const h1 = document.querySelector('h1')?.textContent?.toLowerCase() || '';
       const h2 = document.querySelector('h2')?.textContent?.toLowerCase() || '';
       const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute('content')?.toLowerCase() || '';
-      const bodyStart = document.body?.innerText?.substring(0, 5000)?.toLowerCase() || '';
+      const bodyStart = document.body?.innerText?.substring(0, 12000)?.toLowerCase() || '';
       return { title, h1, h2, metaDescription, bodyStart };
     });
 
@@ -264,9 +264,9 @@ async function classifyPageByContent(page: puppeteer.Page, url: string): Promise
       types.push('COMPLIANCE');
     }
 
-    return types.length ? types : classifyPageByUrl(url);
+    return types.length ? types : ['GENERAL'];
   } catch {
-    return classifyPageByUrl(url);
+    return ['GENERAL'];
   }
 }
 
@@ -381,6 +381,7 @@ export class CookieScannerProcessor extends WorkerHost {
     const visited = new Set<string>();
     const enqueued = new Set<string>();
     const crawledPageUrls = new Set<string>();
+    const guessedPolicyUrls = new Set<string>();
     const normalizedStart = normalizeUrl(website.url);
     const queue: string[] = [normalizedStart];
     enqueued.add(normalizedStart);
@@ -477,7 +478,10 @@ export class CookieScannerProcessor extends WorkerHost {
       };
 
       for (const path of COMMON_POLICY_PATHS) {
-        enqueueDiscoveredUrl(new URL(path, baseUrl.origin).href, true);
+        const guessedUrl = new URL(path, baseUrl.origin).href;
+        if (enqueueDiscoveredUrl(guessedUrl, true)) {
+          guessedPolicyUrls.add(normalizeUrl(guessedUrl));
+        }
       }
 
       try {
@@ -598,6 +602,11 @@ export class CookieScannerProcessor extends WorkerHost {
             const contentTypes = await classifyPageByContent(page, pageUrl);
             // Merge: URL types + content types (content wins for CMS pages)
             let allTypes = [...new Set([...urlTypes, ...contentTypes])];
+            const contentConfirmedPolicyTypes = contentTypes.filter(t => t === 'PRIVACY_POLICY' || t === 'COOKIE_POLICY' || t === 'COMPLIANCE');
+            const isGuessedPolicyCandidate = guessedPolicyUrls.has(currentUrl) || guessedPolicyUrls.has(pageUrl);
+            if (isGuessedPolicyCandidate && contentConfirmedPolicyTypes.length === 0) {
+              allTypes = contentTypes;
+            }
             const pageLooksMissing = await page.evaluate(() => {
               const text = `${document.title || ''} ${document.querySelector('h1')?.textContent || ''} ${document.body?.innerText?.substring(0, 1200) || ''}`.toLowerCase();
               return /404|page not found|not found|page does not exist|page unavailable/.test(text);
@@ -609,12 +618,12 @@ export class CookieScannerProcessor extends WorkerHost {
             classifiedPages.push({ url: pageUrl, types: allTypes, title: '' });
 
             // Update top-level signals based on page type
-            if (allTypes.includes('PRIVACY_POLICY')) {
+            if (contentConfirmedPolicyTypes.includes('PRIVACY_POLICY')) {
               complianceSignals.hasPrivacyPolicy = true;
-              complianceSignals.privacyPolicyEvidence = { url: pageUrl, snippet: 'Privacy Policy page detected.' };
+              complianceSignals.privacyPolicyEvidence = { url: pageUrl, snippet: 'Privacy Policy content detected.' };
             }
-            if (allTypes.includes('COOKIE_POLICY')) complianceSignals.hasCookieNotice = true;
-            if (allTypes.includes('COMPLIANCE')) complianceSignals.hasComplianceNotice = true;
+            if (contentConfirmedPolicyTypes.includes('COOKIE_POLICY')) complianceSignals.hasCookieNotice = true;
+            if (contentConfirmedPolicyTypes.includes('COMPLIANCE')) complianceSignals.hasComplianceNotice = true;
 
             // ── Smart Wait for Page Load ───────────────────────────────────
             // Wait for network to settle SO THAT async CMP scripts are injected
@@ -898,9 +907,9 @@ export class CookieScannerProcessor extends WorkerHost {
             // Only scan for signals on pages that are relevant to that indicator.
             // This mirrors how OneTrust/Cookiebot actually score compliance.
             const shouldScanForPolicySignals =
-              allTypes.includes('PRIVACY_POLICY') ||
-              allTypes.includes('COOKIE_POLICY') ||
-              allTypes.includes('COMPLIANCE');
+              contentConfirmedPolicyTypes.includes('PRIVACY_POLICY') ||
+              contentConfirmedPolicyTypes.includes('COOKIE_POLICY') ||
+              contentConfirmedPolicyTypes.includes('COMPLIANCE');
 
             if (shouldScanForPolicySignals) {
               const pageText = await page.evaluate(() => document.body?.innerText || '').catch(() => '');
@@ -911,6 +920,17 @@ export class CookieScannerProcessor extends WorkerHost {
                 if (idx === -1) return '';
                 return '...' + text.substring(Math.max(0, idx - 40), Math.min(text.length, idx + 120)).replace(/\n/g, ' ').trim() + '...';
               };
+
+              if (contentConfirmedPolicyTypes.includes('PRIVACY_POLICY') && complianceSignals.privacyPolicyEvidence?.url === pageUrl) {
+                complianceSignals.privacyPolicyEvidence = {
+                  url: pageUrl,
+                  snippet: extractSnippet(pageText, 'privacy policy') ||
+                    extractSnippet(pageText, 'privacy notice') ||
+                    extractSnippet(pageText, 'personal data') ||
+                    extractSnippet(pageText, 'personal information') ||
+                    pageText.substring(0, 180).replace(/\n/g, ' ').trim(),
+                };
+              }
 
               // DSAR → PRIVACY_POLICY or COOKIE_POLICY
               if ((allTypes.includes('PRIVACY_POLICY') || allTypes.includes('COOKIE_POLICY')) && !complianceSignals.hasDsar) {
