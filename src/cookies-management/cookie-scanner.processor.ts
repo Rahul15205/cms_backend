@@ -713,209 +713,141 @@ export class CookieScannerProcessor extends WorkerHost {
             // ── Scroll + CMP Interaction ───────────────────────────────────
             await page.evaluate(() => window.scrollBy(0, 500));
 
-            // ── CMP Detection (timing-aware) ──────────────────────────────
-            // PROBLEM: domcontentloaded ke baad banner DOM mein nahi hota
-            // CMP scripts (OneTrust, Cookiebot etc) asynchronously inject karte hain banner
-            // SOLUTION: networkidle ke BAAD check karo, aur agar DOM mein na mile
-            //           to <script src> attributes se fingerprint karo (scripts synchronously load hote hain)
-
+            // ── CMP Detection (Enhanced & Evidence-Focused) ────────────────
+            // Focus: High-reliability detection + text evidence for compliance proof
+            
             if (!complianceSignals.hasCmpBanner) {
               try {
-                // Method 1: Script src fingerprinting — ALWAYS reliable
-                // CMP scripts page ke <head> mein hote hain, DOM ready hone se pehle load ho jaate hain
-                // Ye method timing se independent hai
-                const cmpResourceUrls = await page.$$eval(
-                  'script[src], iframe[src]',
-                  (els) => els.map(e => {
-                    if (e instanceof HTMLScriptElement) return e.src.toLowerCase();
-                    if (e instanceof HTMLIFrameElement) return e.src.toLowerCase();
-                    return '';
-                  }).filter(Boolean)
-                );
+                // Method 1: Fingerprinting (Scripts/Global APIs)
+                // This gives us the PROVIDER name even if the banner isn't visible yet
+                let detectedCmpName = '';
+                
+                // Check Global APIs
+                const apiCmp = await page.evaluate(() => {
+                  if ((window as any).Cookiebot) return 'Cookiebot';
+                  if ((window as any).OneTrust) return 'OneTrust';
+                  if ((window as any).UC_UI) return 'Usercentrics';
+                  if ((window as any).CookieYes || (window as any).cky_config) return 'CookieYes';
+                  if ((window as any).__tcfapi) return 'IAB TCF Framework';
+                  if ((window as any).__cmp) return 'IAB CMP';
+                  if ((window as any).Osano) return 'Osano';
+                  return null;
+                }).catch(() => null);
+                
+                if (apiCmp) detectedCmpName = apiCmp;
 
-                for (const { pattern, name: cmpName } of CMP_SCRIPT_PATTERNS) {
-                  if (cmpResourceUrls.some(src => pattern.test(src))) {
-                    complianceSignals.hasCmpBanner = true;
-                    complianceSignals.cmpProvider = cmpName;
-                    complianceSignals.bannerEvidence = { url: currentUrl, snippet: `CMP detected via script: ${cmpName}` };
-                    this.logger.log(`CMP detected via script: ${cmpName} on ${currentUrl}`);
-                    break;
+                // Check Scripts if API didn't catch it
+                if (!detectedCmpName) {
+                  const scripts = await page.$$eval('script[src]', (els) => els.map(e => (e as HTMLScriptElement).src.toLowerCase())).catch(() => []);
+                  for (const { pattern, name } of CMP_SCRIPT_PATTERNS) {
+                    if (scripts.some(src => pattern.test(src))) {
+                      detectedCmpName = name;
+                      break;
+                    }
                   }
                 }
 
-                // Method 2: DOM element check — sirf HOME page pe karo with proper wait
-                // General pages pe mat karo (slow aur unreliable)
-                if (!complianceSignals.hasCmpBanner && (visited.size <= 5 || allTypes.includes('HOME'))) {
-                  // HOME page pe thoda extra wait — banner inject hone ka time do
-                  await new Promise(r => setTimeout(r, 1500));
+                if (detectedCmpName) {
+                  complianceSignals.hasCmpBanner = true;
+                  complianceSignals.cmpProvider = detectedCmpName;
+                  complianceSignals.bannerEvidence = { url: currentUrl, snippet: `CMP detected via script/API: ${detectedCmpName}` };
+                  this.logger.log(`CMP fingerprint detected: ${detectedCmpName} on ${currentUrl}`);
+                }
 
-                  const CMP_DOM_SELECTORS = [
-                    '#CybotCookiebotDialog',
-                    '#onetrust-banner-sdk',
-                    '.cky-consent-container',
-                    '.osano-cm-window',
-                    '[data-cookiefirst-action]',
-                    '#cookie-law-info-bar',
-                    '.cc-window',
-                    '#CookieConsent',
-                    '[id*="cookieconsent" i]',
-                    '[class*="cookie-consent" i]',
-                    '[class*="cookiebanner" i]',
-                    '[id*="gdpr-cookie" i]',
-                    '[id*="cookie-banner" i]',
-                    '[class*="cookie-banner" i]',
-                    '[class*="cookie-policy-banner" i]',
-                    '[role="dialog"][aria-label*="cookie" i]',
-                    '[role="alertdialog"][aria-label*="cookie" i]',
-                    '#sp-consent-notice', // Sourcepoint
-                    '#qc-cmp2-container', // Quantcast
-                    // IAB TCF framework — agar koi bhi CMP IAB compliant hai to ye hoga
-                    '#__tppd',
+                // Method 2: Deep DOM Inspection (Now mandatory for proof extraction)
+                // Even if we found the provider via script, we MUST find the text for the USER'S PROOF
+                const bannerInfo = await page.evaluate(() => {
+                  const deepQuerySelector = (selector: string, root: Document | ShadowRoot = document): HTMLElement | null => {
+                    const el = root.querySelector(selector) as HTMLElement;
+                    if (el) return el;
+                    for (const node of Array.from(root.querySelectorAll('*'))) {
+                      if ((node as HTMLElement).shadowRoot) {
+                        const found = deepQuerySelector(selector, (node as HTMLElement).shadowRoot!);
+                        if (found) return found;
+                      }
+                    }
+                    return null;
+                  };
+
+                  const isVisible = (el: HTMLElement) => {
+                    const style = window.getComputedStyle(el);
+                    const rect = el.getBoundingClientRect();
+                    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 10 && rect.height > 10;
+                  };
+
+                  const selectors = [
+                    '#CybotCookiebotDialog', '#onetrust-banner-sdk', '.cky-consent-container', '.osano-cm-window',
+                    '#sp-consent-notice', '#qc-cmp2-container', '#cookie-law-info-bar', '.cc-window', '#CookieConsent',
+                    '[id*="cookie-banner" i]', '[class*="cookie-banner" i]', '[id*="cookieconsent" i]', '[class*="cookie-consent" i]',
+                    '[role="dialog"][aria-label*="cookie" i]', '[role="alertdialog"][aria-label*="cookie" i]',
+                    '.tcf-consent-layer', '.trustecm-banner'
                   ];
 
-                  for (const sel of CMP_DOM_SELECTORS) {
-                    try {
-                      // Visible hai ya nahi check karo — handles Shadow DOM
-                      const isVisible = await page.evaluate((s) => {
-                        const deepQuerySelector = (selector: string, root: Document | ShadowRoot = document): HTMLElement | null => {
-                          const el = root.querySelector(selector) as HTMLElement;
-                          if (el) return el;
-                          const allNodes = Array.from(root.querySelectorAll('*'));
-                          for (const node of allNodes) {
-                            if (node.shadowRoot) {
-                              const found = deepQuerySelector(selector, node.shadowRoot);
-                              if (found) return found;
-                            }
-                          }
-                          return null;
-                        };
-
-                        const el = deepQuerySelector(s);
-                        if (!el) return false;
-                        const style = window.getComputedStyle(el);
-                        return style.display !== 'none' && style.visibility !== 'hidden' && (el as HTMLElement).offsetHeight > 0;
-                      }, sel);
-
-                      if (isVisible) {
-                        complianceSignals.hasCmpBanner = true;
-                        complianceSignals.cmpProvider = complianceSignals.cmpProvider || 'Unknown CMP';
-                        complianceSignals.bannerEvidence = { url: currentUrl, snippet: `CMP detected via deep DOM element: ${sel}` };
-                        this.logger.log(`CMP detected via deep DOM: ${sel} on ${currentUrl}`);
-                        break;
-                      }
-                    } catch {}
-                  }
-                }
-
-                if (!complianceSignals.hasCmpBanner) {
-                  const genericBanner = await page.evaluate(() => {
-                    const apiDetected = !!(
-                      (window as any).__tcfapi ||
-                      (window as any).__cmp ||
-                      (window as any).Cookiebot ||
-                      (window as any).OneTrust ||
-                      (window as any).UC_UI
-                    );
-
-                    if (apiDetected) {
-                      return { found: true, provider: 'IAB/CMP API', snippet: 'Consent API detected on page.' };
+                  // 1. Try known selectors
+                  for (const s of selectors) {
+                    const el = deepQuerySelector(s);
+                    if (el && isVisible(el)) {
+                      return { text: el.innerText || el.textContent || '', selector: s };
                     }
+                  }
 
-                    const candidates: HTMLElement[] = [];
-                    const selector = [
-                      'dialog',
-                      'aside',
-                      'footer',
-                      '[role="dialog"]',
-                      '[role="alertdialog"]',
-                      '[aria-modal="true"]',
-                      '[id*="cookie" i]',
-                      '[class*="cookie" i]',
-                      '[id*="consent" i]',
-                      '[class*="consent" i]',
-                      '[id*="gdpr" i]',
-                      '[class*="gdpr" i]',
-                      '[id*="privacy" i]',
-                      '[class*="privacy" i]',
-                      '[data-testid*="cookie" i]',
-                      '[data-testid*="consent" i]',
-                    ].join(',');
-
-                    const collect = (root: Document | ShadowRoot) => {
-                      try {
-                        candidates.push(...Array.from(root.querySelectorAll(selector)) as HTMLElement[]);
-                        for (const node of Array.from(root.querySelectorAll('*'))) {
-                          const shadowRoot = (node as HTMLElement).shadowRoot;
-                          if (shadowRoot) collect(shadowRoot);
-                        }
-                      } catch {}
-                    };
-
-                    collect(document);
-
-                    const isVisible = (el: HTMLElement) => {
-                      const style = window.getComputedStyle(el);
-                      const rect = el.getBoundingClientRect();
-                      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-                    };
-
+                  // 2. Generic Heuristic Search
+                  const findGeneric = (root: Document | ShadowRoot): { text: string; selector: string } | null => {
+                    const candidates = Array.from(root.querySelectorAll('div, section, aside, dialog, [role="dialog"]')) as HTMLElement[];
                     for (const el of candidates) {
                       if (!isVisible(el)) continue;
-
-                      const style = window.getComputedStyle(el);
-                      const zIndex = Number.parseInt(style.zIndex || '0', 10) || 0;
-                      const className = typeof el.className === 'string' ? el.className : '';
-                      const attrs = `${el.id} ${className} ${el.getAttribute('role') || ''} ${el.getAttribute('aria-label') || ''}`.toLowerCase();
                       const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
                       const lowerText = text.toLowerCase();
-                      const looksLikeBannerContainer =
-                        /(cookie|consent|cmp|gdpr|privacy|onetrust|cookiebot|cookieyes|termly)/i.test(attrs) ||
-                        ['fixed', 'sticky'].includes(style.position) ||
-                        zIndex >= 10;
-                      const mentionsConsent = /(cookie|cookies|consent|privacy|gdpr|personal data)/i.test(lowerText);
-                      const offersChoice = /(accept|agree|allow|reject|decline|manage|preferences|settings|customize|continue)/i.test(lowerText);
-
-                      if (looksLikeBannerContainer && mentionsConsent && offersChoice) {
-                        return {
-                          found: true,
-                          provider: 'Custom/Generic CMP',
-                          snippet: text.substring(0, 180),
-                        };
+                      
+                      // Filter for cookie banner characteristics
+                      const hasKeywords = /(cookie|consent|privacy|gdpr|akceptuj|cookies)/i.test(lowerText);
+                      const hasChoices = /(accept|allow|agree|reject|manage|preferences|settings|customize|decline)/i.test(lowerText);
+                      const isSticky = ['fixed', 'sticky'].includes(window.getComputedStyle(el).position);
+                      const zIndex = parseInt(window.getComputedStyle(el).zIndex) || 0;
+                      
+                      if (hasKeywords && hasChoices && (isSticky || zIndex > 10 || text.length < 1000)) {
+                        return { text, selector: `heuristic:${el.tagName}` };
                       }
                     }
+                    
+                    // Recurse into shadows
+                    for (const node of Array.from(root.querySelectorAll('*'))) {
+                      if ((node as HTMLElement).shadowRoot) {
+                        const found = findGeneric((node as HTMLElement).shadowRoot!);
+                        if (found) return found;
+                      }
+                    }
+                    return null;
+                  };
 
-                    return { found: false, provider: '', snippet: '' };
-                  }).catch(() => ({ found: false, provider: '', snippet: '' }));
+                  return findGeneric(document);
+                }).catch(() => null);
 
-                  if (genericBanner.found) {
-                    complianceSignals.hasCmpBanner = true;
-                    complianceSignals.cmpProvider = genericBanner.provider || 'Custom/Generic CMP';
-                    complianceSignals.bannerEvidence = { url: currentUrl, snippet: genericBanner.snippet || 'Generic cookie consent banner detected.' };
-                    this.logger.log(`CMP detected via generic banner text on ${currentUrl}`);
-                  }
+                if (bannerInfo && bannerInfo.text) {
+                  complianceSignals.hasCmpBanner = true;
+                  const cleanText = bannerInfo.text.replace(/\s+/g, ' ').trim().substring(0, 600);
+                  complianceSignals.bannerEvidence = { 
+                    url: currentUrl, 
+                    snippet: cleanText || `Cookie banner detected (${bannerInfo.selector})` 
+                  };
+                  this.logger.log(`Banner text captured from ${currentUrl} (${bannerInfo.selector})`);
                 }
 
-                // Method 3: Proteccio ka apna banner check (window variable ya custom element)
-                // Agar Proteccio banner inject karta hai koi global variable, use karo
+                // Method 3: Proteccio-Specific & Proteccio-Managed check
                 if (!complianceSignals.hasCmpBanner) {
-                  const hasProteccioBannerOnPage = await page.evaluate(() => {
-                    // Proteccio banner ka custom element ya window flag — apne hisab se adjust karo
-                    return !!(
-                      document.querySelector('[data-proteccio-banner]') ||
-                      document.querySelector('#proteccio-consent') ||
-                      (window as any).__proteccioCMP
-                    );
+                  const proteccioDetected = await page.evaluate(() => {
+                    return !!(document.querySelector('[data-proteccio-banner]') || (window as any).__proteccioCMP);
                   }).catch(() => false);
-
-                  if (hasProteccioBannerOnPage) {
+                  
+                  if (proteccioDetected) {
                     complianceSignals.hasCmpBanner = true;
                     complianceSignals.cmpProvider = 'Proteccio';
-                    complianceSignals.bannerEvidence = { url: currentUrl, snippet: 'Proteccio consent banner detected on page.' };
+                    complianceSignals.bannerEvidence = { url: currentUrl, snippet: 'Proteccio consent management platform detected.' };
                   }
                 }
 
               } catch (e) {
-                this.logger.warn(`CMP detection error on ${currentUrl}: ${e.message}`);
+                this.logger.warn(`Banner detection failed on ${currentUrl}: ${e.message}`);
               }
             }
 
