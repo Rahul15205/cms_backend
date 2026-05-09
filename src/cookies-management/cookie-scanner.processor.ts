@@ -10,6 +10,64 @@ import { CookieClassifierService } from './cookie-classifier.service';
 import { ScanStatus, ScanDepth } from '@prisma/client';
 import { ComplianceScannerService } from './compliance-scanner.service';
 
+const PRIVACY_URL_PATTERN = /(?:^|[/_-])(?:privacy|privacy[-_]?policy|privacy[-_]?notice|privacy[-_]?statement|privacy[-_]?center|data[-_]?protection|datenschutz|privacidad)(?:[/_.-]|$)/i;
+const COOKIE_URL_PATTERN = /(?:^|[/_-])(?:cookies?|cookie[-_]?policy|cookies[-_]?policy|cookie[-_]?notice|cookie[-_]?declaration|cookie[-_]?statement)(?:[/_.-]|$)/i;
+const COMPLIANCE_URL_PATTERN = /(?:compliance|legal|grievance|terms[-_]?of[-_]?(use|service)|terms|gdpr|ccpa|dpdp|dpo|nodal[-_]?officer)/i;
+const POLICY_LINK_PATTERN = /privacy|cookie|legal|terms|gdpr|ccpa|dpdp|compliance|grievance|dpo|nodal/i;
+
+const COMMON_POLICY_PATHS = [
+  '/privacy',
+  '/privacy-policy',
+  '/privacy-notice',
+  '/privacy-statement',
+  '/privacy-center',
+  '/legal/privacy',
+  '/legal/privacy-policy',
+  '/data-protection',
+  '/cookie-policy',
+  '/cookies',
+  '/cookies-policy',
+  '/cookie-notice',
+  '/cookie-declaration',
+  '/legal/cookie-policy',
+  '/terms',
+  '/terms-of-use',
+  '/terms-of-service',
+  '/legal',
+  '/compliance',
+  '/gdpr',
+  '/ccpa',
+  '/grievance',
+  '/grievance-redressal',
+];
+
+const COMMON_SITEMAP_PATHS = [
+  '/sitemap.xml',
+  '/sitemap_index.xml',
+  '/sitemap-index.xml',
+  '/sitemap1.xml',
+  '/post-sitemap.xml',
+  '/page-sitemap.xml',
+];
+
+const CMP_SCRIPT_PATTERNS: { pattern: RegExp; name: string }[] = [
+  { pattern: /cookiebot\.com\/uc\.js|cookiebot\.com\/botmanifest/i, name: 'Cookiebot' },
+  { pattern: /cdn\.cookielaw\.org|onetrust\.com/i, name: 'OneTrust' },
+  { pattern: /app\.cookiefirst\.com/i, name: 'CookieFirst' },
+  { pattern: /cookieyescdn\.com|cookieyes\.com/i, name: 'CookieYes' },
+  { pattern: /osano\.com/i, name: 'Osano' },
+  { pattern: /iubenda\.com/i, name: 'Iubenda' },
+  { pattern: /cookie-script\.com/i, name: 'Cookie-Script' },
+  { pattern: /termly\.io/i, name: 'Termly' },
+  { pattern: /usercentrics\.eu|usercentrics\.com/i, name: 'Usercentrics' },
+  { pattern: /cookiehub\.com/i, name: 'CookieHub' },
+  { pattern: /privacy-mgmt\.com|sourcepoint\.com/i, name: 'Sourcepoint' },
+  { pattern: /quantcast\.mgr\.consensu\.org|quantcast\.com\/choice/i, name: 'Quantcast Choice' },
+  { pattern: /consentmanager\.(net|com)/i, name: 'Consentmanager' },
+  { pattern: /didomi\.io/i, name: 'Didomi' },
+  { pattern: /trustarc\.com|truste\.com/i, name: 'TrustArc' },
+];
+
 function normalizeUrl(urlStr: string): string {
   try {
     const parsed = new URL(urlStr);
@@ -28,6 +86,106 @@ function normalizeUrl(urlStr: string): string {
 // Industry approach: classify pages by URL + content signals
 // This drives conditional compliance scanning (OneTrust does exactly this)
 
+function getBaseDomain(hostname: string): string {
+  const parts = hostname.toLowerCase().replace(/^www\./i, '').split('.');
+  if (parts.length <= 2) return parts.join('.');
+
+  const tld2 = parts.slice(-2).join('.');
+  if (['co.in', 'com.au', 'co.uk', 'org.in', 'net.in', 'co.nz', 'co.jp'].includes(tld2)) {
+    return parts.slice(-3).join('.');
+  }
+
+  return parts.slice(-2).join('.');
+}
+
+function decodeXmlValue(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function extractSitemapLocs(xml: string): string[] {
+  const urls: string[] = [];
+  const locRegex = /<loc>\s*([^<]+)\s*<\/loc>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = locRegex.exec(xml)) !== null) {
+    urls.push(decodeXmlValue(match[1].trim()));
+  }
+
+  return urls;
+}
+
+async function fetchScannerText(url: string, timeoutMs = 8000): Promise<string | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 Proteccio-Scanner/2.1',
+        Accept: 'text/html,application/xml,text/xml,text/plain,*/*;q=0.8',
+      },
+    });
+
+    if (!response.ok) return null;
+    return await response.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function discoverSitemapUrls(startUrl: string, baseDomain: string, maxUrls: number): Promise<string[]> {
+  const start = new URL(startUrl);
+  const sitemapQueue = new Set<string>(COMMON_SITEMAP_PATHS.map(path => `${start.origin}${path}`));
+  const robotsText = await fetchScannerText(`${start.origin}/robots.txt`, 5000);
+
+  if (robotsText) {
+    const sitemapRegex = /^sitemap:\s*(\S+)/gim;
+    let match: RegExpExecArray | null;
+    while ((match = sitemapRegex.exec(robotsText)) !== null) {
+      sitemapQueue.add(match[1].trim());
+    }
+  }
+
+  const discovered = new Set<string>();
+  const seenSitemaps = new Set<string>();
+  const pending = Array.from(sitemapQueue);
+
+  while (pending.length > 0 && discovered.size < maxUrls) {
+    const sitemapUrl = pending.shift()!;
+    const normalizedSitemapUrl = normalizeUrl(sitemapUrl);
+    if (seenSitemaps.has(normalizedSitemapUrl)) continue;
+    seenSitemaps.add(normalizedSitemapUrl);
+
+    const xml = await fetchScannerText(sitemapUrl);
+    if (!xml) continue;
+
+    for (const loc of extractSitemapLocs(xml)) {
+      try {
+        const parsed = new URL(loc);
+        if (getBaseDomain(parsed.hostname) !== baseDomain) continue;
+
+        const normalizedLoc = normalizeUrl(parsed.href);
+        if (/\.xml(?:$|\?)/i.test(parsed.pathname) || /sitemap/i.test(parsed.pathname)) {
+          if (!seenSitemaps.has(normalizedLoc)) pending.push(parsed.href);
+        } else {
+          discovered.add(normalizedLoc);
+          if (discovered.size >= maxUrls) break;
+        }
+      } catch {}
+    }
+  }
+
+  return Array.from(discovered);
+}
+
 export type PageType = 'HOME' | 'PRIVACY_POLICY' | 'COOKIE_POLICY' | 'COMPLIANCE' | 'GENERAL';
 
 interface PageClassification {
@@ -42,12 +200,13 @@ interface PageClassification {
  */
 function classifyPageByUrl(url: string): PageType[] {
   const types: PageType[] = [];
-  const lower = url.toLowerCase();
+  const parsed = new URL(url);
+  const lower = `${parsed.pathname}${parsed.search}`.toLowerCase();
 
-  if (/^\/?$|\/home|\/index/.test(lower) || new URL(url).pathname === '/') types.push('HOME');
-  if (/privacy[-_]?policy|privacy[-_]?notice|datenschutz|privacidad/.test(lower)) types.push('PRIVACY_POLICY');
-  if (/cookie[-_]?policy|cookie[-_]?notice|cookie[-_]?declaration/.test(lower)) types.push('COOKIE_POLICY');
-  if (/compliance|legal|grievance|terms[-_]?of[-_]?(use|service)|gdpr|ccpa/.test(lower)) types.push('COMPLIANCE');
+  if (/^\/?$|\/home(?:[/_.-]|$)|\/index(?:[/_.-]|$)/.test(lower)) types.push('HOME');
+  if (PRIVACY_URL_PATTERN.test(lower)) types.push('PRIVACY_POLICY');
+  if (COOKIE_URL_PATTERN.test(lower)) types.push('COOKIE_POLICY');
+  if (COMPLIANCE_URL_PATTERN.test(lower)) types.push('COMPLIANCE');
 
   return types.length ? types : ['GENERAL'];
 }
@@ -63,20 +222,25 @@ async function classifyPageByContent(page: puppeteer.Page, url: string): Promise
       const title = document.title?.toLowerCase() || '';
       const h1 = document.querySelector('h1')?.textContent?.toLowerCase() || '';
       const h2 = document.querySelector('h2')?.textContent?.toLowerCase() || '';
-      const bodyStart = document.body?.innerText?.substring(0, 800)?.toLowerCase() || '';
-      return { title, h1, h2, bodyStart };
+      const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute('content')?.toLowerCase() || '';
+      const bodyStart = document.body?.innerText?.substring(0, 5000)?.toLowerCase() || '';
+      const anchorText = Array.from(document.querySelectorAll('a'))
+        .slice(0, 250)
+        .map(a => a.textContent?.toLowerCase() || '')
+        .join(' ');
+      return { title, h1, h2, metaDescription, bodyStart, anchorText };
     });
 
-    const combined = `${signals.title} ${signals.h1} ${signals.h2} ${signals.bodyStart}`;
+    const combined = `${signals.title} ${signals.h1} ${signals.h2} ${signals.metaDescription} ${signals.bodyStart} ${signals.anchorText}`;
     const types: PageType[] = [];
 
-    if (/privacy policy|privacy notice|data protection|how we use.*data|personal.*information.*collect/.test(combined)) {
+    if (/privacy policy|privacy notice|privacy statement|privacy center|data protection|how we use.*data|personal.*information.*collect|personal data we collect|your privacy rights/.test(combined)) {
       types.push('PRIVACY_POLICY');
     }
-    if (/cookie policy|cookie notice|cookie declaration|how we use cookies|types of cookies/.test(combined)) {
+    if (/cookie policy|cookie notice|cookie declaration|cookie statement|how we use cookies|types of cookies|manage cookies|cookie preferences/.test(combined)) {
       types.push('COOKIE_POLICY');
     }
-    if (/grievance|nodal officer|compliance officer|legal notice|terms of (use|service)/.test(combined)) {
+    if (/grievance|nodal officer|complaint officer|compliance officer|legal notice|terms of (use|service)|data protection officer|dpo/.test(combined)) {
       types.push('COMPLIANCE');
     }
 
@@ -154,10 +318,17 @@ const CMP_ACCEPT_SELECTORS = [
   'button[class*="accept" i]',
   '[data-action="accept" i]',
   ':has-text("Accept All")',
+  ':has-text("Accept")',
   ':has-text("Accept Cookies")',
   ':has-text("I Agree")',
   ':has-text("Allow All")',
-  ':has-text("Got it")'
+  ':has-text("Agree")',
+  ':has-text("Got it")',
+  ':has-text("OK")',
+  ':has-text("Continue")',
+  ':has-text("Akzeptieren")',
+  ':has-text("Aceptar")',
+  ':has-text("Tout accepter")'
 ];
 
 export interface CookieScanJobData {
@@ -189,6 +360,7 @@ export class CookieScannerProcessor extends WorkerHost {
 
     const visited = new Set<string>();
     const enqueued = new Set<string>();
+    const crawledPageUrls = new Set<string>();
     const normalizedStart = normalizeUrl(website.url);
     const queue: string[] = [normalizedStart];
     enqueued.add(normalizedStart);
@@ -197,6 +369,7 @@ export class CookieScannerProcessor extends WorkerHost {
     const classifiedPages: PageClassification[] = [];
 
     const maxPages = website.depth === ScanDepth.DEEP ? Infinity : 100;
+    const maxAttempts = website.depth === ScanDepth.DEEP ? Infinity : maxPages * 3;
     const MAX_SCAN_TIME_MS = website.depth === ScanDepth.DEEP ? 30 * 60 * 1000 : 10 * 60 * 1000;
     const scanStartTime = Date.now();
 
@@ -255,23 +428,55 @@ export class CookieScannerProcessor extends WorkerHost {
         }
       }
 
-      const CONCURRENCY = website.depth === ScanDepth.DEEP ? 8 : 5;
       const baseUrl = new URL(website.url);
-       const getBaseDomain = (hostname: string) => {
-        const parts = hostname.toLowerCase().split('.');
-        if (parts.length <= 2) return parts.join('.').replace(/^www\./i, '');
-        // Handle common TLDs like .co.in or .com.au
-        const tld2 = parts.slice(-2).join('.');
-        if (['co.in', 'com.au', 'co.uk', 'org.in', 'net.in', 'co.nz', 'co.jp'].includes(tld2)) {
-          return parts.slice(-3).join('.').replace(/^www\./i, '');
-        }
-        return parts.slice(-2).join('.').replace(/^www\./i, '');
-      };
       let baseDomain = getBaseDomain(baseUrl.hostname);
-      let baseHostname = baseUrl.hostname.toLowerCase();
+
+      const enqueueDiscoveredUrl = (url: string, priority = false): boolean => {
+        try {
+          if (!url || !url.startsWith('http')) return false;
+          const normalizedLink = normalizeUrl(url);
+          const linkUrl = new URL(normalizedLink);
+          if (!['http:', 'https:'].includes(linkUrl.protocol)) return false;
+
+          const linkDomain = getBaseDomain(linkUrl.hostname);
+          const isInternal = linkDomain === baseDomain;
+          const isPolicyLink = POLICY_LINK_PATTERN.test(normalizedLink);
+          if ((!isInternal && !isPolicyLink) || visited.has(normalizedLink) || enqueued.has(normalizedLink)) {
+            return false;
+          }
+
+          if (priority && queue.length > 0) {
+            queue.splice(1, 0, normalizedLink);
+          } else {
+            queue.push(normalizedLink);
+          }
+          enqueued.add(normalizedLink);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
+      for (const path of COMMON_POLICY_PATHS) {
+        enqueueDiscoveredUrl(new URL(path, baseUrl.origin).href, true);
+      }
+
+      try {
+        const sitemapLimit = website.depth === ScanDepth.DEEP ? 5000 : 100;
+        const sitemapUrls = await discoverSitemapUrls(website.url, baseDomain, sitemapLimit);
+        let sitemapAdded = 0;
+        for (const url of sitemapUrls) {
+          if (enqueueDiscoveredUrl(url, POLICY_LINK_PATTERN.test(url))) sitemapAdded++;
+        }
+        if (sitemapAdded > 0) {
+          this.logger.log(`Seeded ${sitemapAdded} URL(s) from sitemap/robots for ${website.url}`);
+        }
+      } catch (e) {
+        this.logger.warn(`Sitemap discovery failed for ${website.url}: ${e.message}`);
+      }
 
       // ── Main Crawl Loop ─────────────────────────────────────────────────
-      while (queue.length > 0 && visited.size < maxPages) {
+      while (queue.length > 0 && crawledPageUrls.size < maxPages && visited.size < maxAttempts) {
         if (Date.now() - scanStartTime > MAX_SCAN_TIME_MS) {
           this.logger.warn(`Time budget exceeded for ${website.url}. Stopping.`);
           break;
@@ -305,14 +510,27 @@ export class CookieScannerProcessor extends WorkerHost {
               // FIX: Capture third-party domains from ALL network requests
               // Old code only checked <script src> — missed pixels, fetch, XHR, iframes
               try {
+                const responseUrl = params.response.url.toLowerCase();
+                if (!complianceSignals.hasCmpBanner) {
+                  for (const { pattern, name: cmpName } of CMP_SCRIPT_PATTERNS) {
+                    if (pattern.test(responseUrl)) {
+                      complianceSignals.hasCmpBanner = true;
+                      complianceSignals.cmpProvider = cmpName;
+                      complianceSignals.bannerEvidence = { url: currentUrl, snippet: `CMP detected via network request: ${cmpName}` };
+                      this.logger.log(`CMP detected via network request: ${cmpName} on ${currentUrl}`);
+                      break;
+                    }
+                  }
+                }
+
                 const reqUrl = new URL(params.response.url);
-                if (reqUrl.hostname !== baseHostname && !reqUrl.hostname.endsWith(`.${baseHostname}`)) {
+                const reqDomain = getBaseDomain(reqUrl.hostname);
+                if (reqDomain !== baseDomain) {
                   // Filter out noise: only meaningful third-party domains
                   const isNoiseDomain = /\.(woff2?|ttf|eot|css)($|\?)/.test(params.response.url);
                   if (!isNoiseDomain) {
                     // Fix: Use getBaseDomain to correctly identify third-party root domains
-                    const rootDomain = getBaseDomain(reqUrl.hostname);
-                    thirdPartyDomainsSet.add(rootDomain);
+                    thirdPartyDomainsSet.add(reqDomain);
                   }
                 }
               } catch {}
@@ -321,7 +539,7 @@ export class CookieScannerProcessor extends WorkerHost {
             // Block visuals for speed (keep XHR/fetch for cookie detection)
             await page.setRequestInterception(true);
             page.on('request', (req) => {
-              if (['image', 'font', 'media', 'stylesheet', 'websocket'].includes(req.resourceType())) {
+              if (['image', 'font', 'media', 'websocket'].includes(req.resourceType())) {
                 req.abort();
               } else {
                 req.continue();
@@ -333,6 +551,16 @@ export class CookieScannerProcessor extends WorkerHost {
 
             this.logger.log(`[Crawl ${visited.size}] ${currentUrl}`);
             const response = await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            const statusCode = response?.status();
+            const contentType = response?.headers()['content-type'] || '';
+            const isHtmlResponse = !contentType || /text\/html|application\/xhtml\+xml/i.test(contentType);
+            if ((statusCode && statusCode >= 400) || !isHtmlResponse) {
+              this.logger.warn(`Skipping non-page response for ${currentUrl}: status=${statusCode || 'unknown'} type=${contentType || 'unknown'}`);
+              continue;
+            }
+            const pageUrl = normalizeUrl(page.url() || currentUrl);
+            crawledPageUrls.add(pageUrl);
+            enqueued.add(pageUrl);
             
             // Handle Redirects: update base domain if we redirected on the first page
             if (visited.size === 1) {
@@ -341,18 +569,24 @@ export class CookieScannerProcessor extends WorkerHost {
               if (finalDomain !== baseDomain) {
                 this.logger.log(`Redirect detected: updating base domain to ${finalDomain}`);
                 baseDomain = finalDomain;
-                baseHostname = finalUrl.hostname;
               }
             }
 
             // ── Page Classification (Content-based) ────────────────────────
             // Do this BEFORE compliance checks so we know what page type we're on
-            const urlTypes = classifyPageByUrl(currentUrl);
-            const contentTypes = await classifyPageByContent(page, currentUrl);
+            const urlTypes = classifyPageByUrl(pageUrl);
+            const contentTypes = await classifyPageByContent(page, pageUrl);
             // Merge: URL types + content types (content wins for CMS pages)
-            const allTypes = [...new Set([...urlTypes, ...contentTypes])];
+            let allTypes = [...new Set([...urlTypes, ...contentTypes])];
+            const pageLooksMissing = await page.evaluate(() => {
+              const text = `${document.title || ''} ${document.querySelector('h1')?.textContent || ''} ${document.body?.innerText?.substring(0, 1200) || ''}`.toLowerCase();
+              return /404|page not found|not found|page does not exist|page unavailable/.test(text);
+            }).catch(() => false);
+            if (pageLooksMissing && contentTypes.every(t => t === 'GENERAL')) {
+              allTypes = contentTypes;
+            }
 
-            classifiedPages.push({ url: currentUrl, types: allTypes, title: '' });
+            classifiedPages.push({ url: pageUrl, types: allTypes, title: '' });
 
             // Update top-level signals based on page type
             if (allTypes.includes('PRIVACY_POLICY')) {
@@ -386,28 +620,17 @@ export class CookieScannerProcessor extends WorkerHost {
                 // Method 1: Script src fingerprinting — ALWAYS reliable
                 // CMP scripts page ke <head> mein hote hain, DOM ready hone se pehle load ho jaate hain
                 // Ye method timing se independent hai
-                const scriptSrcs = await page.$$eval(
-                  'script[src]',
-                  (els) => els.map(e => (e as HTMLScriptElement).src.toLowerCase())
+                const cmpResourceUrls = await page.$$eval(
+                  'script[src], iframe[src]',
+                  (els) => els.map(e => {
+                    if (e instanceof HTMLScriptElement) return e.src.toLowerCase();
+                    if (e instanceof HTMLIFrameElement) return e.src.toLowerCase();
+                    return '';
+                  }).filter(Boolean)
                 );
 
-                const CMP_SCRIPT_PATTERNS: { pattern: RegExp; name: string }[] = [
-                  { pattern: /cookiebot\.com\/uc\.js|cookiebot\.com\/botmanifest/,  name: 'Cookiebot' },
-                  { pattern: /cdn\.cookielaw\.org|onetrust\.com/,                   name: 'OneTrust' },
-                  { pattern: /app\.cookiefirst\.com/,                               name: 'CookieFirst' },
-                  { pattern: /cookieyescdn\.com|cookieyes\.com/,                    name: 'CookieYes' },
-                  { pattern: /osano\.com\/dsr\.js/,                                 name: 'Osano' },
-                  { pattern: /iubenda\.com\/cs\/consent/,                           name: 'Iubenda' },
-                  { pattern: /cookie-script\.com/,                                  name: 'Cookie-Script' },
-                  { pattern: /app\.termly\.io/,                                     name: 'Termly' },
-                  { pattern: /app\.usercentrics\.eu/,                               name: 'Usercentrics' },
-                  { pattern: /cookiehub\.com/,                                      name: 'CookieHub' },
-                  { pattern: /privacy-mgmt\.com|sourcepoint\.com/,                  name: 'Sourcepoint' },
-                  { pattern: /quantcast\.mgr\.consensu\.org/,                       name: 'Quantcast Choice' },
-                ];
-
                 for (const { pattern, name: cmpName } of CMP_SCRIPT_PATTERNS) {
-                  if (scriptSrcs.some(src => pattern.test(src))) {
+                  if (cmpResourceUrls.some(src => pattern.test(src))) {
                     complianceSignals.hasCmpBanner = true;
                     complianceSignals.cmpProvider = cmpName;
                     complianceSignals.bannerEvidence = { url: currentUrl, snippet: `CMP detected via script: ${cmpName}` };
@@ -418,7 +641,7 @@ export class CookieScannerProcessor extends WorkerHost {
 
                 // Method 2: DOM element check — sirf HOME page pe karo with proper wait
                 // General pages pe mat karo (slow aur unreliable)
-                if (!complianceSignals.hasCmpBanner && allTypes.includes('HOME')) {
+                if (!complianceSignals.hasCmpBanner && (visited.size <= 5 || allTypes.includes('HOME'))) {
                   // HOME page pe thoda extra wait — banner inject hone ka time do
                   await new Promise(r => setTimeout(r, 1500));
 
@@ -477,6 +700,94 @@ export class CookieScannerProcessor extends WorkerHost {
                         break;
                       }
                     } catch {}
+                  }
+                }
+
+                if (!complianceSignals.hasCmpBanner) {
+                  const genericBanner = await page.evaluate(() => {
+                    const apiDetected = !!(
+                      (window as any).__tcfapi ||
+                      (window as any).__cmp ||
+                      (window as any).Cookiebot ||
+                      (window as any).OneTrust ||
+                      (window as any).UC_UI
+                    );
+
+                    if (apiDetected) {
+                      return { found: true, provider: 'IAB/CMP API', snippet: 'Consent API detected on page.' };
+                    }
+
+                    const candidates: HTMLElement[] = [];
+                    const selector = [
+                      'dialog',
+                      'aside',
+                      'footer',
+                      '[role="dialog"]',
+                      '[role="alertdialog"]',
+                      '[aria-modal="true"]',
+                      '[id*="cookie" i]',
+                      '[class*="cookie" i]',
+                      '[id*="consent" i]',
+                      '[class*="consent" i]',
+                      '[id*="gdpr" i]',
+                      '[class*="gdpr" i]',
+                      '[id*="privacy" i]',
+                      '[class*="privacy" i]',
+                      '[data-testid*="cookie" i]',
+                      '[data-testid*="consent" i]',
+                    ].join(',');
+
+                    const collect = (root: Document | ShadowRoot) => {
+                      try {
+                        candidates.push(...Array.from(root.querySelectorAll(selector)) as HTMLElement[]);
+                        for (const node of Array.from(root.querySelectorAll('*'))) {
+                          const shadowRoot = (node as HTMLElement).shadowRoot;
+                          if (shadowRoot) collect(shadowRoot);
+                        }
+                      } catch {}
+                    };
+
+                    collect(document);
+
+                    const isVisible = (el: HTMLElement) => {
+                      const style = window.getComputedStyle(el);
+                      const rect = el.getBoundingClientRect();
+                      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+                    };
+
+                    for (const el of candidates) {
+                      if (!isVisible(el)) continue;
+
+                      const style = window.getComputedStyle(el);
+                      const zIndex = Number.parseInt(style.zIndex || '0', 10) || 0;
+                      const className = typeof el.className === 'string' ? el.className : '';
+                      const attrs = `${el.id} ${className} ${el.getAttribute('role') || ''} ${el.getAttribute('aria-label') || ''}`.toLowerCase();
+                      const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                      const lowerText = text.toLowerCase();
+                      const looksLikeBannerContainer =
+                        /(cookie|consent|cmp|gdpr|privacy|onetrust|cookiebot|cookieyes|termly)/i.test(attrs) ||
+                        ['fixed', 'sticky'].includes(style.position) ||
+                        zIndex >= 10;
+                      const mentionsConsent = /(cookie|cookies|consent|privacy|gdpr|personal data)/i.test(lowerText);
+                      const offersChoice = /(accept|agree|allow|reject|decline|manage|preferences|settings|customize|continue)/i.test(lowerText);
+
+                      if (looksLikeBannerContainer && mentionsConsent && offersChoice) {
+                        return {
+                          found: true,
+                          provider: 'Custom/Generic CMP',
+                          snippet: text.substring(0, 180),
+                        };
+                      }
+                    }
+
+                    return { found: false, provider: '', snippet: '' };
+                  }).catch(() => ({ found: false, provider: '', snippet: '' }));
+
+                  if (genericBanner.found) {
+                    complianceSignals.hasCmpBanner = true;
+                    complianceSignals.cmpProvider = genericBanner.provider || 'Custom/Generic CMP';
+                    complianceSignals.bannerEvidence = { url: currentUrl, snippet: genericBanner.snippet || 'Generic cookie consent banner detected.' };
+                    this.logger.log(`CMP detected via generic banner text on ${currentUrl}`);
                   }
                 }
 
@@ -707,11 +1018,17 @@ export class CookieScannerProcessor extends WorkerHost {
             const links = await page.evaluate(() => {
               const results: string[] = [];
               // Standard links
-              document.querySelectorAll('a').forEach(a => { if (a.href) results.push(a.href); });
+              document.querySelectorAll('a[href], area[href], link[rel="canonical"][href], link[rel="alternate"][href]').forEach(el => {
+                const href = (el as HTMLAnchorElement | HTMLAreaElement | HTMLLinkElement).href;
+                if (href) results.push(href);
+              });
               // Shadow DOM links
               const walk = (node: Node) => {
                 if (node instanceof HTMLElement && node.shadowRoot) {
-                  node.shadowRoot.querySelectorAll('a').forEach(a => { if (a.href) results.push(a.href); });
+                  node.shadowRoot.querySelectorAll('a[href], area[href]').forEach(el => {
+                    const href = (el as HTMLAnchorElement | HTMLAreaElement).href;
+                    if (href) results.push(href);
+                  });
                   Array.from(node.shadowRoot.children).forEach(walk);
                 }
                 Array.from(node.childNodes).forEach(walk);
@@ -721,21 +1038,7 @@ export class CookieScannerProcessor extends WorkerHost {
             }).catch(() => []);
 
             for (const link of links) {
-              try {
-                if (!link || !link.startsWith('http')) continue;
-                const normalizedLink = normalizeUrl(link);
-                const linkUrl = new URL(normalizedLink);
-                const linkDomain = getBaseDomain(linkUrl.hostname);
-                
-                const isInternal = linkDomain === baseDomain;
-                const isPolicyLink = /privacy|cookie|legal|terms|gdpr|compliance|grievance/.test(normalizedLink);
-                
-                if ((isInternal || isPolicyLink) && !visited.has(normalizedLink) && !enqueued.has(normalizedLink)) {
-                  if (isPolicyLink) queue.unshift(normalizedLink);
-                  else queue.push(normalizedLink);
-                  enqueued.add(normalizedLink);
-                }
-              } catch {}
+              enqueueDiscoveredUrl(link, POLICY_LINK_PATTERN.test(link));
             }
 
           } catch (err) {
@@ -826,7 +1129,7 @@ export class CookieScannerProcessor extends WorkerHost {
         data: {
           status: ScanStatus.COMPLETED,
           lastScan: new Date(),
-          pagesCrawled: visited.size,
+          pagesCrawled: crawledPageUrls.size,
           cookiesDetected: discoveredCookies.size,
         },
       });
@@ -834,7 +1137,7 @@ export class CookieScannerProcessor extends WorkerHost {
       await this.complianceScanner.evaluateCompliance(
         websiteId,
         discoveredCookies.size,
-        Array.from(visited),
+        Array.from(crawledPageUrls),
         Array.from(thirdPartyDomainsSet),   // Now network-captured, not DOM-scraped
         complianceSignals,
         Array.from(discoveredCookies.values()),
@@ -873,7 +1176,7 @@ export class CookieScannerProcessor extends WorkerHost {
             riskLevel: updatedWebsite?.riskLevel || 'N/A',
             previousScore: website.complianceScore || 0,
             scoreDifference: (updatedWebsite?.complianceScore || 0) - (website.complianceScore || 0),
-            totalPages: visited.size,
+            totalPages: crawledPageUrls.size,
             scanType: website.depth,
             scanFrequency: website.frequency,
             scanDate: new Date().toLocaleString(),
@@ -902,8 +1205,8 @@ export class CookieScannerProcessor extends WorkerHost {
         );
       }
 
-      this.logger.log(`Scan complete: ${website.url} | Pages: ${visited.size} | Cookies: ${discoveredCookies.size} | 3P Domains: ${thirdPartyDomainsSet.size}`);
-      return { cookiesFound: discoveredCookies.size, pagesScanned: visited.size };
+      this.logger.log(`Scan complete: ${website.url} | Pages: ${crawledPageUrls.size} | Cookies: ${discoveredCookies.size} | 3P Domains: ${thirdPartyDomainsSet.size}`);
+      return { cookiesFound: discoveredCookies.size, pagesScanned: crawledPageUrls.size };
 
     } catch (error) {
       this.logger.error(`Scan failed for ${websiteId}: ${error.message}`);

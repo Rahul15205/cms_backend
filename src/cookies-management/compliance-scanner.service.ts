@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ScannedWebsite, CookieBanner } from '@prisma/client';
 
+const PRIVACY_LINK_PATTERN = /privacy|privacy[-_]?policy|privacy[-_]?notice|privacy[-_]?statement|privacy[-_]?center|data[-_]?protection|datenschutz|privacidad/i;
+const COOKIE_LINK_PATTERN = /cookies?|cookie[-_]?policy|cookies[-_]?policy|cookie[-_]?notice|cookie[-_]?declaration|cookie[-_]?statement/i;
+
 export interface ComplianceIndicator {
   id: string;
   name: string;
@@ -74,13 +77,13 @@ export class ComplianceScannerService {
     const cmpProvider = hasProteccioBanner ? 'Proteccio' : (signals?.cmpProvider || null);
 
     // ── Page existence signals ──────────────────────────────────────────────
-    const hasPrivacyPolicy =
-      signals?.hasPrivacyPolicy === true ||
-      crawledLinks.some(l => /privacy[-_]?policy|privacy[-_]?notice/i.test(l));
+    const hasPrivacyPolicy = signals
+      ? signals.hasPrivacyPolicy === true
+      : crawledLinks.some(l => PRIVACY_LINK_PATTERN.test(l));
 
-    const hasCookieNotice =
-      signals?.hasCookieNotice === true ||
-      crawledLinks.some(l => /cookie[-_]?policy|cookie[-_]?notice|cookie[-_]?declaration/i.test(l));
+    const hasCookieNotice = signals
+      ? signals.hasCookieNotice === true
+      : crawledLinks.some(l => COOKIE_LINK_PATTERN.test(l));
 
     const httpCookies = (discoveredCookies || []).filter(c => c.type === 'HTTP_COOKIE');
 
