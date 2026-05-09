@@ -690,12 +690,12 @@ export class CookieScannerProcessor extends WorkerHost {
             });
 
             // Update top-level signals based on page type
-            if (contentConfirmedPolicyTypes.includes('PRIVACY_POLICY')) {
+            if (allTypes.includes('PRIVACY_POLICY')) {
               complianceSignals.hasPrivacyPolicy = true;
-              complianceSignals.privacyPolicyEvidence = { url: pageUrl, snippet: 'Privacy Policy content detected.' };
+              complianceSignals.privacyPolicyEvidence = { url: pageUrl, snippet: 'Privacy Policy page detected.' };
             }
-            if (contentConfirmedPolicyTypes.includes('COOKIE_POLICY')) complianceSignals.hasCookieNotice = true;
-            if (contentConfirmedPolicyTypes.includes('COMPLIANCE')) complianceSignals.hasComplianceNotice = true;
+            if (allTypes.includes('COOKIE_POLICY')) complianceSignals.hasCookieNotice = true;
+            if (allTypes.includes('COMPLIANCE')) complianceSignals.hasComplianceNotice = true;
 
             // ── Smart Wait for Page Load ───────────────────────────────────
             // Wait for network to settle SO THAT async CMP scripts are injected
@@ -979,9 +979,9 @@ export class CookieScannerProcessor extends WorkerHost {
             // Only scan for signals on pages that are relevant to that indicator.
             // This mirrors how OneTrust/Cookiebot actually score compliance.
             const shouldScanForPolicySignals =
-              contentConfirmedPolicyTypes.includes('PRIVACY_POLICY') ||
-              contentConfirmedPolicyTypes.includes('COOKIE_POLICY') ||
-              contentConfirmedPolicyTypes.includes('COMPLIANCE');
+              allTypes.includes('PRIVACY_POLICY') ||
+              allTypes.includes('COOKIE_POLICY') ||
+              allTypes.includes('COMPLIANCE');
 
             if (shouldScanForPolicySignals) {
               const pageText = await page.evaluate(() => document.body?.innerText || '').catch(() => '');
@@ -993,7 +993,7 @@ export class CookieScannerProcessor extends WorkerHost {
                 return '...' + text.substring(Math.max(0, idx - 40), Math.min(text.length, idx + 120)).replace(/\n/g, ' ').trim() + '...';
               };
 
-              if (contentConfirmedPolicyTypes.includes('PRIVACY_POLICY') && complianceSignals.privacyPolicyEvidence?.url === pageUrl) {
+              if (allTypes.includes('PRIVACY_POLICY') && complianceSignals.privacyPolicyEvidence?.url === pageUrl) {
                 complianceSignals.privacyPolicyEvidence = {
                   url: pageUrl,
                   snippet: extractSnippet(pageText, 'privacy policy') ||
