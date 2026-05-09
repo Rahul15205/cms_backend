@@ -68,6 +68,18 @@ const CMP_SCRIPT_PATTERNS: { pattern: RegExp; name: string }[] = [
   { pattern: /trustarc\.com|truste\.com/i, name: 'TrustArc' },
 ];
 
+const MAX_SCAN_DEBUG_ENTRIES = 2000;
+
+interface CrawlDebugEntry {
+  url: string;
+  source?: string;
+  finalUrl?: string;
+  status?: number | string;
+  contentType?: string;
+  reason?: string;
+  pageTypes?: string[];
+}
+
 function normalizeUrl(urlStr: string): string {
   try {
     const parsed = new URL(urlStr);
@@ -382,9 +394,19 @@ export class CookieScannerProcessor extends WorkerHost {
     const enqueued = new Set<string>();
     const crawledPageUrls = new Set<string>();
     const guessedPolicyUrls = new Set<string>();
+    const urlSources = new Map<string, string>();
+    const crawlDebugCrawled: CrawlDebugEntry[] = [];
+    const crawlDebugSkipped: CrawlDebugEntry[] = [];
+    const crawlDebugTotals = {
+      queued: 1,
+      attempted: 0,
+      crawled: 0,
+      skipped: 0,
+    };
     const normalizedStart = normalizeUrl(website.url);
     const queue: string[] = [normalizedStart];
     enqueued.add(normalizedStart);
+    urlSources.set(normalizedStart, 'start-url');
 
     // Track page classifications for conditional compliance scanning
     const classifiedPages: PageClassification[] = [];
@@ -452,16 +474,45 @@ export class CookieScannerProcessor extends WorkerHost {
       const baseUrl = new URL(website.url);
       let baseDomain = getBaseDomain(baseUrl.hostname);
 
-      const enqueueDiscoveredUrl = (url: string, priority = false): boolean => {
+      const recordSkippedUrl = (entry: CrawlDebugEntry) => {
+        crawlDebugTotals.skipped++;
+        if (crawlDebugSkipped.length < MAX_SCAN_DEBUG_ENTRIES) {
+          crawlDebugSkipped.push(entry);
+        }
+      };
+
+      const recordCrawledUrl = (entry: CrawlDebugEntry) => {
+        crawlDebugTotals.crawled++;
+        if (crawlDebugCrawled.length < MAX_SCAN_DEBUG_ENTRIES) {
+          crawlDebugCrawled.push(entry);
+        }
+      };
+
+      const enqueueDiscoveredUrl = (url: string, priority = false, source = 'page-link'): boolean => {
         try {
-          if (!url || !url.startsWith('http')) return false;
+          if (!url) {
+            recordSkippedUrl({ url: String(url || ''), source, reason: 'empty-url' });
+            return false;
+          }
+          if (!url.startsWith('http')) {
+            recordSkippedUrl({ url, source, reason: 'non-http-url' });
+            return false;
+          }
           const normalizedLink = normalizeUrl(url);
           const linkUrl = new URL(normalizedLink);
-          if (!['http:', 'https:'].includes(linkUrl.protocol)) return false;
+          if (!['http:', 'https:'].includes(linkUrl.protocol)) {
+            recordSkippedUrl({ url: normalizedLink, source, reason: `unsupported-protocol:${linkUrl.protocol}` });
+            return false;
+          }
 
           const linkDomain = getBaseDomain(linkUrl.hostname);
           const isInternal = linkDomain === baseDomain;
           if (!isInternal || visited.has(normalizedLink) || enqueued.has(normalizedLink)) {
+            recordSkippedUrl({
+              url: normalizedLink,
+              source,
+              reason: !isInternal ? `external-domain:${linkDomain || 'unknown'}` : visited.has(normalizedLink) ? 'already-visited' : 'already-queued',
+            });
             return false;
           }
 
@@ -471,15 +522,18 @@ export class CookieScannerProcessor extends WorkerHost {
             queue.push(normalizedLink);
           }
           enqueued.add(normalizedLink);
+          urlSources.set(normalizedLink, source);
+          crawlDebugTotals.queued++;
           return true;
         } catch {
+          recordSkippedUrl({ url, source, reason: 'invalid-url' });
           return false;
         }
       };
 
       for (const path of COMMON_POLICY_PATHS) {
         const guessedUrl = new URL(path, baseUrl.origin).href;
-        if (enqueueDiscoveredUrl(guessedUrl, true)) {
+        if (enqueueDiscoveredUrl(guessedUrl, true, 'common-policy-path')) {
           guessedPolicyUrls.add(normalizeUrl(guessedUrl));
         }
       }
@@ -489,7 +543,7 @@ export class CookieScannerProcessor extends WorkerHost {
         const sitemapUrls = await discoverSitemapUrls(website.url, baseDomain, sitemapLimit);
         let sitemapAdded = 0;
         for (const url of sitemapUrls) {
-          if (enqueueDiscoveredUrl(url, POLICY_LINK_PATTERN.test(url))) sitemapAdded++;
+          if (enqueueDiscoveredUrl(url, POLICY_LINK_PATTERN.test(url), 'sitemap')) sitemapAdded++;
         }
         if (sitemapAdded > 0) {
           this.logger.log(`Seeded ${sitemapAdded} URL(s) from sitemap/robots for ${website.url}`);
@@ -508,6 +562,8 @@ export class CookieScannerProcessor extends WorkerHost {
         const currentUrl = queue.shift()!;
         if (visited.has(currentUrl)) continue;
         visited.add(currentUrl);
+        crawlDebugTotals.attempted++;
+        const currentSource = urlSources.get(currentUrl) || 'queue';
 
         const page = await context!.newPage();
         try {
@@ -580,6 +636,14 @@ export class CookieScannerProcessor extends WorkerHost {
             const isHtmlResponse = !contentType || /text\/html|application\/xhtml\+xml/i.test(contentType);
             if ((statusCode && statusCode >= 400) || !isHtmlResponse) {
               this.logger.warn(`Skipping non-page response for ${currentUrl}: status=${statusCode || 'unknown'} type=${contentType || 'unknown'}`);
+              recordSkippedUrl({
+                url: currentUrl,
+                source: currentSource,
+                finalUrl: page.url() || currentUrl,
+                status: statusCode || 'unknown',
+                contentType: contentType || 'unknown',
+                reason: statusCode && statusCode >= 400 ? `http-status:${statusCode}` : `non-html:${contentType || 'unknown'}`,
+              });
               continue;
             }
             const pageUrl = normalizeUrl(page.url() || currentUrl);
@@ -616,6 +680,14 @@ export class CookieScannerProcessor extends WorkerHost {
             }
 
             classifiedPages.push({ url: pageUrl, types: allTypes, title: '' });
+            recordCrawledUrl({
+              url: currentUrl,
+              source: currentSource,
+              finalUrl: pageUrl,
+              status: statusCode || 'unknown',
+              contentType: contentType || 'unknown',
+              pageTypes: allTypes,
+            });
 
             // Update top-level signals based on page type
             if (contentConfirmedPolicyTypes.includes('PRIVACY_POLICY')) {
@@ -1078,11 +1150,17 @@ export class CookieScannerProcessor extends WorkerHost {
             }).catch(() => []);
 
             for (const link of links) {
-              enqueueDiscoveredUrl(link, POLICY_LINK_PATTERN.test(link));
+              enqueueDiscoveredUrl(link, POLICY_LINK_PATTERN.test(link), `page-link:${pageUrl}`);
             }
 
           } catch (err) {
             this.logger.warn(`Failed to crawl ${currentUrl}: ${err.message}`);
+            recordSkippedUrl({
+              url: currentUrl,
+              source: currentSource,
+              finalUrl: page.url() || currentUrl,
+              reason: `crawl-error:${err.message}`,
+            });
           } finally {
             await page.close();
           }
@@ -1163,6 +1241,10 @@ export class CookieScannerProcessor extends WorkerHost {
         }
       }
 
+      const thirdPartyDomains = Array.from(thirdPartyDomainsSet)
+        .filter(isMeaningfulThirdPartyDomain)
+        .sort();
+
       // ── Finalize ───────────────────────────────────────────────────────
       await this.prisma.scannedWebsite.update({
         where: { id: websiteId },
@@ -1178,10 +1260,51 @@ export class CookieScannerProcessor extends WorkerHost {
         websiteId,
         discoveredCookies.size,
         Array.from(crawledPageUrls),
-        Array.from(thirdPartyDomainsSet),   // Now network-captured, not DOM-scraped
+        thirdPartyDomains,   // Now network-captured, not DOM-scraped
         complianceSignals,
         Array.from(discoveredCookies.values()),
       );
+
+      const complianceSnapshot = await this.prisma.scannedWebsite.findUnique({
+        where: { id: websiteId },
+        select: { scanResults: true },
+      });
+      const indicatorResults = Array.isArray(complianceSnapshot?.scanResults)
+        ? (complianceSnapshot.scanResults as any[]).filter(i => i?.id !== 'crawl_debug')
+        : [];
+      const scanDebugEntry = {
+        id: 'crawl_debug',
+        name: 'Scan Trace',
+        type: 'debug',
+        passed: true,
+        score: 0,
+        weight: 0,
+        details: `${crawlDebugTotals.crawled} page(s) crawled, ${crawlDebugTotals.skipped} URL(s) skipped.`,
+        debug: {
+          generatedAt: new Date().toISOString(),
+          startUrl: website.url,
+          baseDomain,
+          totals: {
+            ...crawlDebugTotals,
+            queuedUnique: enqueued.size,
+            visitedUnique: visited.size,
+            crawledUnique: crawledPageUrls.size,
+          },
+          truncated: {
+            crawled: crawlDebugCrawled.length < crawlDebugTotals.crawled,
+            skipped: crawlDebugSkipped.length < crawlDebugTotals.skipped,
+            maxEntriesPerList: MAX_SCAN_DEBUG_ENTRIES,
+          },
+          crawled: crawlDebugCrawled,
+          skipped: crawlDebugSkipped,
+        },
+      };
+      await this.prisma.scannedWebsite.update({
+        where: { id: websiteId },
+        data: {
+          scanResults: [...indicatorResults, scanDebugEntry] as any,
+        },
+      });
 
       const updatedWebsite = await this.prisma.scannedWebsite.findUnique({ where: { id: websiteId } });
 
@@ -1226,7 +1349,7 @@ export class CookieScannerProcessor extends WorkerHost {
             analyticsCount: categoryCounts['ANALYTICS'],
             marketingCount: categoryCounts['MARKETING'],
             unknownCount: categoryCounts['UNCATEGORIZED'],
-            thirdPartyDomains: Array.from(thirdPartyDomainsSet),
+            thirdPartyDomains,
             cmpProvider: complianceSignals.cmpProvider,
             bannerIcon: getStatus('banner_installed').icon, bannerText: getStatus('banner_installed').text,
             categorizationIcon: getStatus('categorization').icon, categorizationText: getStatus('categorization').text,
@@ -1245,7 +1368,7 @@ export class CookieScannerProcessor extends WorkerHost {
         );
       }
 
-      this.logger.log(`Scan complete: ${website.url} | Pages: ${crawledPageUrls.size} | Cookies: ${discoveredCookies.size} | 3P Domains: ${thirdPartyDomainsSet.size}`);
+      this.logger.log(`Scan complete: ${website.url} | Pages: ${crawledPageUrls.size} | Cookies: ${discoveredCookies.size} | 3P Domains: ${thirdPartyDomains.length}`);
       return { cookiesFound: discoveredCookies.size, pagesScanned: crawledPageUrls.size };
 
     } catch (error) {
