@@ -87,7 +87,11 @@ function normalizeUrl(urlStr: string): string {
 // This drives conditional compliance scanning (OneTrust does exactly this)
 
 function getBaseDomain(hostname: string): string {
-  const parts = hostname.toLowerCase().replace(/^www\./i, '').split('.');
+  const cleanHostname = hostname.toLowerCase().replace(/\.$/, '').replace(/^www\./i, '');
+  if (!cleanHostname) return '';
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(cleanHostname)) return cleanHostname;
+
+  const parts = cleanHostname.split('.').filter(Boolean);
   if (parts.length <= 2) return parts.join('.');
 
   const tld2 = parts.slice(-2).join('.');
@@ -96,6 +100,14 @@ function getBaseDomain(hostname: string): string {
   }
 
   return parts.slice(-2).join('.');
+}
+
+function isMeaningfulThirdPartyDomain(domain: string): boolean {
+  if (!domain) return false;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(domain)) return true;
+  if (!domain.includes('.') || domain.endsWith('.')) return false;
+  if (/^[a-z0-9]{25,}$/i.test(domain)) return false;
+  return true;
 }
 
 function decodeXmlValue(value: string): string {
@@ -170,6 +182,7 @@ async function discoverSitemapUrls(startUrl: string, baseDomain: string, maxUrls
     for (const loc of extractSitemapLocs(xml)) {
       try {
         const parsed = new URL(loc);
+        if (!['http:', 'https:'].includes(parsed.protocol)) continue;
         if (getBaseDomain(parsed.hostname) !== baseDomain) continue;
 
         const normalizedLoc = normalizeUrl(parsed.href);
@@ -224,22 +237,29 @@ async function classifyPageByContent(page: puppeteer.Page, url: string): Promise
       const h2 = document.querySelector('h2')?.textContent?.toLowerCase() || '';
       const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute('content')?.toLowerCase() || '';
       const bodyStart = document.body?.innerText?.substring(0, 5000)?.toLowerCase() || '';
-      const anchorText = Array.from(document.querySelectorAll('a'))
-        .slice(0, 250)
-        .map(a => a.textContent?.toLowerCase() || '')
-        .join(' ');
-      return { title, h1, h2, metaDescription, bodyStart, anchorText };
+      return { title, h1, h2, metaDescription, bodyStart };
     });
 
-    const combined = `${signals.title} ${signals.h1} ${signals.h2} ${signals.metaDescription} ${signals.bodyStart} ${signals.anchorText}`;
+    const headingText = `${signals.title} ${signals.h1} ${signals.h2} ${signals.metaDescription}`;
+    const combined = `${headingText} ${signals.bodyStart}`;
     const types: PageType[] = [];
 
-    if (/privacy policy|privacy notice|privacy statement|privacy center|data protection|how we use.*data|personal.*information.*collect|personal data we collect|your privacy rights/.test(combined)) {
+    const privacyHeading = /privacy policy|privacy notice|privacy statement|data protection notice|privacy center/.test(headingText);
+    const privacyBody =
+      /privacy policy|privacy notice|privacy statement|personal data we collect|your privacy rights|how we use.*(data|information)/.test(signals.bodyStart) &&
+      /personal data|personal information|data subject|controller|processor|collect|process|rights/.test(signals.bodyStart);
+    if (privacyHeading || privacyBody) {
       types.push('PRIVACY_POLICY');
     }
-    if (/cookie policy|cookie notice|cookie declaration|cookie statement|how we use cookies|types of cookies|manage cookies|cookie preferences/.test(combined)) {
+
+    const cookieHeading = /cookie policy|cookie notice|cookie declaration|cookie statement/.test(headingText);
+    const cookieBody =
+      /how we use cookies|types of cookies|manage cookies|cookie preferences|strictly necessary cookies/.test(signals.bodyStart) &&
+      /necessary|essential|analytics|performance|marketing|advertising|functional/.test(signals.bodyStart);
+    if (cookieHeading || cookieBody) {
       types.push('COOKIE_POLICY');
     }
+
     if (/grievance|nodal officer|complaint officer|compliance officer|legal notice|terms of (use|service)|data protection officer|dpo/.test(combined)) {
       types.push('COMPLIANCE');
     }
@@ -440,8 +460,7 @@ export class CookieScannerProcessor extends WorkerHost {
 
           const linkDomain = getBaseDomain(linkUrl.hostname);
           const isInternal = linkDomain === baseDomain;
-          const isPolicyLink = POLICY_LINK_PATTERN.test(normalizedLink);
-          if ((!isInternal && !isPolicyLink) || visited.has(normalizedLink) || enqueued.has(normalizedLink)) {
+          if (!isInternal || visited.has(normalizedLink) || enqueued.has(normalizedLink)) {
             return false;
           }
 
@@ -524,8 +543,9 @@ export class CookieScannerProcessor extends WorkerHost {
                 }
 
                 const reqUrl = new URL(params.response.url);
+                if (!['http:', 'https:'].includes(reqUrl.protocol) || !reqUrl.hostname) return;
                 const reqDomain = getBaseDomain(reqUrl.hostname);
-                if (reqDomain !== baseDomain) {
+                if (reqDomain !== baseDomain && isMeaningfulThirdPartyDomain(reqDomain)) {
                   // Filter out noise: only meaningful third-party domains
                   const isNoiseDomain = /\.(woff2?|ttf|eot|css)($|\?)/.test(params.response.url);
                   if (!isNoiseDomain) {
@@ -591,7 +611,7 @@ export class CookieScannerProcessor extends WorkerHost {
             // Update top-level signals based on page type
             if (allTypes.includes('PRIVACY_POLICY')) {
               complianceSignals.hasPrivacyPolicy = true;
-              complianceSignals.privacyPolicyEvidence = { url: currentUrl, snippet: 'Privacy Policy page detected.' };
+              complianceSignals.privacyPolicyEvidence = { url: pageUrl, snippet: 'Privacy Policy page detected.' };
             }
             if (allTypes.includes('COOKIE_POLICY')) complianceSignals.hasCookieNotice = true;
             if (allTypes.includes('COMPLIANCE')) complianceSignals.hasComplianceNotice = true;
