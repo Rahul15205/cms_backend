@@ -88,7 +88,7 @@ function normalizeUrl(urlStr: string): string {
     for (const param of paramsToRemove) parsed.searchParams.delete(param);
     parsed.searchParams.sort();
     parsed.pathname = parsed.pathname.replace(/\/+$/, '') || '/';
-    return parsed.href.toLowerCase();
+    return parsed.href;
   } catch {
     return urlStr;
   }
@@ -507,11 +507,13 @@ export class CookieScannerProcessor extends WorkerHost {
 
           const linkDomain = getBaseDomain(linkUrl.hostname);
           const isInternal = linkDomain === baseDomain;
-          if (!isInternal || visited.has(normalizedLink) || enqueued.has(normalizedLink)) {
+          const isPolicyLink = POLICY_LINK_PATTERN.test(normalizedLink);
+
+          if ((!isInternal && !isPolicyLink) || visited.has(normalizedLink) || enqueued.has(normalizedLink)) {
             recordSkippedUrl({
               url: normalizedLink,
               source,
-              reason: !isInternal ? `external-domain:${linkDomain || 'unknown'}` : visited.has(normalizedLink) ? 'already-visited' : 'already-queued',
+              reason: (!isInternal && !isPolicyLink) ? `external-domain:${linkDomain || 'unknown'}` : visited.has(normalizedLink) ? 'already-visited' : 'already-queued',
             });
             return false;
           }
@@ -660,9 +662,20 @@ export class CookieScannerProcessor extends WorkerHost {
               }
             }
 
-            // ── Page Classification (Content-based) ────────────────────────
-            // Do this BEFORE compliance checks so we know what page type we're on
             const urlTypes = classifyPageByUrl(pageUrl);
+
+            // ── Smart Wait for Page Load ───────────────────────────────────
+            // Wait for network to settle SO THAT async CMP scripts are injected and SPA content renders
+            const isKeyPage = visited.size <= 3 || urlTypes.some(t => t !== 'GENERAL');
+            try {
+              await Promise.race([
+                page.waitForNetworkIdle({ idleTime: 500, timeout: isKeyPage ? 5000 : 2000 }),
+                new Promise(r => setTimeout(r, isKeyPage ? 5000 : 2000)),
+              ]);
+            } catch {}
+
+            // ── Page Classification (Content-based) ────────────────────────
+            // Do this AFTER network idle so SPA content (like React) is fully rendered
             const contentTypes = await classifyPageByContent(page, pageUrl);
             // Merge: URL types + content types (content wins for CMS pages)
             let allTypes = [...new Set([...urlTypes, ...contentTypes])];
@@ -696,16 +709,6 @@ export class CookieScannerProcessor extends WorkerHost {
             }
             if (allTypes.includes('COOKIE_POLICY')) complianceSignals.hasCookieNotice = true;
             if (allTypes.includes('COMPLIANCE')) complianceSignals.hasComplianceNotice = true;
-
-            // ── Smart Wait for Page Load ───────────────────────────────────
-            // Wait for network to settle SO THAT async CMP scripts are injected
-            const isKeyPage = visited.size <= 3 || allTypes.some(t => t !== 'GENERAL');
-            try {
-              await Promise.race([
-                page.waitForNetworkIdle({ idleTime: 500, timeout: isKeyPage ? 5000 : 2000 }),
-                new Promise(r => setTimeout(r, isKeyPage ? 5000 : 2000)),
-              ]);
-            } catch {}
 
             // ── Scroll + CMP Interaction ───────────────────────────────────
             await page.evaluate(() => window.scrollBy(0, 500));
