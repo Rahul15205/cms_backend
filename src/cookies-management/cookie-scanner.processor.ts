@@ -534,10 +534,11 @@ export class CookieScannerProcessor extends WorkerHost {
 
           const linkDomain = getBaseDomain(linkUrl.hostname);
           const isInternal = linkDomain === baseDomain;
+          const isPolicyLink = POLICY_LINK_PATTERN.test(normalizedLink);
 
-          // STRICT DOMAIN RESTRICTION: Never crawl anything outside the base domain
-          if (!isInternal || visited.has(normalizedLink) || enqueued.has(normalizedLink)) {
-            if (!isInternal) {
+          // Allow if it's the same base domain OR if it's a policy-related link (e.g. parent company policy)
+          if ((!isInternal && !isPolicyLink) || visited.has(normalizedLink) || enqueued.has(normalizedLink)) {
+            if (!isInternal && !isPolicyLink) {
               recordSkippedUrl({
                 url: normalizedLink,
                 source,
@@ -1179,30 +1180,42 @@ export class CookieScannerProcessor extends WorkerHost {
             }
 
             // ── Link Extraction ────────────────────────────────────────────
-            const links = await page.evaluate(() => {
-              const results: string[] = [];
-              // Standard links
-              document.querySelectorAll('a[href], area[href], link[rel="canonical"][href], link[rel="alternate"][href]').forEach(el => {
-                const href = (el as HTMLAnchorElement | HTMLAreaElement | HTMLLinkElement).href;
-                if (href) results.push(href);
-              });
-              // Shadow DOM links
-              const walk = (node: Node) => {
-                if (node instanceof HTMLElement && node.shadowRoot) {
-                  node.shadowRoot.querySelectorAll('a[href], area[href]').forEach(el => {
-                    const href = (el as HTMLAnchorElement | HTMLAreaElement).href;
-                    if (href) results.push(href);
-                  });
-                  Array.from(node.shadowRoot.children).forEach(walk);
-                }
-                Array.from(node.childNodes).forEach(walk);
-              };
-              walk(document.body);
-              return results;
-            }).catch(() => []);
+            // Only extract and follow new links if the current page is INTERNAL.
+            // If we are visiting an allowed external policy page, we treat it as a "leaf" node 
+            // and don't crawl further into the third-party domain.
+            let isCurrentPageInternal = true;
+            try {
+              isCurrentPageInternal = getBaseDomain(new URL(pageUrl).hostname) === baseDomain;
+            } catch {}
 
-            for (const link of links) {
-              enqueueDiscoveredUrl(link, POLICY_LINK_PATTERN.test(link), `page-link:${pageUrl}`);
+            if (isCurrentPageInternal) {
+              const links = await page.evaluate(() => {
+                const results: string[] = [];
+                // Standard links
+                document.querySelectorAll('a[href], area[href], link[rel="canonical"][href], link[rel="alternate"][href]').forEach(el => {
+                  const href = (el as HTMLAnchorElement | HTMLAreaElement | HTMLLinkElement).href;
+                  if (href) results.push(href);
+                });
+                // Shadow DOM links
+                const walk = (node: Node) => {
+                  if (node instanceof HTMLElement && node.shadowRoot) {
+                    node.shadowRoot.querySelectorAll('a[href], area[href]').forEach(el => {
+                      const href = (el as HTMLAnchorElement | HTMLAreaElement).href;
+                      if (href) results.push(href);
+                    });
+                    Array.from(node.shadowRoot.children).forEach(walk);
+                  }
+                  Array.from(node.childNodes).forEach(walk);
+                };
+                walk(document.body);
+                return results;
+              }).catch(() => []);
+
+              for (const link of links) {
+                enqueueDiscoveredUrl(link, POLICY_LINK_PATTERN.test(link), `page-link:${pageUrl}`);
+              }
+            } else {
+              this.logger.log(`External leaf page reached: ${pageUrl}. Skipping further link extraction.`);
             }
 
           } catch (err) {
