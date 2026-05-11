@@ -78,6 +78,7 @@ interface CrawlDebugEntry {
   contentType?: string;
   reason?: string;
   pageTypes?: string[];
+  title?: string;
 }
 
 function normalizeUrl(urlStr: string): string {
@@ -241,44 +242,56 @@ function classifyPageByUrl(url: string): PageType[] {
  * Handles CMS pages where URL slug doesn't reveal page type.
  * Check h1, title, and first 500 chars of body text.
  */
-async function classifyPageByContent(page: puppeteer.Page, url: string): Promise<PageType[]> {
+async function classifyPageByContent(page: puppeteer.Page, url: string): Promise<{ types: PageType[]; title: string }> {
   try {
     const signals = await page.evaluate(() => {
-      const title = document.title?.toLowerCase() || '';
-      const h1 = document.querySelector('h1')?.textContent?.toLowerCase() || '';
-      const h2 = document.querySelector('h2')?.textContent?.toLowerCase() || '';
-      const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute('content')?.toLowerCase() || '';
-      const bodyStart = document.body?.innerText?.substring(0, 12000)?.toLowerCase() || '';
-      return { title, h1, h2, metaDescription, bodyStart };
+      const title = document.title || '';
+      const h1 = document.querySelector('h1')?.textContent || '';
+      const h2 = document.querySelector('h2')?.textContent || '';
+      const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+      const bodyStart = document.body?.innerText?.substring(0, 12000) || '';
+      return { 
+        title: title.trim(), 
+        h1: h1.trim(), 
+        h2: h2.trim(), 
+        metaDescription: metaDescription.trim(), 
+        bodyStart: bodyStart.trim() 
+      };
     });
 
-    const headingText = `${signals.title} ${signals.h1} ${signals.h2} ${signals.metaDescription}`;
-    const combined = `${headingText} ${signals.bodyStart}`;
+    const titleLower = signals.title.toLowerCase();
+    const headingText = `${titleLower} ${signals.h1.toLowerCase()} ${signals.h2.toLowerCase()} ${signals.metaDescription.toLowerCase()}`;
+    const bodyLower = signals.bodyStart.toLowerCase();
     const types: PageType[] = [];
 
-    const privacyHeading = /privacy policy|privacy notice|privacy statement|data protection notice|privacy center/.test(headingText);
+    const privacyHeading = /privacy policy|privacy notice|privacy statement|data protection notice|privacy center|privacy information/.test(headingText);
     const privacyBody =
-      /privacy policy|privacy notice|privacy statement|personal data we collect|your privacy rights|how we use.*(data|information)/.test(signals.bodyStart) &&
-      /personal data|personal information|data subject|controller|processor|collect|process|rights/.test(signals.bodyStart);
+      /privacy policy|privacy notice|privacy statement|personal data we collect|your privacy rights|how we use.*(data|information)/.test(bodyLower) &&
+      /personal data|personal information|data subject|controller|processor|collect|process|rights/.test(bodyLower);
+    
     if (privacyHeading || privacyBody) {
       types.push('PRIVACY_POLICY');
     }
 
     const cookieHeading = /cookie policy|cookie notice|cookie declaration|cookie statement/.test(headingText);
     const cookieBody =
-      /how we use cookies|types of cookies|manage cookies|cookie preferences|strictly necessary cookies/.test(signals.bodyStart) &&
-      /necessary|essential|analytics|performance|marketing|advertising|functional/.test(signals.bodyStart);
+      /how we use cookies|types of cookies|manage cookies|cookie preferences|strictly necessary cookies/.test(bodyLower) &&
+      /necessary|essential|analytics|performance|marketing|advertising|functional/.test(bodyLower);
+    
     if (cookieHeading || cookieBody) {
       types.push('COOKIE_POLICY');
     }
 
-    if (/grievance|nodal officer|complaint officer|compliance officer|legal notice|terms of (use|service)|data protection officer|dpo/.test(combined)) {
+    if (/grievance|nodal officer|complaint officer|compliance officer|legal notice|terms of (use|service)|data protection officer|dpo/.test(headingText + ' ' + bodyLower)) {
       types.push('COMPLIANCE');
     }
 
-    return types.length ? types : ['GENERAL'];
+    return { 
+      types: types.length ? types : ['GENERAL'], 
+      title: signals.title 
+    };
   } catch {
-    return ['GENERAL'];
+    return { types: ['GENERAL'], title: '' };
   }
 }
 
@@ -676,7 +689,8 @@ export class CookieScannerProcessor extends WorkerHost {
 
             // ── Page Classification (Content-based) ────────────────────────
             // Do this AFTER network idle so SPA content (like React) is fully rendered
-            const contentTypes = await classifyPageByContent(page, pageUrl);
+            const { types: contentTypes, title: pageTitle } = await classifyPageByContent(page, pageUrl);
+            
             // Merge: URL types + content types (content wins for CMS pages)
             let allTypes = [...new Set([...urlTypes, ...contentTypes])];
             const contentConfirmedPolicyTypes = contentTypes.filter(t => t === 'PRIVACY_POLICY' || t === 'COOKIE_POLICY' || t === 'COMPLIANCE');
@@ -684,15 +698,17 @@ export class CookieScannerProcessor extends WorkerHost {
             if (isGuessedPolicyCandidate && contentConfirmedPolicyTypes.length === 0) {
               allTypes = contentTypes;
             }
+            
             const pageLooksMissing = await page.evaluate(() => {
               const text = `${document.title || ''} ${document.querySelector('h1')?.textContent || ''} ${document.body?.innerText?.substring(0, 1200) || ''}`.toLowerCase();
               return /404|page not found|not found|page does not exist|page unavailable/.test(text);
             }).catch(() => false);
+            
             if (pageLooksMissing && contentTypes.every(t => t === 'GENERAL')) {
               allTypes = contentTypes;
             }
-
-            classifiedPages.push({ url: pageUrl, types: allTypes, title: '' });
+ 
+            classifiedPages.push({ url: pageUrl, types: allTypes, title: pageTitle });
             recordCrawledUrl({
               url: currentUrl,
               source: currentSource,
@@ -700,14 +716,24 @@ export class CookieScannerProcessor extends WorkerHost {
               status: statusCode || 'unknown',
               contentType: contentType || 'unknown',
               pageTypes: allTypes,
+              title: pageTitle,
             });
-
+ 
             // Update top-level signals based on page type
             if (allTypes.includes('PRIVACY_POLICY')) {
               complianceSignals.hasPrivacyPolicy = true;
-              complianceSignals.privacyPolicyEvidence = { url: pageUrl, snippet: 'Privacy Policy page detected.' };
+              // Set initial evidence - will be refined later if shouldScanForPolicySignals is true
+              complianceSignals.privacyPolicyEvidence = { 
+                url: pageUrl, 
+                snippet: pageTitle ? `Privacy Policy: ${pageTitle}` : 'Privacy Policy page detected.' 
+              };
             }
-            if (allTypes.includes('COOKIE_POLICY')) complianceSignals.hasCookieNotice = true;
+            if (allTypes.includes('COOKIE_POLICY')) {
+              complianceSignals.hasCookieNotice = true;
+              if (!complianceSignals.bannerEvidence) {
+                 complianceSignals.bannerEvidence = { url: pageUrl, snippet: `Cookie Policy found: ${pageTitle || pageUrl}` };
+              }
+            }
             if (allTypes.includes('COMPLIANCE')) complianceSignals.hasComplianceNotice = true;
 
             // ── Scroll + CMP Interaction ───────────────────────────────────
@@ -928,15 +954,26 @@ export class CookieScannerProcessor extends WorkerHost {
                 return '...' + text.substring(Math.max(0, idx - 40), Math.min(text.length, idx + 120)).replace(/\n/g, ' ').trim() + '...';
               };
 
-              if (allTypes.includes('PRIVACY_POLICY') && complianceSignals.privacyPolicyEvidence?.url === pageUrl) {
-                complianceSignals.privacyPolicyEvidence = {
-                  url: pageUrl,
-                  snippet: extractSnippet(pageText, 'privacy policy') ||
-                    extractSnippet(pageText, 'privacy notice') ||
-                    extractSnippet(pageText, 'personal data') ||
-                    extractSnippet(pageText, 'personal information') ||
-                    pageText.substring(0, 180).replace(/\n/g, ' ').trim(),
-                };
+              if (allTypes.includes('PRIVACY_POLICY')) {
+                const privacySnippet = extractSnippet(pageText, 'privacy policy') ||
+                  extractSnippet(pageText, 'privacy notice') ||
+                  extractSnippet(pageText, 'personal data') ||
+                  extractSnippet(pageText, 'personal information') ||
+                  pageText.substring(0, 200).replace(/\n/g, ' ').trim();
+                
+                const fullProof = pageTitle ? `[${pageTitle}] ${privacySnippet}` : privacySnippet;
+
+                // Update if not set or if we found a "more official" page (e.g. based on URL or title)
+                const isBetterMatch = !complianceSignals.privacyPolicyEvidence?.snippet || 
+                                     complianceSignals.privacyPolicyEvidence.snippet.length < 50 ||
+                                     /policy|notice/i.test(pageUrl);
+
+                if (isBetterMatch || complianceSignals.privacyPolicyEvidence?.url === pageUrl) {
+                  complianceSignals.privacyPolicyEvidence = {
+                    url: pageUrl,
+                    snippet: fullProof,
+                  };
+                }
               }
 
               // DSAR → PRIVACY_POLICY or COOKIE_POLICY
