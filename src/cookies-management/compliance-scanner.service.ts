@@ -101,7 +101,7 @@ export class ComplianceScannerService {
     });
 
     // ── 2. Cookie Categorization (10 pts) ───────────────────────────────────
-    const categorizationFromCookiePage = hasCookieNotice && signals?.hasCategorization === true;
+    const categorizationFromCookiePage = signals?.hasCategorization === true;
     const categorizationFromProteccio = hasProteccioBanner && website.autoCategorize === true;
     const categorizationPassed = categorizationFromCookiePage || categorizationFromProteccio;
 

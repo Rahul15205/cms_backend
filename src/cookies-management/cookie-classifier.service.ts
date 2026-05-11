@@ -125,6 +125,9 @@ const NAME_PATTERNS: { pattern: RegExp; category: string; platform: string; desc
   { pattern: /(sess|session)/i, category: 'NECESSARY', platform: 'Web Server', description: 'Session management cookie.' },
   { pattern: /^(laravel_session|laravel_token)/i, category: 'NECESSARY', platform: 'Laravel', description: 'Laravel framework session cookie.' },
   { pattern: /^(__Secure-|__Host-)/i, category: 'NECESSARY', platform: 'Security', description: 'Secure cookie with browser-enforced restrictions.' },
+  { pattern: /(security|authentication|login|session_?mgmt|load_?balancing|server_?affinity|failover|csrf|xsrf|anti-forgery|tamper|token)/i, category: 'NECESSARY', platform: 'Infrastructure & Security', description: 'Essential security or infrastructure management cookie.' },
+  { pattern: /(cart|checkout|payment|inventory|reservation|wishlist|coupon)/i, category: 'NECESSARY', platform: 'E-commerce', description: 'Necessary for e-commerce transactions and state management.' },
+  { pattern: /(sso|federated|identity|api_?session|cdn_?routing|vpn_?session|infrastructure)/i, category: 'NECESSARY', platform: 'Enterprise Infrastructure', description: 'Corporate identity or infrastructure routing cookie.' },
 
   // Functional
   { pattern: /^(cookie_?consent|cookieconsent|CookieConsent)/i, category: 'FUNCTIONAL', platform: 'Consent Management', description: 'Stores user cookie consent preferences.' },
@@ -132,6 +135,9 @@ const NAME_PATTERNS: { pattern: RegExp; category: string; platform: string; desc
   { pattern: /(theme|dark_?mode|color_?scheme)/i, category: 'FUNCTIONAL', platform: 'UI Preference', description: 'Stores user display theme preference.' },
   { pattern: /(timezone|tz)/i, category: 'FUNCTIONAL', platform: 'Localization', description: 'Stores user timezone setting.' },
   { pattern: /^(pref|preference)/i, category: 'FUNCTIONAL', platform: 'Preferences', description: 'Stores user preferences.' },
+  { pattern: /(accessibility|font_?pref|ui_?personalization|remember_?me|auto_?fill|player|playback)/i, category: 'FUNCTIONAL', platform: 'UI Customization', description: 'Enhances user interface and media playback experience.' },
+  { pattern: /(social_?login|social_?share|chat_?support|messaging|notification_?pref)/i, category: 'FUNCTIONAL', platform: 'Communication & Social', description: 'Enables social sharing and real-time communication features.' },
+  { pattern: /(consent|banner|opt_?in|opt_?out|privacy_?pref)/i, category: 'FUNCTIONAL', platform: 'Compliance', description: 'Stores user consent and privacy preferences.' },
 
   // Analytics
   { pattern: /^(_ga|_gid|_gat|__utm)/i, category: 'ANALYTICS', platform: 'Google Analytics', description: 'Google Analytics tracking cookie.' },
@@ -143,6 +149,8 @@ const NAME_PATTERNS: { pattern: RegExp; category: string; platform: string; desc
   { pattern: /^(ajs_|ajs_anonymous_id|ajs_user_id)/i, category: 'ANALYTICS', platform: 'Segment', description: 'Segment analytics cookie.' },
   { pattern: /^(s_cc|s_sq|s_vi|s_fid|s_ecid)/i, category: 'ANALYTICS', platform: 'Adobe Analytics', description: 'Adobe Analytics tracking cookie.' },
   { pattern: /(analytic|tracking|_track)/i, category: 'ANALYTICS', platform: 'Analytics', description: 'Website analytics tracking cookie.' },
+  { pattern: /(performance|statistics|audience|traffic|behavioral_?analytics|heatmap|ab_?testing|conversion)/i, category: 'ANALYTICS', platform: 'Measurement', description: 'Measures website performance and user behavior statistics.' },
+  { pattern: /(engagement|event_?track|user_?journey|diagnostic|error_?monitor)/i, category: 'ANALYTICS', platform: 'Monitoring', description: 'Tracks user engagement and monitors site health/errors.' },
 
   // Advertising / Marketing
   { pattern: /^(_fbp|_fbc|fbm_|fbs_)/i, category: 'ADVERTISING', platform: 'Facebook', description: 'Facebook advertising and tracking pixel cookie.' },
@@ -153,7 +161,9 @@ const NAME_PATTERNS: { pattern: RegExp; category: string; platform: string; desc
   { pattern: /^(guest_id|personalization_id|ct0)/i, category: 'ADVERTISING', platform: 'X (Twitter)', description: 'X/Twitter advertising and tracking cookie.' },
   { pattern: /^(_pin_|_pinterest)/i, category: 'ADVERTISING', platform: 'Pinterest', description: 'Pinterest advertising cookie.' },
   { pattern: /(advert|campaign|promo|banner_?id|click_?id)/i, category: 'ADVERTISING', platform: 'Advertising', description: 'Advertising or campaign tracking cookie.' },
-  { pattern: /^(uid|uuid)$/i, category: 'ADVERTISING', platform: 'Ad Network', description: 'User identification cookie for ad network.' },
+  { pattern: /(targeting|retargeting|remarketing|affiliate|referral|impression|programmatic|capping)/i, category: 'ADVERTISING', platform: 'Marketing', description: 'Personalized marketing and ad performance tracking cookie.' },
+  { pattern: /(uid|uuid|fingerprint|profiling|telemetry|supercookie|zombie|evercookie|respawn|pixel)/i, category: 'ADVERTISING', platform: 'Tracking & Profiling', description: 'Persistent tracking mechanism for user profiling and cross-device identification.' },
+  { pattern: /(flash|lso|etag|canvas|indexeddb|websql|service_?worker)/i, category: 'ADVERTISING', platform: 'Advanced Tracking', description: 'Advanced storage mechanism used for persistent tracking.' },
 ];
 
 @Injectable()

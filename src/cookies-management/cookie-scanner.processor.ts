@@ -999,10 +999,23 @@ export class CookieScannerProcessor extends WorkerHost {
               } catch {}
             }
 
-            const lang = await page.evaluate(() => document.documentElement.lang).catch(() => '');
-            if (lang && lang.toLowerCase() !== 'en') {
+            const langData = await page.evaluate(() => {
+              const htmlLang = document.documentElement.lang?.toLowerCase() || '';
+              // Look for common language switcher elements or text
+              const bodyText = document.body?.innerText?.toLowerCase() || '';
+              const switchers = Array.from(document.querySelectorAll('select, button, a'))
+                .some(el => /language|select language|choose language|hindi|telugu|marathi|tamil|kannada|malayalam|bengali|gujarati|punjabi/i.test(el.textContent || ''));
+              return { htmlLang, hasSwitchers: switchers };
+            }).catch(() => ({ htmlLang: '', hasSwitchers: false }));
+
+            if (langData.htmlLang && langData.htmlLang !== 'en' && langData.htmlLang !== 'en-us' && langData.htmlLang !== 'en-gb') {
+              // If lang is explicitly non-English, count it
               complianceSignals.hasLocalization = true;
-              complianceSignals.languageEvidence = { url: currentUrl, snippet: `Page language detected as: ${lang}` };
+              complianceSignals.languageEvidence = { url: pageUrl, snippet: `Page language attribute: ${langData.htmlLang}` };
+            } else if (langData.hasSwitchers) {
+              // If we found a language switcher, count it
+              complianceSignals.hasLocalization = true;
+              complianceSignals.languageEvidence = { url: pageUrl, snippet: `Language switcher/selector detected on page.` };
             }
 
             // ── CONDITIONAL COMPLIANCE SCANNING ───────────────────────────
@@ -1093,14 +1106,16 @@ export class CookieScannerProcessor extends WorkerHost {
               // Cookie categorization → COOKIE_POLICY only
               if (allTypes.includes('COOKIE_POLICY') && !complianceSignals.hasCategorization) {
                 const hasCategories =
-                  (lowerText.includes('necessary') || lowerText.includes('essential')) &&
-                  (lowerText.includes('analytics') || lowerText.includes('performance')) &&
-                  (lowerText.includes('marketing') || lowerText.includes('advertising'));
+                  (lowerText.includes('necessary') || lowerText.includes('essential') || lowerText.includes('required')) &&
+                  (lowerText.includes('analytics') || lowerText.includes('performance') || lowerText.includes('statistics') || 
+                   lowerText.includes('marketing') || lowerText.includes('advertising') || lowerText.includes('preference') ||
+                   lowerText.includes('functional') || lowerText.includes('targeting'));
+                
                 if (hasCategories) {
                   complianceSignals.hasCategorization = true;
                   complianceSignals.categorizationEvidence = {
-                    url: currentUrl,
-                    snippet: extractSnippet(pageText, 'necessary') || extractSnippet(pageText, 'analytics'),
+                    url: pageUrl,
+                    snippet: extractSnippet(pageText, 'necessary') || extractSnippet(pageText, 'analytics') || extractSnippet(pageText, 'cookie'),
                   };
                 }
               }
@@ -1118,11 +1133,12 @@ export class CookieScannerProcessor extends WorkerHost {
 
               // Grievance → PRIVACY_POLICY or COMPLIANCE
               if ((allTypes.includes('PRIVACY_POLICY') || allTypes.includes('COMPLIANCE')) && !complianceSignals.hasGrievance) {
-                if (lowerText.includes('grievance') || lowerText.includes('nodal officer') || lowerText.includes('complaint officer') || lowerText.includes('grievance redressal')) {
+                const grievanceRegex = /grievance|nodal.*officer|complaint.*officer|grievance.*redressal|redressal.*mechanism|compliance.*officer|dpo|data.*protection.*officer/i;
+                if (grievanceRegex.test(lowerText)) {
                   complianceSignals.hasGrievance = true;
                   complianceSignals.grievanceEvidence = {
-                    url: currentUrl,
-                    snippet: extractSnippet(pageText, 'grievance') || extractSnippet(pageText, 'nodal officer'),
+                    url: pageUrl,
+                    snippet: extractSnippet(pageText, 'grievance') || extractSnippet(pageText, 'officer') || extractSnippet(pageText, 'redressal'),
                   };
                 }
               }
