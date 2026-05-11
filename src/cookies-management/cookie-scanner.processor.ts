@@ -762,11 +762,22 @@ export class CookieScannerProcessor extends WorkerHost {
                 }
               } catch {}
 
+              // URL signals (Strongest)
               if (lowUrl.includes('privacy-policy') || lowUrl.includes('privacy-notice')) score += 100;
+              else if (lowUrl.includes('/privacy')) score += 80; // High score for clean /privacy path
               else if (lowUrl.includes('privacy')) score += 40;
+              
+              if (lowUrl.includes('/legal')) score += 20; // Legal directory is a good sign
               if (lowUrl.includes('policy') || lowUrl.includes('notice')) score += 20;
-              if (lowTitle.includes('privacy policy') || lowTitle.includes('privacy notice')) score += 50;
+              
+              // Title signals (Medium)
+              if (lowTitle.includes('privacy policy') || lowTitle.includes('privacy notice')) score += 60;
+              else if (lowTitle.includes('privacy')) score += 30;
+              
+              // Penalty for non-policy pages
               if (lowUrl.includes('manage') || lowUrl.includes('communication') || lowUrl.includes('setting') || lowUrl.includes('preference')) score -= 80;
+              if (lowUrl.includes('terms') || lowUrl.includes('condition')) score -= 40; // Terms of service pages often mention privacy
+              
               return score;
             };
 
@@ -775,17 +786,10 @@ export class CookieScannerProcessor extends WorkerHost {
               complianceSignals.hasPrivacyPolicy = true;
               
               const currentPrivacyConfidence = calculatePrivacyConfidence(pageUrl, pageTitle);
-              const prevPrivacyConfidence = complianceSignals.privacyPolicyConfidence || 0;
+              const prevPrivacyConfidence = complianceSignals.privacyPolicyConfidence || -1000;
               
-              let isExternalInit = false;
-              try {
-                isExternalInit = getBaseDomain(new URL(pageUrl).hostname) !== baseDomain;
-              } catch {}
-
-              const minConfidenceForExternalInit = 100;
-              const canUpdateInit = (currentPrivacyConfidence >= prevPrivacyConfidence) && (!isExternalInit || currentPrivacyConfidence >= minConfidenceForExternalInit);
-
-              if (canUpdateInit || !complianceSignals.privacyPolicyEvidence) {
+              // Always prefer the higher confidence page
+              if (currentPrivacyConfidence > prevPrivacyConfidence || !complianceSignals.privacyPolicyEvidence) {
                 complianceSignals.privacyPolicyEvidence = { 
                   url: pageUrl, 
                   snippet: pageTitle ? `Privacy Policy: ${pageTitle}` : 'Privacy Policy page detected.' 
@@ -1027,20 +1031,10 @@ export class CookieScannerProcessor extends WorkerHost {
 
               if (allTypes.includes('PRIVACY_POLICY')) {
                 const currentConfidence = calculatePrivacyConfidence(pageUrl, pageTitle);
-                const previousConfidence = complianceSignals.privacyPolicyConfidence || 0;
+                const previousConfidence = complianceSignals.privacyPolicyConfidence || -1000;
 
-                // Requirement for External Pages:
-                // If the page is on a different domain, it MUST be a high-confidence match (e.g. contains 'policy' or 'notice' in URL)
-                // This prevents random external links from being picked as proof.
-                let isExternal = false;
-                try {
-                  isExternal = getBaseDomain(new URL(pageUrl).hostname) !== baseDomain;
-                } catch {}
-                
-                const minConfidenceForExternal = 100;
-                const canUpdate = (currentConfidence >= previousConfidence) && (!isExternal || currentConfidence >= minConfidenceForExternal);
-
-                if (canUpdate || !complianceSignals.privacyPolicyEvidence) {
+                // Always prefer the higher confidence page
+                if (currentConfidence > previousConfidence || !complianceSignals.privacyPolicyEvidence) {
                   const privacySnippet = extractSnippet(textForSnippet, 'privacy policy') ||
                     extractSnippet(textForSnippet, 'privacy notice') ||
                     extractSnippet(textForSnippet, 'personal data') ||
