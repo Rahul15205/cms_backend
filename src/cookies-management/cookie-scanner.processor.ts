@@ -733,14 +733,32 @@ export class CookieScannerProcessor extends WorkerHost {
               title: pageTitle,
             });
  
+            const calculatePrivacyConfidence = (url: string, title: string) => {
+              let score = 0;
+              const lowUrl = url.toLowerCase();
+              const lowTitle = title.toLowerCase();
+              if (lowUrl.includes('privacy-policy') || lowUrl.includes('privacy-notice')) score += 100;
+              else if (lowUrl.includes('privacy')) score += 40;
+              if (lowUrl.includes('policy') || lowUrl.includes('notice')) score += 20;
+              if (lowTitle.includes('privacy policy') || lowTitle.includes('privacy notice')) score += 50;
+              if (lowUrl.includes('manage') || lowUrl.includes('communication') || lowUrl.includes('setting') || lowUrl.includes('preference')) score -= 80;
+              return score;
+            };
+
             // Update top-level signals based on page type
             if (allTypes.includes('PRIVACY_POLICY')) {
               complianceSignals.hasPrivacyPolicy = true;
-              // Set initial evidence - will be refined later if shouldScanForPolicySignals is true
-              complianceSignals.privacyPolicyEvidence = { 
-                url: pageUrl, 
-                snippet: pageTitle ? `Privacy Policy: ${pageTitle}` : 'Privacy Policy page detected.' 
-              };
+              
+              const currentPrivacyConfidence = calculatePrivacyConfidence(pageUrl, pageTitle);
+              const prevPrivacyConfidence = complianceSignals.privacyPolicyConfidence || 0;
+              
+              if (currentPrivacyConfidence >= prevPrivacyConfidence || !complianceSignals.privacyPolicyEvidence) {
+                complianceSignals.privacyPolicyEvidence = { 
+                  url: pageUrl, 
+                  snippet: pageTitle ? `Privacy Policy: ${pageTitle}` : 'Privacy Policy page detected.' 
+                };
+                complianceSignals.privacyPolicyConfidence = currentPrivacyConfidence;
+              }
             }
             if (allTypes.includes('COOKIE_POLICY')) {
               complianceSignals.hasCookieNotice = true;
@@ -975,18 +993,6 @@ export class CookieScannerProcessor extends WorkerHost {
               const textForSnippet = pageMainText || pageText;
 
               if (allTypes.includes('PRIVACY_POLICY')) {
-                const calculatePrivacyConfidence = (url: string, title: string) => {
-                  let score = 0;
-                  const lowUrl = url.toLowerCase();
-                  const lowTitle = title.toLowerCase();
-                  if (lowUrl.includes('privacy-policy') || lowUrl.includes('privacy-notice')) score += 100;
-                  else if (lowUrl.includes('privacy')) score += 40;
-                  if (lowUrl.includes('policy') || lowUrl.includes('notice')) score += 20;
-                  if (lowTitle.includes('privacy policy') || lowTitle.includes('privacy notice')) score += 50;
-                  if (lowUrl.includes('manage') || lowUrl.includes('communication') || lowUrl.includes('setting') || lowUrl.includes('preference')) score -= 80;
-                  return score;
-                };
-
                 const currentConfidence = calculatePrivacyConfidence(pageUrl, pageTitle);
                 const previousConfidence = complianceSignals.privacyPolicyConfidence || 0;
 
