@@ -1053,33 +1053,39 @@ export class CookieScannerProcessor extends WorkerHost {
 
               // DSAR → PRIVACY_POLICY or COOKIE_POLICY
               if ((allTypes.includes('PRIVACY_POLICY') || allTypes.includes('COOKIE_POLICY')) && !complianceSignals.hasDsar) {
-                if (lowerText.includes('dsar') || lowerText.includes('data subject') || lowerText.includes('your rights') || lowerText.includes('right to access')) {
+                const dsarRegex = /dsar|data subject|your rights|exercise.*rights|right to access|request access|data portability|rectification|erasure|anonymization|right to be informed/i;
+                if (dsarRegex.test(lowerText)) {
                   complianceSignals.hasDsar = true;
                   complianceSignals.dsarEvidence = {
                     url: currentUrl,
-                    snippet: extractSnippet(pageText, 'dsar') || extractSnippet(pageText, 'data subject') || extractSnippet(pageText, 'your rights'),
+                    snippet: extractSnippet(pageText, 'data subject') || 
+                             extractSnippet(pageText, 'your rights') || 
+                             extractSnippet(pageText, 'access') || 
+                             extractSnippet(pageText, 'rights'),
                   };
                 }
               }
 
               // Opt-out → PRIVACY_POLICY or COOKIE_POLICY
               if ((allTypes.includes('PRIVACY_POLICY') || allTypes.includes('COOKIE_POLICY')) && !complianceSignals.hasOptOut) {
-                if (lowerText.includes('opt-out') || lowerText.includes('opt out') || lowerText.includes('withdraw consent') || lowerText.includes('unsubscribe')) {
+                const optOutRegex = /opt-out|opt out|withdraw.*consent|unsubscribe|stop.*processing|object to.*processing/i;
+                if (optOutRegex.test(lowerText)) {
                   complianceSignals.hasOptOut = true;
                   complianceSignals.optOutEvidence = {
                     url: currentUrl,
-                    snippet: extractSnippet(pageText, 'opt-out') || extractSnippet(pageText, 'withdraw'),
+                    snippet: extractSnippet(pageText, 'opt-out') || extractSnippet(pageText, 'withdraw') || extractSnippet(pageText, 'consent'),
                   };
                 }
               }
 
               // Third-party disclosure → COOKIE_POLICY, PRIVACY_POLICY
               if ((allTypes.includes('PRIVACY_POLICY') || allTypes.includes('COOKIE_POLICY')) && !complianceSignals.hasThirdPartyDisclosure) {
-                if (lowerText.includes('third party') || lowerText.includes('third-party') || lowerText.includes('share your data') || lowerText.includes('share personal')) {
+                const disclosureRegex = /third party|third-party|share.*data|share.*information|disclose.*to|disclosure to|private entities/i;
+                if (disclosureRegex.test(lowerText)) {
                   complianceSignals.hasThirdPartyDisclosure = true;
                   complianceSignals.thirdPartyEvidence = {
                     url: currentUrl,
-                    snippet: extractSnippet(pageText, 'third party') || extractSnippet(pageText, 'share your data'),
+                    snippet: extractSnippet(pageText, 'third party') || extractSnippet(pageText, 'share') || extractSnippet(pageText, 'disclosure'),
                   };
                 }
               }
