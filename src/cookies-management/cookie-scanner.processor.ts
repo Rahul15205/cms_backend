@@ -750,6 +750,15 @@ export class CookieScannerProcessor extends WorkerHost {
               let score = 0;
               const lowUrl = url.toLowerCase();
               const lowTitle = title.toLowerCase();
+
+              // Base Domain Bonus: Strongly prefer policies hosted on the official domain
+              try {
+                const targetDomain = getBaseDomain(new URL(url).hostname);
+                if (targetDomain === baseDomain) {
+                  score += 40;
+                }
+              } catch {}
+
               if (lowUrl.includes('privacy-policy') || lowUrl.includes('privacy-notice')) score += 100;
               else if (lowUrl.includes('privacy')) score += 40;
               if (lowUrl.includes('policy') || lowUrl.includes('notice')) score += 20;
@@ -765,7 +774,15 @@ export class CookieScannerProcessor extends WorkerHost {
               const currentPrivacyConfidence = calculatePrivacyConfidence(pageUrl, pageTitle);
               const prevPrivacyConfidence = complianceSignals.privacyPolicyConfidence || 0;
               
-              if (currentPrivacyConfidence >= prevPrivacyConfidence || !complianceSignals.privacyPolicyEvidence) {
+              let isExternalInit = false;
+              try {
+                isExternalInit = getBaseDomain(new URL(pageUrl).hostname) !== baseDomain;
+              } catch {}
+
+              const minConfidenceForExternalInit = 100;
+              const canUpdateInit = (currentPrivacyConfidence >= prevPrivacyConfidence) && (!isExternalInit || currentPrivacyConfidence >= minConfidenceForExternalInit);
+
+              if (canUpdateInit || !complianceSignals.privacyPolicyEvidence) {
                 complianceSignals.privacyPolicyEvidence = { 
                   url: pageUrl, 
                   snippet: pageTitle ? `Privacy Policy: ${pageTitle}` : 'Privacy Policy page detected.' 
@@ -1009,7 +1026,18 @@ export class CookieScannerProcessor extends WorkerHost {
                 const currentConfidence = calculatePrivacyConfidence(pageUrl, pageTitle);
                 const previousConfidence = complianceSignals.privacyPolicyConfidence || 0;
 
-                if (currentConfidence >= previousConfidence || !complianceSignals.privacyPolicyEvidence) {
+                // Requirement for External Pages:
+                // If the page is on a different domain, it MUST be a high-confidence match (e.g. contains 'policy' or 'notice' in URL)
+                // This prevents random external links from being picked as proof.
+                let isExternal = false;
+                try {
+                  isExternal = getBaseDomain(new URL(pageUrl).hostname) !== baseDomain;
+                } catch {}
+                
+                const minConfidenceForExternal = 100;
+                const canUpdate = (currentConfidence >= previousConfidence) && (!isExternal || currentConfidence >= minConfidenceForExternal);
+
+                if (canUpdate || !complianceSignals.privacyPolicyEvidence) {
                   const privacySnippet = extractSnippet(textForSnippet, 'privacy policy') ||
                     extractSnippet(textForSnippet, 'privacy notice') ||
                     extractSnippet(textForSnippet, 'personal data') ||
