@@ -583,6 +583,19 @@ export class CookieScannerProcessor extends WorkerHost {
 
       // ── Main Crawl Loop ─────────────────────────────────────────────────
       while (queue.length > 0 && crawledPageUrls.size < maxPages && visited.size < maxAttempts) {
+        // Check if website still exists (handles deletion during scan)
+        // Only check every 5 pages to avoid DB spam
+        if (visited.size % 5 === 0) {
+          const exists = await this.prisma.scannedWebsite.findUnique({ 
+            where: { id: websiteId },
+            select: { id: true } 
+          });
+          if (!exists) {
+            this.logger.warn(`Website ${websiteId} deleted during scan. Stopping.`);
+            break;
+          }
+        }
+
         if (Date.now() - scanStartTime > MAX_SCAN_TIME_MS) {
           this.logger.warn(`Time budget exceeded for ${website.url}. Stopping.`);
           break;
