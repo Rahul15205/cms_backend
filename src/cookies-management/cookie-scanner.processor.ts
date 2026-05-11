@@ -534,14 +534,16 @@ export class CookieScannerProcessor extends WorkerHost {
 
           const linkDomain = getBaseDomain(linkUrl.hostname);
           const isInternal = linkDomain === baseDomain;
-          const isPolicyLink = POLICY_LINK_PATTERN.test(normalizedLink);
 
-          if ((!isInternal && !isPolicyLink) || visited.has(normalizedLink) || enqueued.has(normalizedLink)) {
-            recordSkippedUrl({
-              url: normalizedLink,
-              source,
-              reason: (!isInternal && !isPolicyLink) ? `external-domain:${linkDomain || 'unknown'}` : visited.has(normalizedLink) ? 'already-visited' : 'already-queued',
-            });
+          // STRICT DOMAIN RESTRICTION: Never crawl anything outside the base domain
+          if (!isInternal || visited.has(normalizedLink) || enqueued.has(normalizedLink)) {
+            if (!isInternal) {
+              recordSkippedUrl({
+                url: normalizedLink,
+                source,
+                reason: `external-domain-restricted`,
+              });
+            }
             return false;
           }
 
