@@ -29,7 +29,33 @@ export class ConsentWidgetService {
 
     return this.prisma.consentWidgetConfig.create({
       data: {
-        ...dto,
+        name: dto.name,
+        applicationId: dto.applicationId,
+        templateId: dto.templateId,
+        displayMode: dto.displayMode,
+        trigger: dto.trigger,
+        position: dto.position,
+        themeColor: dto.themeColor,
+        backgroundColor: dto.backgroundColor,
+        textColor: dto.textColor,
+        buttonTextColor: dto.buttonTextColor,
+        borderRadius: dto.borderRadius,
+        fontSize: dto.fontSize,
+        logoUrl: dto.logoUrl,
+        heading: dto.heading,
+        description: dto.description,
+        collectName: dto.collectName,
+        collectEmail: dto.collectEmail,
+        collectPhone: dto.collectPhone,
+        requireAllPurposes: dto.requireAllPurposes,
+        showPrivacyLink: dto.showPrivacyLink,
+        privacyPolicyUrl: dto.privacyPolicyUrl,
+        acceptAllText: dto.acceptAllText,
+        rejectAllText: dto.rejectAllText,
+        savePrefsText: dto.savePrefsText,
+        defaultLanguage: dto.defaultLanguage,
+        supportedLanguages: dto.supportedLanguages,
+        customCss: dto.customCss,
         tenantId,
         createdBy,
       },
@@ -75,9 +101,12 @@ export class ConsentWidgetService {
       throw new NotFoundException('Consent Widget not found');
     }
 
+    // Strip out frontend-only fields that Prisma doesn't recognize
+    const { applicationName, templateName, templateType, id: _id, tenantId: _tid, createdBy: _cb, createdAt: _ca, updatedAt: _ua, ...cleanDto } = dto as any;
+
     return this.prisma.consentWidgetConfig.update({
       where: { id },
-      data: dto,
+      data: cleanDto,
       include: {
         application: { select: { name: true } },
         template: { select: { title: true, type: true } },
