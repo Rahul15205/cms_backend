@@ -19,7 +19,7 @@ export class ConsentWidgetController {
   @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'create' })
   @ApiOperation({ summary: 'Create a new embeddable consent widget configuration' })
   create(@Body() dto: CreateConsentWidgetDto, @Request() req) {
-    return this.widgetService.create(dto, req.user.tenantId, req.user.id);
+    return this.widgetService.create(dto, req.user.tenantId, req.user.userId);
   }
 
   @Get()
