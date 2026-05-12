@@ -86,95 +86,46 @@ export class ConsentWidgetPublicController {
     if (document.getElementById('proteccio-consent-styles')) return;
     var style = document.createElement('style');
     style.id = 'proteccio-consent-styles';
-    style.textContent = \`
-      #proteccio-consent-overlay {
-        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
-        z-index: 999998; display: flex; align-items: center; justify-content: center;
-        opacity: 0; transition: opacity 0.3s ease;
-        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-      #proteccio-consent-overlay.proteccio-visible { opacity: 1; }
-      #proteccio-consent-widget {
-        background: \${bgColor}; color: \${textColor};
-        border-radius: \${borderRadius}; max-width: 520px; width: 92%;
-        box-shadow: 0 25px 60px rgba(0,0,0,0.15); padding: 32px;
-        transform: translateY(20px) scale(0.95); transition: all 0.35s cubic-bezier(0.16,1,0.3,1);
-        max-height: 90vh; overflow-y: auto; position: relative;
-      }
-      #proteccio-consent-overlay.proteccio-visible #proteccio-consent-widget {
-        transform: translateY(0) scale(1);
-      }
-      .proteccio-logo { height: 28px; object-fit: contain; margin-bottom: 16px; }
-      .proteccio-heading { margin: 0 0 8px; font-size: \${parseInt(fontSize) + 4}px; font-weight: 700; color: \${textColor}; }
-      .proteccio-desc { margin: 0 0 20px; font-size: \${fontSize}; line-height: 1.6; opacity: 0.8; color: \${textColor}; }
-      .proteccio-fields { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
-      .proteccio-field input {
-        width: 100%; padding: 10px 14px; border: 1.5px solid rgba(0,0,0,0.12);
-        border-radius: 8px; font-size: 13px; outline: none; background: transparent;
-        color: \${textColor}; transition: border-color 0.2s; box-sizing: border-box;
-      }
-      .proteccio-field input:focus { border-color: \${themeColor}; }
-      .proteccio-field input::placeholder { color: \${textColor}; opacity: 0.4; }
-      .proteccio-purposes { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
-      .proteccio-purpose {
-        display: flex; align-items: flex-start; gap: 12px;
-        padding: 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06);
-        background: rgba(0,0,0,0.02); transition: background 0.2s;
-      }
-      .proteccio-purpose:hover { background: rgba(0,0,0,0.04); }
-      .proteccio-purpose-toggle {
-        position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; margin-top: 1px;
-      }
-      .proteccio-purpose-toggle input { opacity: 0; width: 0; height: 0; }
-      .proteccio-purpose-toggle .proteccio-slider {
-        position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-        background-color: rgba(0,0,0,0.12); transition: 0.3s; border-radius: 22px;
-      }
-      .proteccio-purpose-toggle .proteccio-slider:before {
-        position: absolute; content: ""; height: 16px; width: 16px;
-        left: 3px; bottom: 3px; background-color: white;
-        transition: 0.3s; border-radius: 50%;
-      }
-      .proteccio-purpose-toggle input:checked + .proteccio-slider { background-color: \${themeColor}; }
-      .proteccio-purpose-toggle input:checked + .proteccio-slider:before { transform: translateX(18px); }
-      .proteccio-purpose-info { flex: 1; }
-      .proteccio-purpose-name { font-weight: 600; font-size: 13px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
-      .proteccio-purpose-desc { font-size: 12px; opacity: 0.65; line-height: 1.4; }
-      .proteccio-required-badge {
-        font-size: 9px; background: rgba(0,0,0,0.06); padding: 2px 6px;
-        border-radius: 4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
-      }
-      .proteccio-privacy-link {
-        display: inline-flex; align-items: center; gap: 4px;
-        font-size: 12px; color: \${themeColor}; text-decoration: none;
-        margin-bottom: 20px; font-weight: 500;
-      }
-      .proteccio-privacy-link:hover { text-decoration: underline; }
-      .proteccio-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-      .proteccio-btn {
-        flex: 1; padding: 11px 20px; border-radius: 8px; cursor: pointer;
-        font-weight: 600; font-size: 13px; transition: all 0.2s; border: none; min-width: 100px;
-      }
-      .proteccio-btn:hover { opacity: 0.9; transform: translateY(-1px); }
-      .proteccio-btn:active { transform: translateY(0); }
-      .proteccio-btn-primary { background: \${themeColor}; color: \${btnTextColor}; box-shadow: 0 4px 14px \${themeColor}40; }
-      .proteccio-btn-secondary { background: rgba(0,0,0,0.05); color: \${textColor}; border: 1px solid rgba(0,0,0,0.1); }
-      .proteccio-powered {
-        display: flex; align-items: center; justify-content: center; gap: 4px;
-        margin-top: 20px; font-size: 9px; opacity: 0.5; font-weight: 600;
-        text-transform: uppercase; letter-spacing: 1px; color: \${textColor};
-      }
-      .proteccio-powered img { height: 11px; }
-      .proteccio-close {
-        position: absolute; top: 16px; right: 16px; background: transparent;
-        border: none; cursor: pointer; color: \${textColor}; opacity: 0.4;
-        font-size: 20px; line-height: 1; padding: 4px; transition: opacity 0.2s;
-      }
-      .proteccio-close:hover { opacity: 0.8; }
-      .proteccio-error { color: #ef4444; font-size: 12px; margin-top: -8px; margin-bottom: 8px; display: none; }
-      \${config.customCss || ''}
-    \`;
+    var css = '';
+    css += '#proteccio-consent-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 999998; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }';
+    css += '#proteccio-consent-overlay.proteccio-visible { opacity: 1; }';
+    css += '#proteccio-consent-widget { background: ' + bgColor + '; color: ' + textColor + '; border-radius: ' + borderRadius + '; max-width: 520px; width: 92%; box-shadow: 0 25px 60px rgba(0,0,0,0.15); padding: 32px; transform: translateY(20px) scale(0.95); transition: all 0.35s cubic-bezier(0.16,1,0.3,1); max-height: 90vh; overflow-y: auto; position: relative; }';
+    css += '#proteccio-consent-overlay.proteccio-visible #proteccio-consent-widget { transform: translateY(0) scale(1); }';
+    css += '.proteccio-logo { height: 28px; object-fit: contain; margin-bottom: 16px; }';
+    css += '.proteccio-heading { margin: 0 0 8px; font-size: ' + (parseInt(fontSize) + 4) + 'px; font-weight: 700; color: ' + textColor + '; }';
+    css += '.proteccio-desc { margin: 0 0 20px; font-size: ' + fontSize + '; line-height: 1.6; opacity: 0.8; color: ' + textColor + '; }';
+    css += '.proteccio-fields { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }';
+    css += '.proteccio-field input { width: 100%; padding: 10px 14px; border: 1.5px solid rgba(0,0,0,0.12); border-radius: 8px; font-size: 13px; outline: none; background: transparent; color: ' + textColor + '; transition: border-color 0.2s; box-sizing: border-box; }';
+    css += '.proteccio-field input:focus { border-color: ' + themeColor + '; }';
+    css += '.proteccio-field input::placeholder { color: ' + textColor + '; opacity: 0.4; }';
+    css += '.proteccio-purposes { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }';
+    css += '.proteccio-purpose { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06); background: rgba(0,0,0,0.02); transition: background 0.2s; }';
+    css += '.proteccio-purpose:hover { background: rgba(0,0,0,0.04); }';
+    css += '.proteccio-purpose-toggle { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; margin-top: 1px; }';
+    css += '.proteccio-purpose-toggle input { opacity: 0; width: 0; height: 0; }';
+    css += '.proteccio-purpose-toggle .proteccio-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.12); transition: 0.3s; border-radius: 22px; }';
+    css += '.proteccio-purpose-toggle .proteccio-slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; }';
+    css += '.proteccio-purpose-toggle input:checked + .proteccio-slider { background-color: ' + themeColor + '; }';
+    css += '.proteccio-purpose-toggle input:checked + .proteccio-slider:before { transform: translateX(18px); }';
+    css += '.proteccio-purpose-info { flex: 1; }';
+    css += '.proteccio-purpose-name { font-weight: 600; font-size: 13px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }';
+    css += '.proteccio-purpose-desc { font-size: 12px; opacity: 0.65; line-height: 1.4; }';
+    css += '.proteccio-required-badge { font-size: 9px; background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }';
+    css += '.proteccio-privacy-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: ' + themeColor + '; text-decoration: none; margin-bottom: 20px; font-weight: 500; }';
+    css += '.proteccio-privacy-link:hover { text-decoration: underline; }';
+    css += '.proteccio-actions { display: flex; gap: 10px; flex-wrap: wrap; }';
+    css += '.proteccio-btn { flex: 1; padding: 11px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; border: none; min-width: 100px; }';
+    css += '.proteccio-btn:hover { opacity: 0.9; transform: translateY(-1px); }';
+    css += '.proteccio-btn:active { transform: translateY(0); }';
+    css += '.proteccio-btn-primary { background: ' + themeColor + '; color: ' + btnTextColor + '; box-shadow: 0 4px 14px ' + themeColor + '40; }';
+    css += '.proteccio-btn-secondary { background: rgba(0,0,0,0.05); color: ' + textColor + '; border: 1px solid rgba(0,0,0,0.1); }';
+    css += '.proteccio-powered { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 20px; font-size: 9px; opacity: 0.5; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: ' + textColor + '; }';
+    css += '.proteccio-powered img { height: 11px; }';
+    css += '.proteccio-close { position: absolute; top: 16px; right: 16px; background: transparent; border: none; cursor: pointer; color: ' + textColor + '; opacity: 0.4; font-size: 20px; line-height: 1; padding: 4px; transition: opacity 0.2s; }';
+    css += '.proteccio-close:hover { opacity: 0.8; }';
+    css += '.proteccio-error { color: #ef4444; font-size: 12px; margin-top: -8px; margin-bottom: 8px; display: none; }';
+    if (config.customCss) css += config.customCss;
+    style.textContent = css;
     document.head.appendChild(style);
   }
 
