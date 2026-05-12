@@ -53,6 +53,7 @@ model Tenant {
   aadhaarConfig    AadhaarConfig?
   workflowConfigs  WorkflowConfig[]
   generatedReports GeneratedReport[]
+  consentWidgetConfigs ConsentWidgetConfig[]
 }
 
 enum UserStatus {
@@ -523,6 +524,7 @@ model ConsentTemplate {
   versions          ConsentVersion[]
   usageRecords      ConsentUsageRecord[]
   applicationUsages ApplicationUsage[]
+  widgetConfigs     ConsentWidgetConfig[]
 }
 
 enum ConsentVersionStatus {
@@ -574,8 +576,9 @@ model Application {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  deployments ConsentDeployment[]
-  records     ConsentRecord[]
+  deployments   ConsentDeployment[]
+  records       ConsentRecord[]
+  widgetConfigs ConsentWidgetConfig[]
 }
 
 // ==========================================
@@ -1736,4 +1739,93 @@ model SystemConfig {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// CONSENT WIDGET CONFIGURATION
+// (Embeddable consent collection for third-party websites)
+// ==========================================
+
+enum WidgetDisplayMode {
+  POPUP          // Modal popup on page load or trigger
+  INLINE         // Embedded inside a div on the page
+  SIDEBAR        // Slide-in sidebar panel
+  BOTTOM_BAR     // Bottom bar (like cookie banner)
+  FLOATING       // Floating button that expands
+}
+
+enum WidgetTrigger {
+  PAGE_LOAD       // Show on page load
+  BUTTON_CLICK    // Show when user clicks a button
+  FORM_SUBMIT     // Intercept form submission
+  MANUAL          // Show via JS API call only
+  SCROLL          // Show after scrolling X%
+}
+
+enum WidgetStatus {
+  WIDGET_ACTIVE
+  WIDGET_DRAFT
+  WIDGET_ARCHIVED
+}
+
+model ConsentWidgetConfig {
+  id               String            @id @default(uuid())
+  name             String            // e.g. "Registration Consent Form"
+
+  // Linked Application & Consent Template
+  applicationId    String
+  application      Application       @relation(fields: [applicationId], references: [id])
+  templateId       String
+  template         ConsentTemplate   @relation(fields: [templateId], references: [id])
+
+  // Display Settings
+  displayMode      WidgetDisplayMode @default(POPUP)
+  trigger          WidgetTrigger     @default(MANUAL)
+  position         String            @default("center") // center, bottom-right, bottom-left, top
+
+  // Branding
+  themeColor       String            @default("#10b981")
+  backgroundColor  String            @default("#ffffff")
+  textColor        String            @default("#111827")
+  buttonTextColor  String            @default("#ffffff")
+  borderRadius     Int               @default(12)
+  fontSize         Int               @default(14)
+  logoUrl          String?
+
+  // Content
+  heading          String            @default("We value your privacy")
+  description      String?           @db.Text
+
+  // Consent Collection Fields
+  collectName      Boolean           @default(false)
+  collectEmail     Boolean           @default(true)
+  collectPhone     Boolean           @default(false)
+  requireAllPurposes Boolean         @default(false)  // If true, all purposes are mandatory
+  showPrivacyLink  Boolean           @default(true)
+  privacyPolicyUrl String?
+
+  // Button Labels
+  acceptAllText    String            @default("Accept All")
+  rejectAllText    String            @default("Reject All")
+  savePrefsText    String            @default("Save Preferences")
+
+  // Multi-language
+  defaultLanguage  String            @default("en")
+  supportedLanguages String[]
+
+  // Custom CSS override (advanced users)
+  customCss        String?           @db.Text
+
+  status           WidgetStatus      @default(WIDGET_DRAFT)
+
+  // Tenant & Audit
+  tenantId         String
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
+  createdBy        String
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([applicationId, status])
+  @@index([tenantId])
 }

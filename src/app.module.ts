@@ -55,6 +55,7 @@ import { StorageModule } from './common/storage/storage.module';
 import { AadhaarModule } from './aadhaar/aadhaar.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-yet';
+import { ConsentWidgetModule } from './consent-widget/consent-widget.module';
 
 
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
@@ -142,6 +143,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     NotificationsModule,
     StorageModule,
     AadhaarModule,
+    ConsentWidgetModule,
   ],
   controllers: [AppController],
   providers: [
