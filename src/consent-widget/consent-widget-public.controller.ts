@@ -170,7 +170,7 @@ export class ConsentWidgetPublicController {
     return '<div id="proteccio-consent-overlay" role="dialog" aria-modal="true" aria-labelledby="proteccio-consent-heading">' +
       '<div id="proteccio-consent-widget">' +
         '<button class="proteccio-close" aria-label="Close" id="proteccio-close-btn">&times;</button>' +
-        (logoUrl ? '<img class="proteccio-logo" src="' + logoUrl + '" alt="Logo" onerror="this.style.display=\'none\'">' : '') +
+        (logoUrl ? '<img class="proteccio-logo" src="' + logoUrl + '" alt="Logo" onerror="this.style.display=\\\'none\\\'">' : '') +
         '<h2 class="proteccio-heading" id="proteccio-consent-heading">' + (config.heading || 'We value your privacy') + '</h2>' +
         (config.description ? '<p class="proteccio-desc">' + config.description + '</p>' : '') +
         (fieldsHtml ? '<div class="proteccio-fields">' + fieldsHtml + '</div>' : '') +
