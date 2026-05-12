@@ -29,7 +29,8 @@ export class ConsentWidgetPublicController {
     }
 
     const host = req.get('host');
-    const baseUrl = `//${host}`;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const baseUrl = `${protocol}://${host}`;
     const purposes = (widget.template as any)?.purposes || [];
     const logoUrl = widget.logoUrl || `https://res.cloudinary.com/dlfzzfdx0/image/upload/v1777286182/Brand_title_with_tagline-removebg-preview_jpjpet.png`;
 
