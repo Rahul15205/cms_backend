@@ -65,14 +65,25 @@ export class ConsentWidgetPublicController {
   })};
   config.applicationId = '${applicationId}';
   config.baseUrl = '${baseUrl}';
-  var purposes = ${JSON.stringify(purposes.map(p => ({
+  var purposes = ${JSON.stringify((purposes || []).map(p => ({
     id: p.id,
     name: p.name,
     description: p.description,
     isPrimary: p.isPrimary,
     necessity: p.necessity,
   })))};
+  var dataCategories = ${JSON.stringify(((widget.template as any)?.dataCategories || []).map(c => ({
+    category: c.category,
+    label: c.label,
+    mandatory: c.mandatory
+  })))};
+  var thirdParties = ${JSON.stringify(((widget.template as any)?.thirdParties || []).map(t => ({
+    name: t.name,
+    purpose: t.purpose
+  })))};
   var logoUrl = '${logoUrl}';
+  
+  console.log('Proteccio: Loaded ' + purposes.length + ' purposes');
 
   // ─── STYLES ──────────────────────────────────────────────
   var themeColor = config.themeColor || '#10b981';
@@ -145,6 +156,16 @@ export class ConsentWidgetPublicController {
     css += '.proteccio-close { position: absolute; top: 16px; right: 16px; background: transparent; border: none; cursor: pointer; color: ' + textColor + '; opacity: 0.4; font-size: 20px; line-height: 1; padding: 4px; transition: opacity 0.2s; }';
     css += '.proteccio-close:hover { opacity: 0.8; }';
     css += '.proteccio-error { color: #ef4444; font-size: 12px; margin-top: -8px; margin-bottom: 8px; display: none; }';
+    
+    // Details Section Styling
+    css += '.proteccio-details { margin-bottom: 24px; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 20px; }';
+    css += '.proteccio-details-section { margin-bottom: 16px; }';
+    css += '.proteccio-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5; margin-bottom: 8px; }';
+    css += '.proteccio-data-list { display: flex; flex-wrap: wrap; gap: 6px; }';
+    css += '.proteccio-tag { background: rgba(0,0,0,0.05); padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; }';
+    css += '.proteccio-tp-list { margin: 0; padding: 0 0 0 16px; font-size: 12px; opacity: 0.8; line-height: 1.5; }';
+    css += '.proteccio-tp-list li { margin-bottom: 4px; }';
+
     if (config.customCss) css += config.customCss;
     style.textContent = css;
     document.head.appendChild(style);
@@ -188,6 +209,30 @@ export class ConsentWidgetPublicController {
         'Read our Privacy Policy</a>';
     }
 
+    var dataHtml = '';
+    if (dataCategories.length > 0) {
+      dataHtml = '<div class="proteccio-details-section">' +
+        '<div class="proteccio-section-title">Data Attributes</div>' +
+        '<div class="proteccio-data-list">' +
+          dataCategories.map(function(c) { 
+            return '<span class="proteccio-tag">' + c.label + '</span>'; 
+          }).join('') +
+        '</div>' +
+      '</div>';
+    }
+
+    var thirdPartyHtml = '';
+    if (thirdParties.length > 0) {
+      thirdPartyHtml = '<div class="proteccio-details-section">' +
+        '<div class="proteccio-section-title">Third Parties</div>' +
+        '<ul class="proteccio-tp-list">' +
+          thirdParties.map(function(t) { 
+            return '<li><strong>' + t.name + '</strong>: ' + t.purpose + '</li>'; 
+          }).join('') +
+        '</ul>' +
+      '</div>';
+    }
+
     return '<div id="proteccio-consent-overlay" role="dialog" aria-modal="true" aria-labelledby="proteccio-consent-heading">' +
       '<div id="proteccio-consent-widget">' +
         '<button class="proteccio-close" aria-label="Close" id="proteccio-close-btn">&times;</button>' +
@@ -196,6 +241,7 @@ export class ConsentWidgetPublicController {
         (config.description ? '<p class="proteccio-desc">' + config.description + '</p>' : '') +
         (fieldsHtml ? '<div class="proteccio-fields">' + fieldsHtml + '</div>' : '') +
         (purposesHtml ? '<div class="proteccio-purposes">' + purposesHtml + '</div>' : '') +
+        (dataHtml || thirdPartyHtml ? '<div class="proteccio-details">' + dataHtml + thirdPartyHtml + '</div>' : '') +
         privacyHtml +
         '<div class="proteccio-actions">' +
           '<button class="proteccio-btn proteccio-btn-secondary" id="proteccio-reject-btn">' + (config.rejectAllText || 'Reject All') + '</button>' +
