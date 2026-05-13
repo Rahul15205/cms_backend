@@ -31,7 +31,14 @@ export class ConsentWidgetPublicController {
     const host = req.get('host');
     const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
     const baseUrl = `${protocol}://${host}`;
-    const purposes = (widget.template as any)?.purposes || [];
+    // Extraction logic for JSON-based or Relation-based data
+    const template = widget.template as any;
+    const wizard = template?.wizardFields || {};
+    
+    const purposes = (template?.purposes?.length > 0) ? template.purposes : (wizard.purposes || []);
+    const dataCategories = (template?.dataCategories?.length > 0) ? template.dataCategories : (wizard.dataCategories || []);
+    const thirdParties = (template?.thirdParties?.length > 0) ? template.thirdParties : (wizard.thirdParties || []);
+    
     const logoUrl = widget.logoUrl || `https://res.cloudinary.com/dlfzzfdx0/image/upload/v1777286182/Brand_title_with_tagline-removebg-preview_jpjpet.png`;
 
     return `
@@ -70,14 +77,14 @@ export class ConsentWidgetPublicController {
     name: p.name,
     description: p.description,
     isPrimary: p.isPrimary,
-    necessity: p.necessity,
+    necessity: (p.necessity || '').toUpperCase(),
   })))};
-  var dataCategories = ${JSON.stringify(((widget.template as any)?.dataCategories || []).map(c => ({
+  var dataCategories = ${JSON.stringify((dataCategories || []).map(c => ({
     category: c.category,
     label: c.label,
     mandatory: c.mandatory
   })))};
-  var thirdParties = ${JSON.stringify(((widget.template as any)?.thirdParties || []).map(t => ({
+  var thirdParties = ${JSON.stringify((thirdParties || []).map(t => ({
     name: t.name,
     purpose: t.purpose
   })))};
