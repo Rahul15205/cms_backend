@@ -88,10 +88,30 @@ export class ConsentWidgetPublicController {
     var style = document.createElement('style');
     style.id = 'proteccio-consent-styles';
     var css = '';
-    css += '#proteccio-consent-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 999998; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }';
+    
+    // Base Overlay Styles
+    css += '#proteccio-consent-overlay { position: fixed; z-index: 999998; display: flex; opacity: 0; transition: opacity 0.3s ease; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }';
+    
+    // Display Mode Logic
+    if (config.displayMode === 'SIDEBAR') {
+      css += '#proteccio-consent-overlay { top: 0; bottom: 0; ' + (config.position === 'left' ? 'left: 0;' : 'right: 0;') + ' width: 400px; background: rgba(0,0,0,0.3); justify-content: ' + (config.position === 'left' ? 'flex-start' : 'flex-end') + '; }';
+      css += '#proteccio-consent-widget { height: 100%; width: 100%; border-radius: 0; transform: translateX(' + (config.position === 'left' ? '-100%' : '100%') + '); }';
+    } else if (config.displayMode === 'BOTTOM_BAR') {
+      css += '#proteccio-consent-overlay { left: 0; right: 0; bottom: 0; background: transparent; pointer-events: none; }';
+      css += '#proteccio-consent-widget { width: 100%; max-width: 100%; border-radius: 0; border-top: 1px solid rgba(0,0,0,0.1); transform: translateY(100%); pointer-events: auto; }';
+    } else if (config.displayMode === 'FLOATING') {
+      css += '#proteccio-consent-overlay { bottom: 24px; ' + (config.position === 'left' ? 'left: 24px;' : 'right: 24px;') + ' background: transparent; }';
+      css += '#proteccio-consent-widget { width: 380px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); transform: translateY(40px) scale(0.9); }';
+    } else { // POPUP (Default)
+      css += '#proteccio-consent-overlay { top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); align-items: center; justify-content: center; }';
+      css += '#proteccio-consent-widget { width: 92%; max-width: 520px; transform: translateY(20px) scale(0.95); }';
+    }
+
     css += '#proteccio-consent-overlay.proteccio-visible { opacity: 1; }';
-    css += '#proteccio-consent-widget { background: ' + bgColor + '; color: ' + textColor + '; border-radius: ' + borderRadius + '; max-width: 520px; width: 92%; box-shadow: 0 25px 60px rgba(0,0,0,0.15); padding: 32px; transform: translateY(20px) scale(0.95); transition: all 0.35s cubic-bezier(0.16,1,0.3,1); max-height: 90vh; overflow-y: auto; position: relative; }';
-    css += '#proteccio-consent-overlay.proteccio-visible #proteccio-consent-widget { transform: translateY(0) scale(1); }';
+    css += '#proteccio-consent-widget { background: ' + bgColor + '; color: ' + textColor + '; border-radius: ' + (config.displayMode === 'POPUP' || config.displayMode === 'FLOATING' ? borderRadius : '0') + '; box-shadow: 0 25px 60px rgba(0,0,0,0.15); padding: 32px; transition: all 0.4s cubic-bezier(0.16,1,0.3,1); max-height: 100vh; overflow-y: auto; position: relative; }';
+    css += '#proteccio-consent-overlay.proteccio-visible #proteccio-consent-widget { transform: none; }';
+    
+    // Rest of existing styles...
     css += '.proteccio-logo { height: 28px; object-fit: contain; margin-bottom: 16px; }';
     css += '.proteccio-heading { margin: 0 0 8px; font-size: ' + (parseInt(fontSize) + 4) + 'px; font-weight: 700; color: ' + textColor + '; }';
     css += '.proteccio-desc { margin: 0 0 20px; font-size: ' + fontSize + '; line-height: 1.6; opacity: 0.8; color: ' + textColor + '; }';
@@ -456,6 +476,14 @@ export class ConsentWidgetPublicController {
         var scrollPercent = (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
         if (scrollPercent > 30) {
           triggered = true;
+          showWidget();
+        }
+      });
+    } else if (config.trigger === 'BUTTON_CLICK') {
+      document.addEventListener('click', function(e) {
+        var target = e.target.closest('[data-proteccio-show]');
+        if (target) {
+          e.preventDefault();
           showWidget();
         }
       });
