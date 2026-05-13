@@ -140,6 +140,7 @@ export class ConsentWidgetService {
           include: {
             purposes: true,
             dataCategories: true,
+            thirdParties: true,
           },
         },
         application: { select: { name: true } },
