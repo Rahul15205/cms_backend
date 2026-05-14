@@ -56,8 +56,8 @@ export class ConsentTemplatesController {
   @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'edit' })
   @ApiOperation({ summary: 'Update an existing Consent Template' })
   @ApiResponse({ status: 200, type: ConsentTemplateResponseDto })
-  update(@Param('id') id: string, @Body() updateConsentTemplateDto: UpdateConsentTemplateDto) {
-    return this.consentTemplatesService.update(id, updateConsentTemplateDto);
+  update(@Param('id') id: string, @Body() updateConsentTemplateDto: UpdateConsentTemplateDto, @Request() req: any) {
+    return this.consentTemplatesService.update(id, updateConsentTemplateDto, req.user.userId);
   }
 
   @Delete(':id')

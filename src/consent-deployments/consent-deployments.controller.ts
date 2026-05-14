@@ -17,6 +17,13 @@ import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 export class ConsentDeploymentsController {
   constructor(private readonly consentDeploymentsService: ConsentDeploymentsService) {}
 
+  @Get('stats')
+  @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'view' })
+  @ApiOperation({ summary: 'Get summary statistics for deployments' })
+  getStats(@Request() req: any) {
+    return this.consentDeploymentsService.getStats(req.user.tenantId);
+  }
+
   @Post()
   @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'create' })
   @ApiOperation({ summary: 'Deploy a Consent Version to an Application' })

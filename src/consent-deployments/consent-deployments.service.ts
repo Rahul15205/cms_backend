@@ -74,13 +74,40 @@ export class ConsentDeploymentsService {
         skip,
         orderBy: { deployedAt: 'desc' },
         include: {
-          version: { select: { versionNumber: true, templateId: true } },
+          version: { 
+            include: { 
+              template: { select: { title: true } } 
+            } 
+          },
           application: { select: { name: true } }
         }
       })
     ]);
 
     return paginate(data, total, Math.floor(skip / take) + 1, take);
+  }
+
+  async getStats(tenantId?: string) {
+    const where: any = {};
+    if (tenantId) where.application = { tenantId };
+
+    const [active, pending, rollbacks, users] = await Promise.all([
+      this.prisma.consentDeployment.count({
+        where: { ...where, status: DeploymentStatus.DEPLOYED }
+      }),
+      this.prisma.consentDeployment.count({
+        where: { ...where, status: DeploymentStatus.PENDING }
+      }),
+      this.prisma.consentDeployment.count({
+        where: { ...where, status: DeploymentStatus.ROLLED_BACK }
+      }),
+      // For now, let's count unique records in ConsentRecord for these applications
+      this.prisma.consentRecord.count({
+        where: tenantId ? { applicationId: { in: (await this.prisma.application.findMany({ where: { tenantId }, select: { id: true } })).map(a => a.id) } } : {}
+      })
+    ]);
+
+    return { active, pending, rollbacks, users };
   }
 
   async findOne(id: string) {

@@ -69,12 +69,33 @@ export class ConsentTemplatesService {
     return template;
   }
 
-  async update(id: string, updateConsentTemplateDto: UpdateConsentTemplateDto) {
-    await this.findOne(id);
-    return this.prisma.consentTemplate.update({
+  async update(id: string, updateConsentTemplateDto: UpdateConsentTemplateDto, userId?: string) {
+    const template = await this.findOne(id);
+    
+    // Update the template record
+    const updatedTemplate = await this.prisma.consentTemplate.update({
       where: { id },
       data: updateConsentTemplateDto as any
     });
+
+    // If template is PUBLISHED, we must create a new version to capture the changes
+    if (template.status === TemplateStatus.PUBLISHED) {
+      const latestVersion = template.versions[0];
+      const nextVersionNumber = latestVersion ? latestVersion.versionNumber + 1 : 1;
+
+      await this.prisma.consentVersion.create({
+        data: {
+          templateId: id,
+          versionNumber: nextVersionNumber,
+          content: JSON.stringify(updateConsentTemplateDto.wizardFields || template.wizardFields),
+          publishedBy: userId || template.createdBy,
+          changeSummary: 'Automatic version update on template modification',
+          status: 'ACTIVE'
+        }
+      });
+    }
+
+    return updatedTemplate;
   }
 
   async remove(id: string) {
