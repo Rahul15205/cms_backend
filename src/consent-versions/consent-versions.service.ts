@@ -53,6 +53,28 @@ export class ConsentVersionsService {
     });
   }
 
+  async getStats(tenantId?: string) {
+    const where: any = {};
+    if (tenantId) where.template = { tenantId };
+
+    const [total, active, reconsent] = await Promise.all([
+      this.prisma.consentVersion.count({ where }),
+      this.prisma.consentVersion.count({ 
+        where: { ...where, status: 'ACTIVE' } 
+      }),
+      this.prisma.consentVersion.count({ 
+        where: { ...where, reconsentTriggered: true } 
+      })
+    ]);
+
+    return { 
+      total, 
+      active, 
+      reconsent,
+      usersImpacted: 0 // Placeholder for now
+    };
+  }
+
   async findAll(templateId?: string, limit?: number, offset?: number) {
     const where: any = {};
     if (templateId) where.templateId = templateId;
@@ -67,7 +89,10 @@ export class ConsentVersionsService {
         take,
         skip,
         orderBy: [{ templateId: 'desc' }, { versionNumber: 'desc' }],
-        include: { publisher: { select: { name: true, email: true } } }
+        include: { 
+          template: { select: { title: true } },
+          publisher: { select: { name: true, email: true } } 
+        }
       })
     ]);
 

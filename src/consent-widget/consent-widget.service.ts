@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { CreateConsentWidgetDto } from './dto/create-consent-widget.dto';
 import { UpdateConsentWidgetDto } from './dto/update-consent-widget.dto';
-import { WidgetStatus } from '@prisma/client';
+import { WidgetStatus, DeploymentStatus } from '@prisma/client';
 
 @Injectable()
 export class ConsentWidgetService {
@@ -130,7 +130,8 @@ export class ConsentWidgetService {
   // ─── PUBLIC API (Embeddable Widget) ─────────────────────
 
   async getPublicWidgetConfig(applicationId: string) {
-    return this.prisma.consentWidgetConfig.findFirst({
+    // 1. Get the widget config
+    const widget = await this.prisma.consentWidgetConfig.findFirst({
       where: {
         applicationId,
         status: WidgetStatus.WIDGET_ACTIVE,
@@ -143,9 +144,38 @@ export class ConsentWidgetService {
             thirdParties: true,
           },
         },
-        application: { select: { name: true } },
+        application: { 
+          select: { 
+            name: true,
+            deployments: {
+              where: { status: DeploymentStatus.DEPLOYED },
+              orderBy: { deployedAt: 'desc' },
+              take: 1,
+              include: {
+                version: true
+              }
+            }
+          } 
+        },
       },
     });
+
+    if (!widget) return null;
+
+    // 2. Check if there's an active deployment that should override the template data
+    const activeDeployment = widget.application?.deployments?.[0];
+    if (activeDeployment && activeDeployment.version) {
+      try {
+        const versionData = JSON.parse(activeDeployment.version.content);
+        // Inject deployment data into the template object for the controller to use
+        (widget.template as any).wizardFields = versionData;
+        (widget.template as any).activeVersion = activeDeployment.version.versionNumber;
+      } catch (e) {
+        console.error('Failed to parse deployment version content', e);
+      }
+    }
+
+    return widget;
   }
 
   async recordPublicConsent(applicationId: string, dto: any) {

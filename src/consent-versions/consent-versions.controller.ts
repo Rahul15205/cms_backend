@@ -24,6 +24,13 @@ export class ConsentVersionsController {
     return this.consentVersionsService.create(createConsentVersionDto, req.user.userId);
   }
 
+  @Get('stats')
+  @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'view' })
+  @ApiOperation({ summary: 'Get summary statistics for consent versions' })
+  getStats(@Request() req: any) {
+    return this.consentVersionsService.getStats(req.user.tenantId);
+  }
+
   @Get()
   @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'view' })
   @ApiOperation({ summary: 'List Consent Versions historically' })
