@@ -91,12 +91,19 @@ export class ConsentVersionsService {
         orderBy: [{ templateId: 'desc' }, { versionNumber: 'desc' }],
         include: { 
           template: { select: { title: true } },
-          publisher: { select: { name: true, email: true } } 
+          publisher: { select: { name: true, email: true } },
+          _count: { select: { records: true } }
         }
       })
     ]);
 
-    return paginate(data, total, Math.floor(skip / take) + 1, take);
+    const mappedData = data.map(v => ({
+      ...v,
+      usersImpacted: (v as any)._count?.records || 0,
+      approvedBy: v.publisher?.name || v.publishedBy
+    }));
+
+    return paginate(mappedData, total, Math.floor(skip / take) + 1, take);
   }
 
   async findOne(id: string) {
