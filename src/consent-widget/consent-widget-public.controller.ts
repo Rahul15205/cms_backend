@@ -358,7 +358,7 @@ export class ConsentWidgetPublicController {
 
     // Store locally
     var consentData = {
-      status: action === 'reject_all' ? 'rejected' : 'accepted',
+      status: action === 'reject_all' ? 'rejected' : (action === 'accept_all' ? 'accepted_all' : 'accepted'),
       purposes: data.purposes,
       timestamp: new Date().toISOString(),
       email: data.email,
@@ -518,7 +518,8 @@ export class ConsentWidgetPublicController {
     // Check if already consented
     var existing = null;
     try { existing = JSON.parse(localStorage.getItem('proteccio-consent-widget')); } catch(e) {}
-    if (existing && existing.status === 'accepted') return;
+    var isAccepted = existing && ["accepted", "accepted_all", "custom", "allow", "all", "success"].includes(existing.status);
+    if (isAccepted) return;
 
     if (config.trigger === 'PAGE_LOAD') {
       showWidget();
