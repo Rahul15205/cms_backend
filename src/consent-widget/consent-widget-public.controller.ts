@@ -106,6 +106,7 @@ export class ConsentWidgetPublicController {
   var supportedLanguages = ${JSON.stringify(supportedLanguages)};
   var currentLanguage = config.defaultLanguage || 'en';
   var logoUrl = '${logoUrl}';
+  var localOnConsentCallback = null;
   
   var originalConfig = JSON.parse(JSON.stringify(config));
   var originalPurposes = JSON.parse(JSON.stringify(purposes));
@@ -648,7 +649,15 @@ export class ConsentWidgetPublicController {
     .then(function(res) { return res.json(); })
     .then(function(result) {
       // Fire callback
-      if (window.ProteccioConsent && window.ProteccioConsent._onConsentCallback) {
+      if (localOnConsentCallback) {
+        localOnConsentCallback({
+          status: consentData.status,
+          purposes: data.purposes,
+          email: data.email,
+          name: data.name,
+          recordId: result.recordId,
+        });
+      } else if (window.ProteccioConsent && window.ProteccioConsent._onConsentCallback) {
         window.ProteccioConsent._onConsentCallback({
           status: consentData.status,
           purposes: data.purposes,
@@ -671,7 +680,9 @@ export class ConsentWidgetPublicController {
     .catch(function(err) {
       console.error('Proteccio: Failed to record consent', err);
       // Still hide and fire callback on error (graceful degradation)
-      if (window.ProteccioConsent && window.ProteccioConsent._onConsentCallback) {
+      if (localOnConsentCallback) {
+        localOnConsentCallback({ status: consentData.status, purposes: data.purposes, error: true });
+      } else if (window.ProteccioConsent && window.ProteccioConsent._onConsentCallback) {
         window.ProteccioConsent._onConsentCallback({ status: consentData.status, purposes: data.purposes, error: true });
       }
       hideWidget();
@@ -767,14 +778,33 @@ export class ConsentWidgetPublicController {
 
   // ─── GLOBAL API ──────────────────────────────────────────
   window.ProteccioConsent = window.ProteccioConsent || {};
+  
+  // Create an instance specific to this widget ID
+  var instance = {
+    show: showWidget,
+    hide: hideWidget,
+    check: checkConsent,
+    withdraw: withdrawConsent,
+    onFormSubmit: interceptForm,
+    renderInline: renderInline,
+    onConsent: function(cb) { localOnConsentCallback = cb; }
+  };
+
+  // Register under the specific Widget ID so multiple widgets can coexist
+  window.ProteccioConsent[config.id] = instance;
+
+  // Also maintain global backwards compatibility (points to the last loaded widget script)
   window.ProteccioConsent.show = showWidget;
   window.ProteccioConsent.hide = hideWidget;
   window.ProteccioConsent.check = checkConsent;
   window.ProteccioConsent.withdraw = withdrawConsent;
   window.ProteccioConsent.onFormSubmit = interceptForm;
   window.ProteccioConsent.renderInline = renderInline;
-  window.ProteccioConsent.onConsent = function(cb) { window.ProteccioConsent._onConsentCallback = cb; };
-  window.ProteccioConsent._onConsentCallback = null;
+  window.ProteccioConsent.onConsent = function(cb) { 
+    localOnConsentCallback = cb; 
+    window.ProteccioConsent._onConsentCallback = cb; 
+  };
+  window.ProteccioConsent._onConsentCallback = window.ProteccioConsent._onConsentCallback || null;
 
   // ─── AUTO-TRIGGER ────────────────────────────────────────
   function autoTrigger() {

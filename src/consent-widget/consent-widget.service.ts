@@ -129,11 +129,11 @@ export class ConsentWidgetService {
 
   // ─── PUBLIC API (Embeddable Widget) ─────────────────────
 
-  async getPublicWidgetConfig(applicationId: string) {
-    // 1. Get the widget config
-    const widget = await this.prisma.consentWidgetConfig.findFirst({
+  async getPublicWidgetConfig(id: string) {
+    // 1. Try to find the widget config by Widget ID first
+    let widget = await this.prisma.consentWidgetConfig.findFirst({
       where: {
-        applicationId,
+        id: id,
         status: WidgetStatus.WIDGET_ACTIVE,
       },
       include: {
@@ -160,6 +160,38 @@ export class ConsentWidgetService {
       },
     });
 
+    // 1.b Fallback to Application ID for backward compatibility
+    if (!widget) {
+      widget = await this.prisma.consentWidgetConfig.findFirst({
+        where: {
+          applicationId: id,
+          status: WidgetStatus.WIDGET_ACTIVE,
+        },
+        include: {
+          template: {
+            include: {
+              purposes: true,
+              dataCategories: true,
+              thirdParties: true,
+            },
+          },
+          application: { 
+            select: { 
+              name: true,
+              deployments: {
+                where: { status: DeploymentStatus.DEPLOYED },
+                orderBy: { deployedAt: 'desc' },
+                take: 1,
+                include: {
+                  version: true
+                }
+              }
+            } 
+          },
+        },
+      });
+    }
+
     if (!widget) return null;
 
     // 2. Check if there's an active deployment that should override the template data
@@ -178,9 +210,9 @@ export class ConsentWidgetService {
     return widget;
   }
 
-  async recordPublicConsent(applicationId: string, dto: any) {
+  async recordPublicConsent(id: string, dto: any) {
     // 1. Get the active widget config
-    const widget = await this.getPublicWidgetConfig(applicationId);
+    const widget = await this.getPublicWidgetConfig(id);
     if (!widget) return null;
 
     // 2. Find the latest version for this template
@@ -200,7 +232,7 @@ export class ConsentWidgetService {
     const record = await this.prisma.consentRecord.create({
       data: {
         versionId: latestVersion.id,
-        applicationId,
+        applicationId: widget.applicationId,
         endUserEmail: dto.email || null,
         endUserPhone: dto.phone || null,
         endUserIp: dto.ipAddress ? this.maskIp(dto.ipAddress) : null,
@@ -242,13 +274,16 @@ export class ConsentWidgetService {
     };
   }
 
-  async checkConsentStatus(applicationId: string, identifier: string) {
+  async checkConsentStatus(id: string, identifier: string) {
+    const widget = await this.getPublicWidgetConfig(id);
+    if (!widget) return { hasConsent: false, status: 'NONE', purposes: [] };
+
     // Try matching by email hash first, then by phone hash
     const emailHash = this.encryptionService.generateHash(identifier);
 
     const record = await this.prisma.consentRecord.findFirst({
       where: {
-        applicationId,
+        applicationId: widget.applicationId,
         status: 'GRANTED',
         OR: [
           { endUserEmailHash: emailHash },
@@ -270,12 +305,15 @@ export class ConsentWidgetService {
     return { hasConsent: false, status: 'NONE', purposes: [] };
   }
 
-  async withdrawConsent(applicationId: string, identifier: string) {
+  async withdrawConsent(id: string, identifier: string) {
+    const widget = await this.getPublicWidgetConfig(id);
+    if (!widget) return { success: false, message: 'Widget not found' };
+
     const emailHash = this.encryptionService.generateHash(identifier);
 
     const result = await this.prisma.consentRecord.updateMany({
       where: {
-        applicationId,
+        applicationId: widget.applicationId,
         status: 'GRANTED',
         OR: [
           { endUserEmailHash: emailHash },
