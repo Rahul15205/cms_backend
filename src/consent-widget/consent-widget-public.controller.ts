@@ -107,6 +107,14 @@ export class ConsentWidgetPublicController {
   var currentLanguage = config.defaultLanguage || 'en';
   var logoUrl = '${logoUrl}';
   
+  // Translation backups
+  var originalConfig = JSON.parse(JSON.stringify(config));
+  var originalPurposes = JSON.parse(JSON.stringify(purposes));
+  var originalDataCategories = JSON.parse(JSON.stringify(dataCategories));
+  var originalThirdParties = JSON.parse(JSON.stringify(thirdParties));
+  var originalRetention = JSON.parse(JSON.stringify(retention));
+  var originalWithdrawal = JSON.parse(JSON.stringify(withdrawal));
+
   console.log('Proteccio: Loaded ' + purposes.length + ' purposes');
 
   // ─── STYLES ──────────────────────────────────────────────
@@ -219,6 +227,7 @@ export class ConsentWidgetPublicController {
       fieldsHtml += '<div class="proteccio-field"><input type="tel" id="proteccio-phone" placeholder="Phone Number" autocomplete="tel"></div>';
     }
 
+    var requiredText = (window.proteccioTranslations && window.proteccioTranslations.required) || 'Required';
     var purposesHtml = purposes.map(function(p) {
       var isRequired = p.necessity === 'ESSENTIAL' || config.requireAllPurposes;
       return '<div class="proteccio-purpose">' +
@@ -229,9 +238,9 @@ export class ConsentWidgetPublicController {
         '</label>' +
         '<div class="proteccio-purpose-info">' +
           '<div class="proteccio-purpose-name">' + p.name +
-          (isRequired ? ' <span class="proteccio-required-badge">Required</span>' : '') +
+          (isRequired ? ' <span class="proteccio-required-badge">' + requiredText + '</span>' : '') +
           '</div>' +
-          '<div class="proteccio-purpose-desc">' + (p.description || 'Required for service delivery.') + '</div>' +
+          '<div class="proteccio-purpose-desc">' + (p.description || '') + '</div>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -254,10 +263,11 @@ export class ConsentWidgetPublicController {
       langHtml = '<div class="proteccio-lang-bar"><select class="proteccio-lang-select" id="proteccio-lang-select" aria-label="Language">' + langOptions + '</select></div>';
     }
 
+    var dataAttributesText = (window.proteccioTranslations && window.proteccioTranslations.dataAttributes) || 'Data Attributes';
     var dataHtml = '';
     if (dataCategories.length > 0) {
       dataHtml = '<div class="proteccio-details-section">' +
-        '<div class="proteccio-section-title">Data Attributes</div>' +
+        '<div class="proteccio-section-title">' + dataAttributesText + '</div>' +
         '<div class="proteccio-data-list">' +
           dataCategories.map(function(c) { 
             return '<span class="proteccio-tag">' + (c.label || c.category) + (c.mandatory ? ' ✦' : '') + '</span>'; 
@@ -266,10 +276,11 @@ export class ConsentWidgetPublicController {
       '</div>';
     }
 
+    var thirdPartiesText = (window.proteccioTranslations && window.proteccioTranslations.thirdParties) || 'Third Parties';
     var thirdPartyHtml = '';
     if (thirdParties.length > 0) {
       thirdPartyHtml = '<div class="proteccio-details-section">' +
-        '<div class="proteccio-section-title">Third Parties</div>' +
+        '<div class="proteccio-section-title">' + thirdPartiesText + '</div>' +
         '<ul class="proteccio-tp-list">' +
           thirdParties.map(function(t) {
             var detail = t.role ? ' (' + t.role + ')' : '';
@@ -281,44 +292,57 @@ export class ConsentWidgetPublicController {
       '</div>';
     }
 
+    var consentValidityText = (window.proteccioTranslations && window.proteccioTranslations.consentValidity) || 'Consent Validity';
+    var durationText = (window.proteccioTranslations && window.proteccioTranslations.duration) || 'Duration';
     // Validity section
     var validityHtml = '';
     if (validityDuration) {
       validityHtml = '<div class="proteccio-details-section">' +
-        '<div class="proteccio-section-title">Consent Validity</div>' +
-        '<div class="proteccio-info-row"><span class="proteccio-info-label">Duration:</span><span class="proteccio-info-value">' + validityDuration + '</span></div>' +
+        '<div class="proteccio-section-title">' + consentValidityText + '</div>' +
+        '<div class="proteccio-info-row"><span class="proteccio-info-label">' + durationText + ':</span><span class="proteccio-info-value">' + validityDuration + '</span></div>' +
       '</div>';
     }
 
+    var dataPrincipalText = (window.proteccioTranslations && window.proteccioTranslations.dataPrincipal) || 'Data Principal';
+    var categoryText = (window.proteccioTranslations && window.proteccioTranslations.category) || 'Category';
+    var ageThresholdText = (window.proteccioTranslations && window.proteccioTranslations.ageThreshold) || 'Age Threshold';
+    var givenByText = (window.proteccioTranslations && window.proteccioTranslations.givenBy) || 'Given By';
+    var yearsText = (window.proteccioTranslations && window.proteccioTranslations.years) || 'years';
     // Data Principal section
     var principalHtml = '';
     if (dataPrincipal.targetUserCategory || dataPrincipal.ageThreshold) {
       principalHtml = '<div class="proteccio-details-section">' +
-        '<div class="proteccio-section-title">Data Principal</div>' +
-        (dataPrincipal.targetUserCategory ? '<div class="proteccio-info-row"><span class="proteccio-info-label">Category:</span><span class="proteccio-info-value">' + dataPrincipal.targetUserCategory + '</span></div>' : '') +
-        (dataPrincipal.ageThreshold ? '<div class="proteccio-info-row"><span class="proteccio-info-label">Age Threshold:</span><span class="proteccio-info-value">' + dataPrincipal.ageThreshold + '+ years</span></div>' : '') +
-        (dataPrincipal.consentGivenBy ? '<div class="proteccio-info-row"><span class="proteccio-info-label">Given By:</span><span class="proteccio-info-value">' + dataPrincipal.consentGivenBy + '</span></div>' : '') +
+        '<div class="proteccio-section-title">' + dataPrincipalText + '</div>' +
+        (dataPrincipal.targetUserCategory ? '<div class="proteccio-info-row"><span class="proteccio-info-label">' + categoryText + ':</span><span class="proteccio-info-value">' + dataPrincipal.targetUserCategory + '</span></div>' : '') +
+        (dataPrincipal.ageThreshold ? '<div class="proteccio-info-row"><span class="proteccio-info-label">' + ageThresholdText + ':</span><span class="proteccio-info-value">' + dataPrincipal.ageThreshold + '+ ' + yearsText + '</span></div>' : '') +
+        (dataPrincipal.consentGivenBy ? '<div class="proteccio-info-row"><span class="proteccio-info-label">' + givenByText + ':</span><span class="proteccio-info-value">' + dataPrincipal.consentGivenBy + '</span></div>' : '') +
       '</div>';
     }
 
+    var dataRetentionText = (window.proteccioTranslations && window.proteccioTranslations.dataRetention) || 'Data Retention';
+    var periodText = (window.proteccioTranslations && window.proteccioTranslations.period) || 'Period';
+    var autoDeleteText = (window.proteccioTranslations && window.proteccioTranslations.autoDelete) || 'Auto-Delete';
+    var yesText = (window.proteccioTranslations && window.proteccioTranslations.yes) || 'Yes';
     // Retention section
     var retentionHtml = '';
     if (retention.period) {
       retentionHtml = '<div class="proteccio-details-section">' +
-        '<div class="proteccio-section-title">Data Retention</div>' +
-        '<div class="proteccio-info-row"><span class="proteccio-info-label">Period:</span><span class="proteccio-info-value">' + retention.period + '</span></div>' +
-        (retention.autoDelete ? '<div class="proteccio-info-row"><span class="proteccio-info-label">Auto-Delete:</span><span class="proteccio-info-value">Yes</span></div>' : '') +
+        '<div class="proteccio-section-title">' + dataRetentionText + '</div>' +
+        '<div class="proteccio-info-row"><span class="proteccio-info-label">' + periodText + ':</span><span class="proteccio-info-value">' + retention.period + '</span></div>' +
+        (retention.autoDelete ? '<div class="proteccio-info-row"><span class="proteccio-info-label">' + autoDeleteText + ':</span><span class="proteccio-info-value">' + yesText + '</span></div>' : '') +
         (retention.justification ? '<p class="proteccio-retention-text">' + retention.justification + '</p>' : '') +
       '</div>';
     }
 
+    var rightsWithdrawalText = (window.proteccioTranslations && window.proteccioTranslations.rightsWithdrawal) || 'Your Rights & Withdrawal';
+    var manageRightsText = (window.proteccioTranslations && window.proteccioTranslations.manageRights) || 'Manage your privacy rights';
     // Rights & Withdrawal section
     var withdrawalHtml = '';
     if (withdrawal.method || withdrawal.rightsLink) {
       withdrawalHtml = '<div class="proteccio-details-section">' +
-        '<div class="proteccio-section-title">Your Rights &amp; Withdrawal</div>' +
+        '<div class="proteccio-section-title">' + rightsWithdrawalText + '</div>' +
         (withdrawal.method ? '<p class="proteccio-retention-text">' + withdrawal.method + '</p>' : '') +
-        (withdrawal.rightsLink ? '<br><a class="proteccio-rights-link" href="' + withdrawal.rightsLink + '" target="_blank" rel="noopener">⟶ Manage your privacy rights</a>' : '') +
+        (withdrawal.rightsLink ? '<br><a class="proteccio-rights-link" href="' + withdrawal.rightsLink + '" target="_blank" rel="noopener">⟶ ' + manageRightsText + '</a>' : '') +
       '</div>';
     }
 
@@ -386,9 +410,147 @@ export class ConsentWidgetPublicController {
     // Language switcher
     var langSelect = document.getElementById('proteccio-lang-select');
     if (langSelect) {
-      langSelect.addEventListener('change', function() {
-        currentLanguage = langSelect.value;
-        // Rebuild widget with new language (page-reload approach for simplicity)
+      langSelect.addEventListener('change', async function() {
+        var targetLang = langSelect.value;
+        currentLanguage = targetLang;
+
+        if (targetLang === (originalConfig.defaultLanguage || 'en')) {
+           // Reset to original
+           config = JSON.parse(JSON.stringify(originalConfig));
+           purposes = JSON.parse(JSON.stringify(originalPurposes));
+           dataCategories = JSON.parse(JSON.stringify(originalDataCategories));
+           thirdParties = JSON.parse(JSON.stringify(originalThirdParties));
+           retention = JSON.parse(JSON.stringify(originalRetention));
+           withdrawal = JSON.parse(JSON.stringify(originalWithdrawal));
+           validityDuration = ${JSON.stringify(validityDuration || '')};
+           dataPrincipal = ${JSON.stringify(dataPrincipal)};
+           
+           hideWidget();
+           setTimeout(showWidget, 350);
+           return;
+        }
+
+        langSelect.disabled = true;
+        langSelect.style.opacity = '0.5';
+
+        // Collect all texts to translate
+        var texts = [];
+        texts.push(originalConfig.heading || 'We value your privacy');
+        texts.push(originalConfig.description || '');
+        texts.push(originalConfig.rejectAllText || 'Reject All');
+        texts.push(originalConfig.savePrefsText || 'Save Preferences');
+        texts.push(originalConfig.acceptAllText || 'Accept All');
+        texts.push(originalRetention.justification || '');
+        texts.push(originalWithdrawal.method || '');
+        texts.push(originalRetention.period || '');
+        texts.push(validityDuration || '');
+        texts.push(dataPrincipal.targetUserCategory || '');
+        texts.push(dataPrincipal.consentGivenBy || '');
+        
+        originalPurposes.forEach(function(p) {
+           texts.push(p.name || '');
+           texts.push(p.description || '');
+        });
+        
+        originalDataCategories.forEach(function(c) {
+           texts.push(c.label || c.category || '');
+        });
+
+        originalThirdParties.forEach(function(t) {
+           texts.push(t.name || '');
+           texts.push(t.purpose || '');
+           texts.push(t.role || '');
+           texts.push(t.country || '');
+        });
+
+        texts.push('Required');
+        texts.push('Data Attributes');
+        texts.push('Third Parties');
+        texts.push('Consent Validity');
+        texts.push('Data Principal');
+        texts.push('Data Retention');
+        texts.push('Your Rights & Withdrawal');
+        texts.push('Duration');
+        texts.push('Category');
+        texts.push('Age Threshold');
+        texts.push('Given By');
+        texts.push('years');
+        texts.push('Period');
+        texts.push('Auto-Delete');
+        texts.push('Yes');
+        texts.push('Manage your privacy rights');
+
+        // Ensure no nulls
+        texts = texts.map(t => t || ' ');
+
+        try {
+          const response = await fetch(config.baseUrl + '/api/v1/public/translation/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              texts: texts,
+              sourceLang: 'en',
+              targetLang: targetLang
+            })
+          });
+          
+          const result = await response.json();
+          if (result.success && result.data) {
+             var t = result.data;
+             var idx = 0;
+             config.heading = t[idx++];
+             config.description = t[idx++];
+             config.rejectAllText = t[idx++];
+             config.savePrefsText = t[idx++];
+             config.acceptAllText = t[idx++];
+             retention.justification = t[idx++];
+             withdrawal.method = t[idx++];
+             retention.period = t[idx++];
+             validityDuration = t[idx++];
+             dataPrincipal.targetUserCategory = t[idx++];
+             dataPrincipal.consentGivenBy = t[idx++];
+             
+             purposes.forEach(function(p) {
+               p.name = t[idx++];
+               p.description = t[idx++];
+             });
+
+             dataCategories.forEach(function(c) {
+               c.label = t[idx++];
+             });
+
+             thirdParties.forEach(function(tp) {
+               tp.name = t[idx++];
+               tp.purpose = t[idx++];
+               tp.role = t[idx++];
+               tp.country = t[idx++];
+             });
+
+             window.proteccioTranslations = window.proteccioTranslations || {};
+             window.proteccioTranslations.required = t[idx++];
+             window.proteccioTranslations.dataAttributes = t[idx++];
+             window.proteccioTranslations.thirdParties = t[idx++];
+             window.proteccioTranslations.consentValidity = t[idx++];
+             window.proteccioTranslations.dataPrincipal = t[idx++];
+             window.proteccioTranslations.dataRetention = t[idx++];
+             window.proteccioTranslations.rightsWithdrawal = t[idx++];
+             window.proteccioTranslations.duration = t[idx++];
+             window.proteccioTranslations.category = t[idx++];
+             window.proteccioTranslations.ageThreshold = t[idx++];
+             window.proteccioTranslations.givenBy = t[idx++];
+             window.proteccioTranslations.years = t[idx++];
+             window.proteccioTranslations.period = t[idx++];
+             window.proteccioTranslations.autoDelete = t[idx++];
+             window.proteccioTranslations.yes = t[idx++];
+             window.proteccioTranslations.manageRights = t[idx++];
+          }
+        } catch(err) {
+          console.error('Proteccio translation failed:', err);
+        }
+
+        langSelect.disabled = false;
+        langSelect.style.opacity = '1';
+
         hideWidget();
         setTimeout(showWidget, 350);
       });
