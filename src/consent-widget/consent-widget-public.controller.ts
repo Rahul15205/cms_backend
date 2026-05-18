@@ -447,9 +447,9 @@ export class ConsentWidgetPublicController {
         texts.push(originalRetention.justification || '');
         texts.push(originalWithdrawal.method || '');
         texts.push(originalRetention.period || '');
-        texts.push(validityDuration || '');
-        texts.push(dataPrincipal.targetUserCategory || '');
-        texts.push(dataPrincipal.consentGivenBy || '');
+        texts.push(originalValidityDuration || '');
+        texts.push(originalDataPrincipal.targetUserCategory || '');
+        texts.push(originalDataPrincipal.consentGivenBy || '');
         
         originalPurposes.forEach(function(p) {
            texts.push(p.name || '');
