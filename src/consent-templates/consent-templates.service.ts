@@ -72,12 +72,6 @@ export class ConsentTemplatesService {
   async update(id: string, updateConsentTemplateDto: UpdateConsentTemplateDto, userId?: string) {
     const template = await this.findOne(id);
     
-    // Update the template record
-    const updatedTemplate = await this.prisma.consentTemplate.update({
-      where: { id },
-      data: updateConsentTemplateDto as any
-    });
-
     // If template is PUBLISHED, we must create a new version to capture the changes
     if (template.status === TemplateStatus.PUBLISHED) {
       const latestVersion = template.versions[0];
@@ -94,6 +88,15 @@ export class ConsentTemplatesService {
         }
       });
     }
+
+    // Update the template record and include the latest version
+    const updatedTemplate = await this.prisma.consentTemplate.update({
+      where: { id },
+      data: updateConsentTemplateDto as any,
+      include: {
+        versions: { orderBy: { versionNumber: 'desc' }, take: 1 }
+      }
+    });
 
     return updatedTemplate;
   }
