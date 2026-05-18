@@ -107,13 +107,14 @@ export class ConsentWidgetPublicController {
   var currentLanguage = config.defaultLanguage || 'en';
   var logoUrl = '${logoUrl}';
   
-  // Translation backups
   var originalConfig = JSON.parse(JSON.stringify(config));
   var originalPurposes = JSON.parse(JSON.stringify(purposes));
   var originalDataCategories = JSON.parse(JSON.stringify(dataCategories));
   var originalThirdParties = JSON.parse(JSON.stringify(thirdParties));
   var originalRetention = JSON.parse(JSON.stringify(retention));
   var originalWithdrawal = JSON.parse(JSON.stringify(withdrawal));
+  var originalValidityDuration = JSON.parse(JSON.stringify(validityDuration));
+  var originalDataPrincipal = JSON.parse(JSON.stringify(dataPrincipal));
 
   console.log('Proteccio: Loaded ' + purposes.length + ' purposes');
 
@@ -422,8 +423,11 @@ export class ConsentWidgetPublicController {
            thirdParties = JSON.parse(JSON.stringify(originalThirdParties));
            retention = JSON.parse(JSON.stringify(originalRetention));
            withdrawal = JSON.parse(JSON.stringify(originalWithdrawal));
-           validityDuration = ${JSON.stringify(validityDuration || '')};
-           dataPrincipal = ${JSON.stringify(dataPrincipal)};
+           validityDuration = JSON.parse(JSON.stringify(originalValidityDuration));
+           dataPrincipal = JSON.parse(JSON.stringify(originalDataPrincipal));
+           
+           // Clear cached translations so labels revert to English defaults
+           window.proteccioTranslations = null;
            
            hideWidget();
            setTimeout(showWidget, 350);
