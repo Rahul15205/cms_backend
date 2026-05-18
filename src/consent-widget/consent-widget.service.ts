@@ -160,38 +160,6 @@ export class ConsentWidgetService {
       },
     });
 
-    // 1.b Fallback to Application ID for backward compatibility
-    if (!widget) {
-      widget = await this.prisma.consentWidgetConfig.findFirst({
-        where: {
-          applicationId: id,
-          status: WidgetStatus.WIDGET_ACTIVE,
-        },
-        include: {
-          template: {
-            include: {
-              purposes: true,
-              dataCategories: true,
-              thirdParties: true,
-            },
-          },
-          application: { 
-            select: { 
-              name: true,
-              deployments: {
-                where: { status: DeploymentStatus.DEPLOYED },
-                orderBy: { deployedAt: 'desc' },
-                take: 1,
-                include: {
-                  version: true
-                }
-              }
-            } 
-          },
-        },
-      });
-    }
-
     if (!widget) return null;
 
     // 2. Check if there's an active deployment that should override the template data
