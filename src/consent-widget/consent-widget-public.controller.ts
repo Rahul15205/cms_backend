@@ -363,7 +363,8 @@ export class ConsentWidgetPublicController {
       timestamp: new Date().toISOString(),
       email: data.email,
     };
-    try { localStorage.setItem('proteccio-consent-widget', JSON.stringify(consentData)); } catch(e) {}
+    // Persistence removed by developer request - every submission requires fresh consent
+    // try { localStorage.setItem('proteccio-consent-widget', JSON.stringify(consentData)); } catch(e) {}
 
     // Disable buttons during submit
     var btns = document.querySelectorAll('.proteccio-btn');
@@ -515,11 +516,7 @@ export class ConsentWidgetPublicController {
 
   // ─── AUTO-TRIGGER ────────────────────────────────────────
   function autoTrigger() {
-    // Check if already consented
-    var existing = null;
-    try { existing = JSON.parse(localStorage.getItem('proteccio-consent-widget')); } catch(e) {}
-    var isAccepted = existing && ["accepted", "accepted_all", "custom", "allow", "all", "success"].includes(existing.status);
-    if (isAccepted) return;
+    // Persistence check removed - auto-trigger will now always run if configured
 
     if (config.trigger === 'PAGE_LOAD') {
       showWidget();
