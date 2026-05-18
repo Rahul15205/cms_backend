@@ -706,7 +706,7 @@ export class ConsentWidgetPublicController {
       e.stopPropagation();
 
       // Show consent widget, then submit form on consent
-      window.ProteccioConsent._onConsentCallback = function() {
+      localOnConsentCallback = function() {
         form.submit();
       };
       showWidget();
