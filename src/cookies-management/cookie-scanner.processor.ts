@@ -1397,11 +1397,23 @@ export class CookieScannerProcessor extends WorkerHost {
         const getStatus = (id: string) => {
           const ind = indicators.find(i => i.id === id);
           if (!ind) return { icon: '✖', text: 'Missing' };
-          return ind.passed ? { icon: '✔', text: 'Present' } : { icon: '✖', text: 'Missing' };
+          if (ind.passed) return { icon: '✔', text: 'Present' };
+          // For graduated scores, show partial credit
+          if (ind.score > 0 && ind.score < ind.weight) {
+            return { icon: '⚠', text: `Partial (${ind.score}/${ind.weight})` };
+          }
+          return { icon: '✖', text: 'Missing' };
         };
 
-        const keyRisks = indicators.filter(i => !i.passed).map(i => `${i.name} issue detected.`).slice(0, 5);
-        const recommendedActions = indicators.filter(i => !i.passed).map(i => `Implement or fix ${i.name}`).slice(0, 5);
+        const keyRisks = indicators
+          .filter(i => !i.passed)
+          .sort((a, b) => {
+            const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+            return (severityOrder[a.severity || 'LOW'] || 3) - (severityOrder[b.severity || 'LOW'] || 3);
+          })
+          .map(i => `[${i.severity || 'MEDIUM'}] ${i.name}: ${i.details.substring(0, 120)}`)
+          .slice(0, 7);
+        const recommendedActions = indicators.filter(i => !i.passed).map(i => `Implement or fix ${i.name}`).slice(0, 7);
         const changesDetected: string[] = [];
 
         if (website.lastScan && updatedWebsite?.complianceScore !== website.complianceScore) {
@@ -1442,6 +1454,8 @@ export class CookieScannerProcessor extends WorkerHost {
             optOutIcon: getStatus('opt_out').icon, optOutText: getStatus('opt_out').text,
             languageIcon: getStatus('language_support').icon, languageText: getStatus('language_support').text,
             grievanceIcon: getStatus('grievance_mechanism').icon, grievanceText: getStatus('grievance_mechanism').text,
+            cookiePolicyIcon: getStatus('cookie_policy').icon, cookiePolicyText: getStatus('cookie_policy').text,
+            sameSiteIcon: getStatus('samesite_attribute').icon, sameSiteText: getStatus('samesite_attribute').text,
             keyRisks,
             recommendedActions,
             changesDetected,
