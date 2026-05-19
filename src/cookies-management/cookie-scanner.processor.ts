@@ -392,9 +392,12 @@ const CMP_ACCEPT_SELECTORS = [
 
 export interface CookieScanJobData {
   websiteId: string;
+  scanType?: 'FULL' | 'QUICK';  // QUICK = homepage + policy pages only (for daily re-scans)
 }
 
-@Processor('cookie-scanner')
+@Processor('cookie-scanner', {
+  concurrency: 3,  // Process up to 3 scans in parallel
+})
 export class CookieScannerProcessor extends WorkerHost {
   private readonly logger = new Logger(CookieScannerProcessor.name);
 
@@ -408,8 +411,9 @@ export class CookieScannerProcessor extends WorkerHost {
   }
 
   async process(job: Job<CookieScanJobData>): Promise<any> {
-    const { websiteId } = job.data;
-    this.logger.log(`Starting Optimized Scan for website: ${websiteId}`);
+    const { websiteId, scanType } = job.data;
+    const isQuickScan = scanType === 'QUICK';
+    this.logger.log(`Starting ${isQuickScan ? 'Quick' : 'Full'} Scan for website: ${websiteId}`);
 
     const website = await this.prisma.scannedWebsite.findUnique({ where: { id: websiteId } });
     if (!website) throw new Error(`Website not found: ${websiteId}`);
@@ -438,12 +442,21 @@ export class CookieScannerProcessor extends WorkerHost {
     // Track page classifications for conditional compliance scanning
     const classifiedPages: PageClassification[] = [];
 
-    const maxPages = website.depth === ScanDepth.DEEP ? Infinity : 100;
-    const maxAttempts = website.depth === ScanDepth.DEEP ? Infinity : maxPages * 3;
-    const MAX_SCAN_TIME_MS = website.depth === ScanDepth.DEEP ? 30 * 60 * 1000 : 10 * 60 * 1000;
+    // Quick scan: only visit homepage + policy pages (5 pages max, 3 min budget)
+    // Full scan: crawl up to 100 pages (standard) or unlimited (deep)
+    const maxPages = isQuickScan ? 5 : (website.depth === ScanDepth.DEEP ? Infinity : 100);
+    const maxAttempts = isQuickScan ? 15 : (website.depth === ScanDepth.DEEP ? Infinity : maxPages * 3);
+    const MAX_SCAN_TIME_MS = isQuickScan ? 3 * 60 * 1000 : (website.depth === ScanDepth.DEEP ? 30 * 60 * 1000 : 10 * 60 * 1000);
     const scanStartTime = Date.now();
 
     const discoveredCookies = new Map<string, any>();
+    
+    // ── PRE-CONSENT COOKIE AUDIT ──────────────────────────────────────────
+    // Track cookies that load BEFORE user clicks "Accept" on the cookie banner.
+    // Under GDPR Art. 5(3) and DPDP Section 4, non-essential cookies MUST NOT 
+    // be set before explicit consent. This is the #1 thing regulators check.
+    const preConsentCookies = new Map<string, any>();
+    let preConsentPhaseComplete = false;
     
     // FIX: Capture ALL network request domains (not just <script src>)
     // This catches fetch(), XHR, dynamic script injection, pixel tags, etc.
@@ -946,6 +959,23 @@ export class CookieScannerProcessor extends WorkerHost {
               }
             }
 
+            // ── PRE-CONSENT COOKIE SNAPSHOT ────────────────────────────────
+            // Capture cookies BEFORE clicking "Accept" on the FIRST page only.
+            // Any non-essential cookie here = GDPR Art. 5(3) / DPDP Section 4 violation.
+            if (!preConsentPhaseComplete && visited.size <= 2) {
+              try {
+                const preCookies = await page.cookies();
+                for (const cookie of preCookies) {
+                  if (!preConsentCookies.has(cookie.name)) {
+                    preConsentCookies.set(cookie.name, { ...cookie, foundOn: currentUrl, phase: 'PRE_CONSENT' });
+                  }
+                }
+                this.logger.log(`Pre-consent snapshot: ${preConsentCookies.size} cookie(s) found before consent on ${currentUrl}`);
+              } catch (e) {
+                this.logger.warn(`Pre-consent capture failed: ${e.message}`);
+              }
+            }
+
             // Click accept to trigger post-consent cookies
             for (const sel of CMP_ACCEPT_SELECTORS) {
               try {
@@ -994,9 +1024,15 @@ export class CookieScannerProcessor extends WorkerHost {
                   
                   // Wait 3 seconds to let third-party scripts load and inject tracking cookies after consent
                   await new Promise(r => setTimeout(r, 3000));
+                  preConsentPhaseComplete = true;  // Mark phase complete after consent interaction
                   break;
                 }
               } catch {}
+            }
+
+            // If no banner was found on first pages, mark pre-consent phase done anyway
+            if (!preConsentPhaseComplete && visited.size >= 2) {
+              preConsentPhaseComplete = true;
             }
 
             const langData = await page.evaluate(() => {
@@ -1337,6 +1373,35 @@ export class CookieScannerProcessor extends WorkerHost {
         },
       });
 
+      // ── Pre-Consent Cookie Analysis ──────────────────────────────────
+      // Classify pre-consent cookies to find violations (non-essential cookies loading before consent)
+      const preConsentViolations: { name: string; category: string; domain: string }[] = [];
+      for (const [name, cookie] of preConsentCookies) {
+        if (cookie.type !== 'HTTP_COOKIE') continue;
+        try {
+          const hostname = new URL(website.url).hostname;
+          const classification = this.cookieClassifier.classify(name, cookie.domain || hostname);
+          if (!['NECESSARY', 'FUNCTIONAL'].includes(classification.category)) {
+            preConsentViolations.push({ 
+              name, 
+              category: classification.category, 
+              domain: cookie.domain || hostname 
+            });
+          }
+        } catch {
+          // If classification fails, flag as potential violation
+          preConsentViolations.push({ name, category: 'UNKNOWN', domain: cookie.domain || '' });
+        }
+      }
+      
+      if (preConsentViolations.length > 0) {
+        this.logger.warn(`Pre-consent violations found: ${preConsentViolations.map(v => `${v.name}(${v.category})`).join(', ')}`);
+      }
+
+      // Attach pre-consent audit data to compliance signals
+      (complianceSignals as any).preConsentCookieCount = preConsentCookies.size;
+      (complianceSignals as any).preConsentViolations = preConsentViolations;
+
       await this.complianceScanner.evaluateCompliance(
         websiteId,
         discoveredCookies.size,
@@ -1444,6 +1509,8 @@ export class CookieScannerProcessor extends WorkerHost {
             unknownCount: categoryCounts['UNCATEGORIZED'],
             thirdPartyDomains,
             cmpProvider: complianceSignals.cmpProvider,
+            preConsentIcon: getStatus('pre_consent_audit').icon, preConsentText: getStatus('pre_consent_audit').text,
+            preConsentViolationsCount: preConsentViolations.length,
             bannerIcon: getStatus('banner_installed').icon, bannerText: getStatus('banner_installed').text,
             categorizationIcon: getStatus('categorization').icon, categorizationText: getStatus('categorization').text,
             loggingIcon: getStatus('consent_logging').icon, loggingText: getStatus('consent_logging').text,

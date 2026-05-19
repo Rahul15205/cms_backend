@@ -111,8 +111,33 @@ export class ComplianceScannerService {
     const httpCookies = (discoveredCookies || []).filter(c => c.type === 'HTTP_COOKIE');
 
     // ═══════════════════════════════════════════════════════════════════════
-    // POLICY & GOVERNANCE INDICATORS (46 pts)
+    // POLICY & GOVERNANCE INDICATORS (53 pts)
     // ═══════════════════════════════════════════════════════════════════════
+
+    // ── 0. Pre-Consent Cookie Audit (7 pts) — NEW ───────────────────────
+    // THE most important GDPR/DPDP check: Are non-essential cookies loading 
+    // BEFORE the user gives consent? GDPR Art. 5(3) / DPDP Section 4 violation.
+    const preConsentViolations: any[] = signals?.preConsentViolations || [];
+    const preConsentTotal = signals?.preConsentCookieCount || 0;
+    const preConsentPassed = preConsentViolations.length === 0;
+    const violationNames = preConsentViolations.map((v: any) => v.name).slice(0, 5);
+
+    indicators.push({
+      id: 'pre_consent_audit',
+      name: 'Pre-Consent Cookie Audit',
+      weight: 7,
+      passed: preConsentPassed,
+      score: preConsentPassed ? 7 : this.graduatedScore(7, Math.max(0, preConsentTotal - preConsentViolations.length), preConsentTotal),
+      severity: this.calculateSeverity(preConsentViolations.length, preConsentTotal),
+      details: preConsentPassed
+        ? preConsentTotal > 0
+          ? `All ${preConsentTotal} cookie(s) detected before consent are essential (Necessary/Functional). No GDPR Art. 5(3) / DPDP Section 4 violations.`
+          : 'No cookies detected before user consent — fully compliant with consent-first requirements.'
+        : `${preConsentViolations.length} non-essential cookie(s) loaded BEFORE user consent${violationNames.length > 0 ? `: ${violationNames.join(', ')}${preConsentViolations.length > 5 ? ` (+${preConsentViolations.length - 5} more)` : ''}` : ''}. This violates GDPR Art. 5(3) and DPDP Section 4 — non-essential cookies must NOT be set until explicit consent is given.`,
+      evidence: preConsentViolations.length > 0
+        ? { url: website.url, snippet: `Pre-consent violations: ${violationNames.join(', ')}` }
+        : undefined
+    });
 
     // ── 1. Cookie Banner Installed (10 pts) ─────────────────────────────────
     // MOST CRITICAL: Without a banner, the site fundamentally fails consent compliance

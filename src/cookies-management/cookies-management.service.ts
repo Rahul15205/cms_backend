@@ -123,8 +123,11 @@ export class CookiesManagementService {
       },
     });
 
-    // Automatically trigger first scan
-    await this.cookieScannerQueue.add('scan-website', { websiteId: website.id });
+    // Automatically trigger first scan (full scan, high priority)
+    await this.cookieScannerQueue.add('scan-website', 
+      { websiteId: website.id, scanType: 'FULL' }, 
+      { jobId: `manual-scan-${website.id}-${Date.now()}`, priority: 1, attempts: 3, backoff: { type: 'exponential', delay: 60000 }, removeOnComplete: 200, removeOnFail: 100 }
+    );
 
     return website;
   }
@@ -150,8 +153,11 @@ export class CookiesManagementService {
       data: dto,
     });
 
-    // Automatically restart scan after edit
-    await this.cookieScannerQueue.add('scan-website', { websiteId: id });
+    // Automatically restart scan after edit (full re-scan)
+    await this.cookieScannerQueue.add('scan-website', 
+      { websiteId: id, scanType: 'FULL' }, 
+      { jobId: `manual-scan-${id}-${Date.now()}`, priority: 1, attempts: 3, backoff: { type: 'exponential', delay: 60000 }, removeOnComplete: 200, removeOnFail: 100 }
+    );
 
     await this.prisma.scannedWebsite.update({
       where: { id },
@@ -173,8 +179,11 @@ export class CookiesManagementService {
       throw new NotFoundException('Website not found');
     }
 
-    // Dispatch the scan job
-    await this.cookieScannerQueue.add('scan-website', { websiteId: id });
+    // Dispatch the scan job (manual trigger = full scan, highest priority)
+    await this.cookieScannerQueue.add('scan-website', 
+      { websiteId: id, scanType: 'FULL' }, 
+      { jobId: `manual-scan-${id}-${Date.now()}`, priority: 1, attempts: 3, backoff: { type: 'exponential', delay: 60000 }, removeOnComplete: 200, removeOnFail: 100 }
+    );
 
     return this.prisma.scannedWebsite.update({
       where: { id },
