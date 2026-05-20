@@ -87,7 +87,7 @@ export class AuditInterceptor implements NestInterceptor {
             }
 
             // Extract humanised dynamic description of action
-            const displayAction = this.humaniseAction(method, url);
+            const displayAction = this.humaniseAction(method, url, safeBody);
 
             const systemCategory = this.getSystemCategory(url);
 
@@ -171,59 +171,199 @@ export class AuditInterceptor implements NestInterceptor {
     return 'LOG_AUDIT';
   }
 
-  private humaniseAction(method: string, url: string): string {
+  private humaniseAction(method: string, url: string, body?: any): string {
     const lowerUrl = url.toLowerCase();
+    const status = body?.status?.toLowerCase?.() || '';
 
-    // 1. Precise overrides for authentication and sessions
+    // ── Authentication & Sessions ──────────────────────────
     if (lowerUrl.includes('/auth/login')) return 'User Login Successful';
     if (lowerUrl.includes('/auth/logout')) return 'User Logout';
     if (lowerUrl.includes('/auth/refresh')) return 'Refreshed Session Token';
     if (lowerUrl.includes('/auth/mfa/generate')) return 'Generated MFA Secret';
     if (lowerUrl.includes('/auth/mfa/enable')) return 'Enabled Multi-Factor Authentication (MFA)';
 
-    // 2. Precise overrides for public widget events
-    if (lowerUrl.includes('/public/consent/record')) return 'Consent Granted (Public Widget)';
+    // ── Public Widget Events (status-aware) ────────────────
+    if (lowerUrl.includes('/public/consent/record')) {
+      if (status === 'rejected' || status === 'revoked') return 'Consent Rejected (Public Widget)';
+      return 'Consent Granted (Public Widget)';
+    }
     if (lowerUrl.includes('/public/consent/withdraw')) return 'Consent Withdrawn (Public Widget)';
     if (lowerUrl.includes('/public/cookies/consent-logs') || lowerUrl.includes('/cookies/consent-logs')) {
-      return 'Cookie Preferences Submitted (Public Widget)';
+      return 'Cookie Preferences Submitted';
     }
 
-    // 3. Precise overrides for configuration / settings
+    // ── Consent Records (status-aware) ─────────────────────
+    if (lowerUrl.includes('/consent-records')) {
+      if (method === 'POST') {
+        if (status === 'rejected') return 'Consent Rejected';
+        if (status === 'revoked') return 'Consent Revoked';
+        if (status === 'granted' || status === 'accepted') return 'Consent Granted';
+        return 'New Consent Record Created';
+      }
+      if (method === 'PUT' || method === 'PATCH') {
+        if (status === 'revoked') return 'Consent Revoked';
+        if (status === 'rejected') return 'Consent Rejected';
+        if (status === 'granted') return 'Consent Re-Granted';
+        return 'Consent Record Updated';
+      }
+      return 'Consent Record Deleted';
+    }
+
+    // ── Consent Templates / Widgets / Deployments / Versions
+    if (lowerUrl.includes('/consent-templates')) {
+      return this.labelByMethod(method, 'Consent Template');
+    }
+    if (lowerUrl.includes('/consent-widgets')) {
+      return this.labelByMethod(method, 'Consent Widget');
+    }
+    if (lowerUrl.includes('/consent-deployments')) {
+      return this.labelByMethod(method, 'Consent Deployment');
+    }
+    if (lowerUrl.includes('/consent-versions')) {
+      return this.labelByMethod(method, 'Consent Version');
+    }
+    if (lowerUrl.includes('/consent-analytics')) return 'Accessed Consent Analytics';
+
+    // ── Cookie Management ──────────────────────────────────
+    if (lowerUrl.includes('/cookies')) {
+      return this.labelByMethod(method, 'Cookie Configuration');
+    }
+
+    // ── Rights & Grievances ────────────────────────────────
+    if (lowerUrl.includes('/rights-requests') || lowerUrl.includes('/rights')) {
+      return this.labelByMethod(method, 'Rights Request', 'Submitted');
+    }
+    if (lowerUrl.includes('/grievances')) {
+      return this.labelByMethod(method, 'Grievance', 'Filed');
+    }
+    if (lowerUrl.includes('/sla-rules')) {
+      return this.labelByMethod(method, 'SLA Rule');
+    }
+    if (lowerUrl.includes('/escalation-rules')) {
+      return this.labelByMethod(method, 'Escalation Rule');
+    }
+    if (lowerUrl.includes('/notification-rules')) {
+      return this.labelByMethod(method, 'Notification Rule');
+    }
+
+    // ── Users, Roles & Access ──────────────────────────────
+    if (lowerUrl.includes('/users')) {
+      if (method === 'POST') return 'Created User Account';
+      if (method === 'PUT' || method === 'PATCH') return 'Updated User Profile';
+      if (method === 'DELETE') return 'Deleted User Account';
+    }
+    if (lowerUrl.includes('/roles')) {
+      return this.labelByMethod(method, 'Role');
+    }
+    if (lowerUrl.includes('/invitations')) {
+      if (method === 'POST') return 'Sent Invitation';
+      if (method === 'DELETE') return 'Revoked Invitation';
+      return 'Updated Invitation';
+    }
+    if (lowerUrl.includes('/sessions')) {
+      if (method === 'DELETE') return 'Session Terminated';
+      return 'Session Updated';
+    }
+    if (lowerUrl.includes('/access-rules')) {
+      return this.labelByMethod(method, 'Access Rule');
+    }
+
+    // ── Configuration & Settings ───────────────────────────
     if (lowerUrl.includes('/settings')) return 'Updated System Settings';
     if (lowerUrl.includes('/config/log-retention')) return 'Updated Log Retention Policy';
     if (lowerUrl.includes('/config/encryption')) return 'Updated Encryption Configuration';
     if (lowerUrl.includes('/config/export')) return 'Updated Export Preferences';
-    if (lowerUrl.includes('/config/api-keys')) {
-      return method === 'DELETE' ? 'Revoked API Key' : 'Generated/Updated API Key';
+    if (lowerUrl.includes('/config/api-keys') || lowerUrl.includes('/api-keys')) {
+      if (method === 'POST') return 'Created API Key';
+      if (method === 'DELETE') return 'Revoked API Key';
+      return 'Updated API Key';
+    }
+    if (lowerUrl.includes('/workflow')) {
+      return this.labelByMethod(method, 'Workflow Configuration');
     }
 
-    // 4. Fallback smart parser that filters out IDs and splits path segments
+    // ── Master Data ────────────────────────────────────────
+    if (lowerUrl.includes('/purposes')) {
+      return this.labelByMethod(method, 'Purpose');
+    }
+    if (lowerUrl.includes('/data-categories')) {
+      return this.labelByMethod(method, 'Data Category');
+    }
+    if (lowerUrl.includes('/third-parties')) {
+      if (method === 'POST') return 'Added Third Party';
+      if (method === 'PUT' || method === 'PATCH') return 'Updated Third Party';
+      if (method === 'DELETE') return 'Removed Third Party';
+    }
+    if (lowerUrl.includes('/sub-processors')) {
+      if (method === 'POST') return 'Added Sub-Processor';
+      if (method === 'PUT' || method === 'PATCH') return 'Updated Sub-Processor';
+      if (method === 'DELETE') return 'Removed Sub-Processor';
+    }
+    if (lowerUrl.includes('/languages')) {
+      if (method === 'POST') return 'Added Language';
+      if (method === 'PUT' || method === 'PATCH') return 'Updated Language';
+      if (method === 'DELETE') return 'Removed Language';
+    }
+    if (lowerUrl.includes('/integrations')) {
+      if (method === 'POST') return 'Added Integration';
+      if (method === 'PUT' || method === 'PATCH') return 'Updated Integration';
+      if (method === 'DELETE') return 'Removed Integration';
+    }
+    if (lowerUrl.includes('/applications')) {
+      if (method === 'POST') return 'Registered Application';
+      if (method === 'PUT' || method === 'PATCH') return 'Updated Application';
+      if (method === 'DELETE') return 'Removed Application';
+    }
+    if (lowerUrl.includes('/notices')) {
+      return this.labelByMethod(method, 'Notice');
+    }
+    if (lowerUrl.includes('/export-configs')) {
+      return this.labelByMethod(method, 'Export Configuration');
+    }
+    if (lowerUrl.includes('/reports')) {
+      if (method === 'POST') return 'Generated Report';
+      return 'Accessed Reports';
+    }
+    if (lowerUrl.includes('/aadhaar')) {
+      return this.labelByMethod(method, 'Aadhaar Configuration');
+    }
+
+    // ── Fallback smart parser (improved ID detection) ──────
     const parts = url.split('?')[0].split('/').filter(p => {
       if (!p) return false;
       const pl = p.toLowerCase();
       if (pl === 'api' || pl === 'v1' || pl === 'public' || pl === 'config') return false;
-      // Detect if segment is an ID / UUID (contains numbers, hyphens, or underscores, length >= 8)
-      if (pl.length >= 8 && (/\d/.test(pl) || pl.includes('-') || pl.includes('_'))) {
-        return false;
-      }
+      // Only filter segments that genuinely look like IDs:
+      if (/^\d+$/.test(pl)) return false;                                  // Pure numbers
+      if (/^[a-f0-9]{8,}$/.test(pl)) return false;                          // Hex IDs
+      if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(pl)) return false; // UUIDs
+      if (pl.length >= 8 && /\d/.test(pl) && /[_-]/.test(pl)) return false;  // Mixed alphanumeric IDs with separators
+      if (/^[a-z]-[a-z0-9]{4,}$/i.test(p)) return false;                    // Short IDs like U-KMTVBO5
       return true;
     });
 
     const lastSegment = parts.pop();
     if (lastSegment) {
-      // singularize and capitalize nicely
       const friendlyName = lastSegment
         .split('-')
         .map(w => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ')
-        .replace(/s$/, ''); // Remove trailing 's' to singularize (e.g. consent-records -> Consent Record)
+        .replace(/s$/, '');
 
-      if (method === 'POST') return `Created new ${friendlyName}`;
+      if (method === 'POST') return `Created ${friendlyName}`;
       if (method === 'PUT' || method === 'PATCH') return `Updated ${friendlyName}`;
       if (method === 'DELETE') return `Deleted ${friendlyName}`;
       return `${method} ${friendlyName}`;
     }
 
     return `${method} ${url}`;
+  }
+
+  /** Helper: generates a standard Created/Updated/Deleted label for a resource */
+  private labelByMethod(method: string, resource: string, createVerb = 'Created'): string {
+    if (method === 'POST') return `${createVerb} ${resource}`;
+    if (method === 'PUT' || method === 'PATCH') return `Updated ${resource}`;
+    if (method === 'DELETE') return `Deleted ${resource}`;
+    return `${method} ${resource}`;
   }
 }
