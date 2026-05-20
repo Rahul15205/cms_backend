@@ -660,6 +660,7 @@ enum ConsentUsageStatus {
 model ConsentUsageRecord {
   id              String             @id @default(uuid())
   userIdentifier  String             // Masked user ID (e.g., USR-****-7842)
+  ipAddress       String?
   templateId      String
   template        ConsentTemplate    @relation(fields: [templateId], references: [id])
   version         String

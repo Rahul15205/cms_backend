@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsBoolean, IsOptional, IsEnum, IsNumber, IsArray, IsDateString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { DeploymentMode } from '@prisma/client';
+import { DeploymentMode, DeploymentStatus } from '@prisma/client';
 
 export class CreateConsentDeploymentDto {
   @ApiProperty({ example: 'uuid-of-consent-version' })
@@ -63,4 +63,9 @@ export class CreateConsentDeploymentDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ enum: DeploymentStatus, description: 'Deployment status override (for updates)' })
+  @IsOptional()
+  @IsEnum(DeploymentStatus)
+  status?: DeploymentStatus;
 }

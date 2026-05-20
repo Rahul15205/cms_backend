@@ -61,6 +61,7 @@ export class ConsentRecordsService {
       await this.prisma.consentUsageRecord.create({
         data: {
           userIdentifier: record.userId || record.endUserEmail || 'anonymous',
+          ipAddress: record.endUserIp || undefined,
           templateId: record.version.templateId,
           version: record.version.versionNumber.toString(),
           purposeMapped: record.version.template.title || 'General', // Fallback to general if no specific purpose title

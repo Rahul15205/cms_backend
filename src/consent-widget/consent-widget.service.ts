@@ -224,6 +224,7 @@ export class ConsentWidgetService {
     await this.prisma.consentUsageRecord.create({
       data: {
         userIdentifier: dto.email || dto.phone || 'anonymous',
+        ipAddress: dto.ipAddress ? this.maskIp(dto.ipAddress) : '192.168.1.xxx',
         templateId: widget.templateId,
         version: latestVersion.versionNumber.toString(),
         purposeMapped: (dto.purposes || []).join(', ') || 'General',
