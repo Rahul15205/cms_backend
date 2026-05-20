@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuditCategory, AuditSeverity } from '@prisma/client';
+import { AuditCategory, AuditSeverity, SystemLogCategory } from '@prisma/client';
 import { maskObjectPii } from '../common/utils/masking.utils';
 
 @Injectable()
@@ -69,6 +69,42 @@ export class AuditLogsService {
     severity?: AuditSeverity;
     tenantId?: string;
   }) {
-    return this.prisma.auditLog.create({ data });
+    const auditLog = await this.prisma.auditLog.create({ data });
+
+    // Propagate security/session logs to the Unified SystemLog table
+    try {
+      let userName = 'System';
+      if (data.userId) {
+        const u = await this.prisma.user.findUnique({ where: { id: data.userId } });
+        if (u) {
+          userName = u.name || 'System';
+        }
+      }
+
+      let systemCategory: SystemLogCategory = 'LOG_AUDIT';
+      if (data.category === 'SECURITY' || data.category === 'SESSION' || data.category === 'PROFILE' || data.category === 'ROLE') {
+        systemCategory = 'LOG_SECURITY';
+      } else if (data.category === 'WORKFLOW' || data.category === 'APPLICATION' || data.category === 'BRANDING' || data.category === 'TENANT') {
+        systemCategory = 'LOG_SYSTEM';
+      } else if (data.category === 'API') {
+        systemCategory = 'LOG_SYSTEM';
+      }
+
+      await this.prisma.systemLog.create({
+        data: {
+          category: systemCategory,
+          action: data.action,
+          userName,
+          target: data.userId || null,
+          ipAddress: data.ipAddress || '127.0.0.1',
+          details: data.details || null,
+          tenantId: data.tenantId || null,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to create SystemLog from AuditLog:', err);
+    }
+
+    return auditLog;
   }
 }
