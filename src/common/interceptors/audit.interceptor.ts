@@ -86,32 +86,8 @@ export class AuditInterceptor implements NestInterceptor {
               userName = body.name;
             }
 
-            // Extract beautiful entity name and generate dynamic human-readable action label
-            let displayAction = actionLabel;
-            const entityMatch = url.match(/\/api\/v1\/([a-zA-Z0-9\/-]+)(\/([a-zA-Z0-9-]+))?$/);
-            if (entityMatch) {
-              const resource = entityMatch[1].split('/').pop()?.replace(/s$/, '');
-              if (resource) {
-                const resourceLabel = resource.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                if (method === 'POST') {
-                  displayAction = `Created new ${resourceLabel}`;
-                } else if (method === 'PUT' || method === 'PATCH') {
-                  displayAction = `Updated ${resourceLabel}`;
-                } else if (method === 'DELETE') {
-                  displayAction = `Deleted ${resourceLabel}`;
-                }
-              }
-            }
-
-            // Specialized descriptive overrides for common pathways
-            const lowerUrl = url.toLowerCase();
-            if (lowerUrl.includes('/public/consent/record')) {
-              displayAction = `Consent Granted (Public Widget)`;
-            } else if (lowerUrl.includes('/public/consent/withdraw')) {
-              displayAction = `Consent Withdrawn (Public Widget)`;
-            } else if (lowerUrl.includes('/public/cookies/consent-logs')) {
-              displayAction = `Cookie Preferences Submitted (Public Widget)`;
-            }
+            // Extract humanised dynamic description of action
+            const displayAction = this.humaniseAction(method, url);
 
             const systemCategory = this.getSystemCategory(url);
 
@@ -193,5 +169,61 @@ export class AuditInterceptor implements NestInterceptor {
       return 'LOG_SYSTEM';
     }
     return 'LOG_AUDIT';
+  }
+
+  private humaniseAction(method: string, url: string): string {
+    const lowerUrl = url.toLowerCase();
+
+    // 1. Precise overrides for authentication and sessions
+    if (lowerUrl.includes('/auth/login')) return 'User Login Successful';
+    if (lowerUrl.includes('/auth/logout')) return 'User Logout';
+    if (lowerUrl.includes('/auth/refresh')) return 'Refreshed Session Token';
+    if (lowerUrl.includes('/auth/mfa/generate')) return 'Generated MFA Secret';
+    if (lowerUrl.includes('/auth/mfa/enable')) return 'Enabled Multi-Factor Authentication (MFA)';
+
+    // 2. Precise overrides for public widget events
+    if (lowerUrl.includes('/public/consent/record')) return 'Consent Granted (Public Widget)';
+    if (lowerUrl.includes('/public/consent/withdraw')) return 'Consent Withdrawn (Public Widget)';
+    if (lowerUrl.includes('/public/cookies/consent-logs') || lowerUrl.includes('/cookies/consent-logs')) {
+      return 'Cookie Preferences Submitted (Public Widget)';
+    }
+
+    // 3. Precise overrides for configuration / settings
+    if (lowerUrl.includes('/settings')) return 'Updated System Settings';
+    if (lowerUrl.includes('/config/log-retention')) return 'Updated Log Retention Policy';
+    if (lowerUrl.includes('/config/encryption')) return 'Updated Encryption Configuration';
+    if (lowerUrl.includes('/config/export')) return 'Updated Export Preferences';
+    if (lowerUrl.includes('/config/api-keys')) {
+      return method === 'DELETE' ? 'Revoked API Key' : 'Generated/Updated API Key';
+    }
+
+    // 4. Fallback smart parser that filters out IDs and splits path segments
+    const parts = url.split('?')[0].split('/').filter(p => {
+      if (!p) return false;
+      const pl = p.toLowerCase();
+      if (pl === 'api' || pl === 'v1' || pl === 'public' || pl === 'config') return false;
+      // Detect if segment is an ID / UUID (contains numbers, hyphens, or underscores, length >= 8)
+      if (pl.length >= 8 && (/\d/.test(pl) || pl.includes('-') || pl.includes('_'))) {
+        return false;
+      }
+      return true;
+    });
+
+    const lastSegment = parts.pop();
+    if (lastSegment) {
+      // singularize and capitalize nicely
+      const friendlyName = lastSegment
+        .split('-')
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ')
+        .replace(/s$/, ''); // Remove trailing 's' to singularize (e.g. consent-records -> Consent Record)
+
+      if (method === 'POST') return `Created new ${friendlyName}`;
+      if (method === 'PUT' || method === 'PATCH') return `Updated ${friendlyName}`;
+      if (method === 'DELETE') return `Deleted ${friendlyName}`;
+      return `${method} ${friendlyName}`;
+    }
+
+    return `${method} ${url}`;
   }
 }
