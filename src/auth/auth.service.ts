@@ -167,6 +167,7 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: decryptedEmail,
+        mustResetPassword: user.mustResetPassword,
         roles: user.roles.map(ur => ur.role.name),
         permissions: user.roles.reduce((acc, ur) => {
           ur.role.permissions.forEach(p => {
@@ -269,6 +270,7 @@ export class AuthService {
         id: session.user.id,
         name: session.user.name,
         email: decryptedEmail,
+        mustResetPassword: session.user.mustResetPassword,
         roles: session.user.roles.map(ur => ur.role.name),
         permissions: session.user.roles.reduce((acc, ur) => {
           ur.role.permissions.forEach(p => {
@@ -322,6 +324,7 @@ export class AuthService {
       mfaEnabled: user.mfaEnabled,
       aadhaarVerified: user.aadhaarVerified,
       lastLogin: user.lastLogin,
+      mustResetPassword: user.mustResetPassword,
       roles: user.roles.map((ur) => ur.role.name),
       permissions: user.roles.reduce((acc, ur) => {
         ur.role.permissions.forEach((p) => {
@@ -342,5 +345,42 @@ export class AuthService {
         name: user.tenant.name,
       },
     };
+  }
+
+  async changePassword(userId: string, changePasswordDto: any) {
+    const { oldPassword, newPassword } = changePasswordDto;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid current password');
+    }
+
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedNewPassword,
+        mustResetPassword: false,
+      },
+    });
+
+    await this.auditLogsService.create({
+      userId: user.id,
+      action: 'Password Changed Successfully',
+      category: 'SECURITY',
+      severity: 'INFO',
+      tenantId: user.tenantId,
+    });
+
+    return { message: 'Password changed successfully' };
   }
 }

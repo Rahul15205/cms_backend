@@ -248,4 +248,27 @@ export class NotificationsService {
       return false;
     }
   }
+
+  async sendWelcomeCredentials(email: string, name: string, tempPassword: string, loginUrl: string): Promise<boolean> {
+    try {
+      this.logger.log(`Dispatching welcome credentials email to ${email}`);
+      await this.mailerService.sendMail({
+        to: email,
+        subject: 'Welcome to Proteccio CMS - Your Temporary Credentials',
+        template: 'welcome-credentials',
+        context: {
+          name,
+          email,
+          tempPassword,
+          loginUrl,
+          year: new Date().getFullYear(),
+        },
+      });
+      return true;
+    } catch (error) {
+      this.logger.error({ err: error }, `Failed to send welcome credentials to ${email}`);
+      return false;
+    }
+  }
 }
+

@@ -96,7 +96,7 @@ export class AuditInterceptor implements NestInterceptor {
                 category: systemCategory,
                 action: displayAction,
                 userName,
-                target: (oldData as any)?.id || body?.id || null,
+                target: this.describeTarget(url, method, safeBody, oldData),
                 ipAddress: ip || '127.0.0.1',
                 details: {
                   requestBody: Object.keys(safeBody).length > 0 ? safeBody : undefined,
@@ -365,5 +365,122 @@ export class AuditInterceptor implements NestInterceptor {
     if (method === 'PUT' || method === 'PATCH') return `Updated ${resource}`;
     if (method === 'DELETE') return `Deleted ${resource}`;
     return `${method} ${resource}`;
+  }
+
+  /** Builds a human-readable resource description for the "target" column */
+  private describeTarget(url: string, method: string, body: any, oldData: any): string | null {
+    const lowerUrl = url.toLowerCase();
+
+    // Identify the entity from the old snapshot or body
+    const entity = oldData || body || {};
+    const name = entity.name || entity.title || entity.label || null;
+    const email = entity.email || entity.endUserEmail || entity.requesterEmail || null;
+    const status = entity.status || null;
+
+    // ── Consent Records ──────────────────────────────────
+    if (lowerUrl.includes('/consent-records') || lowerUrl.includes('/public/consent/record')) {
+      const parts: string[] = [];
+      if (email) parts.push(email);
+      else if (entity.endUserPhone) parts.push(entity.endUserPhone);
+      if (status) parts.push(status);
+      return parts.length > 0 ? `Consent: ${parts.join(' · ')}` : 'Consent Record';
+    }
+
+    // ── Public consent withdraw ──────────────────────────
+    if (lowerUrl.includes('/public/consent/withdraw')) {
+      return entity.identifier ? `Withdraw: ${entity.identifier}` : 'Consent Withdrawal';
+    }
+
+    // ── Cookie consent ───────────────────────────────────
+    if (lowerUrl.includes('/cookies/consent-logs') || lowerUrl.includes('/public/cookies')) {
+      return email || 'Cookie Preferences';
+    }
+
+    // ── Consent Templates / Widgets / Deployments / Versions
+    if (lowerUrl.includes('/consent-templates')) return name ? `Template: ${name}` : 'Consent Template';
+    if (lowerUrl.includes('/consent-widgets')) return name ? `Widget: ${name}` : 'Consent Widget';
+    if (lowerUrl.includes('/consent-deployments')) return name ? `Deployment: ${name}` : 'Consent Deployment';
+    if (lowerUrl.includes('/consent-versions')) return name || 'Consent Version';
+
+    // ── Users ────────────────────────────────────────────
+    if (lowerUrl.includes('/users')) {
+      if (name && email) return `${name} (${email})`;
+      return name || email || 'User';
+    }
+
+    // ── Auth / Login ─────────────────────────────────────
+    if (lowerUrl.includes('/auth')) {
+      return email || body?.identifier || 'Auth Session';
+    }
+
+    // ── Roles ────────────────────────────────────────────
+    if (lowerUrl.includes('/roles')) return name ? `Role: ${name}` : 'Role';
+
+    // ── Sessions ─────────────────────────────────────────
+    if (lowerUrl.includes('/sessions')) return email || 'Session';
+
+    // ── Rights Requests ──────────────────────────────────
+    if (lowerUrl.includes('/rights')) {
+      const requester = entity.requesterName || entity.requesterEmail || null;
+      const type = entity.requestType || null;
+      if (requester && type) return `${type}: ${requester}`;
+      return requester || type || 'Rights Request';
+    }
+
+    // ── Grievances ───────────────────────────────────────
+    if (lowerUrl.includes('/grievances')) {
+      return entity.subject || name || 'Grievance';
+    }
+
+    // ── API Keys ─────────────────────────────────────────
+    if (lowerUrl.includes('/api-keys')) return name || 'API Key';
+
+    // ── Applications ─────────────────────────────────────
+    if (lowerUrl.includes('/applications')) return name || 'Application';
+
+    // ── Invitations ──────────────────────────────────────
+    if (lowerUrl.includes('/invitations')) return email || 'Invitation';
+
+    // ── Purposes / Data Categories / Third Parties / Sub-Processors
+    if (lowerUrl.includes('/purposes')) return name || 'Purpose';
+    if (lowerUrl.includes('/data-categories')) return name || entity.category || 'Data Category';
+    if (lowerUrl.includes('/third-parties')) return name || 'Third Party';
+    if (lowerUrl.includes('/sub-processors')) return name || 'Sub-Processor';
+
+    // ── SLA / Escalation / Notification Rules ────────────
+    if (lowerUrl.includes('/sla-rules')) return name || 'SLA Rule';
+    if (lowerUrl.includes('/escalation-rules')) return name || 'Escalation Rule';
+    if (lowerUrl.includes('/notification-rules')) return name || 'Notification Rule';
+
+    // ── Notices ──────────────────────────────────────────
+    if (lowerUrl.includes('/notices')) return name || entity.noticeType || 'Notice';
+
+    // ── Integrations ─────────────────────────────────────
+    if (lowerUrl.includes('/integrations')) return name || 'Integration';
+
+    // ── Cookies ──────────────────────────────────────────
+    if (lowerUrl.includes('/cookies')) return name || entity.domain || 'Cookie';
+
+    // ── Languages ────────────────────────────────────────
+    if (lowerUrl.includes('/languages')) return name || entity.code || 'Language';
+
+    // ── Workflow ─────────────────────────────────────────
+    if (lowerUrl.includes('/workflow')) return name || 'Workflow Config';
+
+    // ── Settings / Config ────────────────────────────────
+    if (lowerUrl.includes('/settings') || lowerUrl.includes('/config')) return 'System Configuration';
+
+    // ── Export / Reports ─────────────────────────────────
+    if (lowerUrl.includes('/export-configs')) return name || 'Export Config';
+    if (lowerUrl.includes('/reports')) return name || 'Report';
+
+    // ── Access Rules ─────────────────────────────────────
+    if (lowerUrl.includes('/access-rules')) return name || 'Access Rule';
+
+    // ── Aadhaar ──────────────────────────────────────────
+    if (lowerUrl.includes('/aadhaar')) return 'Aadhaar Config';
+
+    // ── Fallback: try to extract any meaningful identifier
+    return name || email || null;
   }
 }

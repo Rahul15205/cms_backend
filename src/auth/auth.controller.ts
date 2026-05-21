@@ -65,4 +65,13 @@ export class AuthController {
   getProfile(@Request() req: any) {
     return this.authService.getProfile(req.user.userId);
   }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Change or reset your password' })
+  changePassword(@Request() req: any, @Body() body: any) {
+    return this.authService.changePassword(req.user.userId, body);
+  }
 }

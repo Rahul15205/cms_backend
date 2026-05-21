@@ -86,6 +86,7 @@ model User {
   department     String?
   mfaEnabled     Boolean     @default(false)
   mfaSecret      String?
+  mustResetPassword Boolean   @default(false)
   lastLogin      DateTime?
   validFrom      DateTime?
   validUntil     DateTime?

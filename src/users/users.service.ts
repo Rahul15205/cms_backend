@@ -7,12 +7,37 @@ import * as bcrypt from 'bcrypt';
 import { UserStatus } from '@prisma/client';
 
 import { EncryptionService } from '../encryption/encryption.service';
+import { NotificationsService } from '../notifications/notifications.service';
+
+function generateSecurePassword(): string {
+  const length = 12;
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const numbers = '0123456789';
+  const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+  const allChars = uppercase + lowercase + numbers + symbols;
+  
+  let password = '';
+  // Ensure at least one of each category
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+  
+  for (let i = 4; i < length; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+  
+  // Shuffle the password
+  return password.split('').sort(() => 0.5 - Math.random()).join('');
+}
 
 @Injectable()
 export class UsersService {
   constructor(
     private prisma: PrismaService,
-    private encryptionService: EncryptionService
+    private encryptionService: EncryptionService,
+    private notificationsService: NotificationsService
   ) {}
 
   async create(createUserDto: CreateUserDto, tenantId: string) {
@@ -30,9 +55,10 @@ export class UsersService {
     const encryptedAadhaar = aadhaarRaw ? this.encryptionService.encrypt(aadhaarRaw) : null;
     const aadhaarHash = aadhaarRaw ? this.encryptionService.generateHash(aadhaarRaw) : null;
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const tempPassword = password || generateSecurePassword();
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-    return this.prisma.user.create({
+    const user = await this.prisma.user.create({
       data: {
         ...userData,
         email: encryptedEmail,
@@ -43,12 +69,28 @@ export class UsersService {
         aadhaarHash: aadhaarHash,
         tenantId,
         password: hashedPassword,
+        mustResetPassword: true,
         roles: {
           create: roles.map(roleId => ({ roleId }))
         }
       },
       include: { roles: true }
     });
+
+    // Send welcome email with credentials
+    const loginUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    await this.notificationsService.sendWelcomeCredentials(
+      userData.email,
+      userData.name,
+      tempPassword,
+      loginUrl
+    );
+
+    const decryptedUser = this.decryptUser(user);
+    return {
+      ...decryptedUser,
+      tempPassword, // Return the temp password so the admin can see it in the success toast
+    };
   }
 
   async findAll(filters?: { 
