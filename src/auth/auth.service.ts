@@ -14,6 +14,7 @@ import { EncryptionService } from '../encryption/encryption.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyResetOtpDto } from './dto/verify-reset-otp.dto';
 
 const PASSWORD_RESET_OTP_LENGTH = 7;
 const PASSWORD_RESET_OTP_TTL_MINUTES = 10;
@@ -438,6 +439,40 @@ export class AuthService {
     });
 
     return { message: 'Password reset successfully' };
+  }
+
+  async verifyResetOtp(verifyResetOtpDto: VerifyResetOtpDto) {
+    const email = verifyResetOtpDto.email.trim().toLowerCase();
+    const otp = verifyResetOtpDto.otp.trim().toUpperCase();
+    const emailHash = this.encryptionService.generateHash(email);
+    const user: any = await this.prisma.user.findUnique({ where: { emailHash } });
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    if (
+      !user.passwordResetOtpHash ||
+      !user.passwordResetOtpExpiresAt ||
+      new Date(user.passwordResetOtpExpiresAt).getTime() < Date.now()
+    ) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    if ((user.passwordResetOtpAttempts || 0) >= PASSWORD_RESET_MAX_ATTEMPTS) {
+      throw new BadRequestException('Too many invalid OTP attempts. Please request a new OTP.');
+    }
+
+    const otpHash = this.hashPasswordResetOtp(user.id, otp);
+    if (otpHash !== user.passwordResetOtpHash) {
+      await (this.prisma.user as any).update({
+        where: { id: user.id },
+        data: { passwordResetOtpAttempts: (user.passwordResetOtpAttempts || 0) + 1 },
+      });
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    return { message: 'OTP verified successfully' };
   }
 
   async getProfile(userId: string) {

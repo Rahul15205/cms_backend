@@ -7,6 +7,7 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyResetOtpDto } from './dto/verify-reset-otp.dto';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { Throttle } from '@nestjs/throttler';
 
@@ -46,6 +47,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Reset password using the emailed OTP' })
   resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(resetPasswordDto);
+  }
+
+  @Post('verify-reset-otp')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @ApiOperation({ summary: 'Verify password reset OTP before accepting a new password' })
+  verifyResetOtp(@Body() verifyResetOtpDto: VerifyResetOtpDto) {
+    return this.authService.verifyResetOtp(verifyResetOtpDto);
   }
 
   @Post('logout')
