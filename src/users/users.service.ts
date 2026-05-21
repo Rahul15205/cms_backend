@@ -1,11 +1,11 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { paginate } from '../common/dto/paginated-response.dto';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { UserStatus } from '@prisma/client';
+import { ModuleName, UserStatus } from '@prisma/client';
 
 import { EncryptionService } from '../encryption/encryption.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -60,8 +60,31 @@ export class UsersService {
     private notificationsService: NotificationsService
   ) { }
 
+  private async ensureRolesDoNotGrantUserSetup(roleIds?: string[]) {
+    if (!roleIds || roleIds.length === 0) return;
+
+    const restrictedRoles = await this.prisma.role.findMany({
+      where: {
+        id: { in: roleIds },
+        name: { not: 'Admin' },
+        permissions: {
+          some: { module: ModuleName.USER_SETUP },
+        },
+      },
+      select: { name: true },
+    });
+
+    if (restrictedRoles.length > 0) {
+      throw new BadRequestException(
+        `Roles with User Setup access cannot be assigned: ${restrictedRoles.map((role) => role.name).join(', ')}`,
+      );
+    }
+  }
+
   async create(createUserDto: CreateUserDto, tenantId: string) {
     const { roles, password, ...userData } = createUserDto;
+    await this.ensureRolesDoNotGrantUserSetup(roles);
+
     const emailHash = this.encryptionService.generateHash(userData.email);
     const existing = await this.prisma.user.findUnique({ where: { emailHash } });
     if (existing) throw new ConflictException('Email already in use');
@@ -184,6 +207,7 @@ export class UsersService {
 
   async update(id: string, updateUserDto: UpdateUserDto) {
     const { roles, password, ...data } = updateUserDto;
+    await this.ensureRolesDoNotGrantUserSetup(roles);
 
     // Check if user exists
     await this.findOne(id);

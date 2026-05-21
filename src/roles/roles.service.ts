@@ -2,20 +2,30 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { ModuleName } from '@prisma/client';
 
 @Injectable()
 export class RolesService {
   constructor(private prisma: PrismaService) {}
 
+  private removeUserSetupPermissions(permissions?: any[], roleName?: string) {
+    if (roleName?.trim().toLowerCase() === 'admin') {
+      return permissions || [];
+    }
+
+    return (permissions || []).filter((permission) => permission.module !== ModuleName.USER_SETUP);
+  }
+
   async create(createRoleDto: CreateRoleDto, tenantId: string) {
     const { permissions, ...roleData } = createRoleDto;
+    const allowedPermissions = this.removeUserSetupPermissions(permissions, roleData.name);
 
     return this.prisma.role.create({
       data: {
         ...roleData,
         tenantId,
         permissions: {
-          create: permissions,
+          create: allowedPermissions,
         },
       },
       include: { permissions: true },
@@ -43,7 +53,23 @@ export class RolesService {
   async update(id: string, updateRoleDto: UpdateRoleDto) {
     const { permissions, ...roleData } = updateRoleDto;
 
-    await this.findOne(id); // Ensure it exists
+    const existingRole = await this.findOne(id); // Ensure it exists
+    const roleName = roleData.name || existingRole.name;
+    const allowedPermissions = this.removeUserSetupPermissions(permissions, roleName);
+
+    if (permissions && roleName.trim().toLowerCase() === 'admin') {
+      const existingUserSetupPermission = existingRole.permissions.find(
+        (permission) => permission.module === ModuleName.USER_SETUP,
+      );
+
+      if (
+        existingUserSetupPermission &&
+        !allowedPermissions.some((permission) => permission.module === ModuleName.USER_SETUP)
+      ) {
+        const { id: _id, roleId: _roleId, ...permissionData } = existingUserSetupPermission;
+        allowedPermissions.push(permissionData);
+      }
+    }
 
     if (permissions) {
       // If updating permissions, clear old ones and recreate to ensure clean sync
@@ -54,7 +80,7 @@ export class RolesService {
       where: { id },
       data: {
         ...roleData,
-        ...(permissions ? { permissions: { create: permissions } } : {})
+        ...(permissions ? { permissions: { create: allowedPermissions } } : {})
       },
       include: { permissions: true },
     });
