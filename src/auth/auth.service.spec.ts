@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { EncryptionService } from '../encryption/encryption.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { UnauthorizedException } from '@nestjs/common';
 import { UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -53,6 +54,10 @@ describe('AuthService', () => {
     decrypt: jest.fn((val) => val.replace('enc_', '')),
   });
 
+  const mockNotificationsService = () => ({
+    sendPasswordResetOtp: jest.fn(),
+  });
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -61,6 +66,7 @@ describe('AuthService', () => {
         { provide: JwtService, useFactory: mockJwtService },
         { provide: AuditLogsService, useFactory: mockAuditLogsService },
         { provide: EncryptionService, useFactory: mockEncryptionService },
+        { provide: NotificationsService, useFactory: mockNotificationsService },
       ],
     }).compile();
 

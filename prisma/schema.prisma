@@ -87,6 +87,10 @@ model User {
   mfaEnabled     Boolean     @default(false)
   mfaSecret      String?
   mustResetPassword Boolean   @default(false)
+  passwordResetOtpHash String?
+  passwordResetOtpExpiresAt DateTime?
+  passwordResetOtpRequestedAt DateTime?
+  passwordResetOtpAttempts Int @default(0)
   lastLogin      DateTime?
   validFrom      DateTime?
   validUntil     DateTime?

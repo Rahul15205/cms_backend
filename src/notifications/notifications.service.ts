@@ -270,5 +270,25 @@ export class NotificationsService {
       return false;
     }
   }
-}
 
+  async sendPasswordResetOtp(email: string, name: string, otp: string, expiresInMinutes: number): Promise<boolean> {
+    try {
+      this.logger.log(`Dispatching password reset OTP to ${email}`);
+      await this.mailerService.sendMail({
+        to: email,
+        subject: 'Proteccio CMS Password Reset OTP',
+        template: 'password-reset-otp',
+        context: {
+          name,
+          otp,
+          expiresInMinutes,
+          year: new Date().getFullYear(),
+        },
+      });
+      return true;
+    } catch (error) {
+      this.logger.error({ err: error }, `Failed to send password reset OTP to ${email}`);
+      return false;
+    }
+  }
+}

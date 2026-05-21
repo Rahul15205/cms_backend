@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserStatus, AuditSeverity, AuditCategory } from '@prisma/client';
@@ -11,6 +11,14 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { EncryptionService } from '../encryption/encryption.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+
+const PASSWORD_RESET_OTP_LENGTH = 7;
+const PASSWORD_RESET_OTP_TTL_MINUTES = 10;
+const PASSWORD_RESET_MAX_ATTEMPTS = 5;
+const PASSWORD_RESET_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 @Injectable()
 export class AuthService {
@@ -18,8 +26,24 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private auditLogsService: AuditLogsService,
-    private encryptionService: EncryptionService
+    private encryptionService: EncryptionService,
+    private notificationsService: NotificationsService
   ) {}
+
+  private generatePasswordResetOtp(): string {
+    let otp = '';
+    for (let i = 0; i < PASSWORD_RESET_OTP_LENGTH; i++) {
+      otp += PASSWORD_RESET_ALPHABET[crypto.randomInt(PASSWORD_RESET_ALPHABET.length)];
+    }
+    return otp;
+  }
+
+  private hashPasswordResetOtp(userId: string, otp: string): string {
+    return crypto
+      .createHash('sha256')
+      .update(`${userId}:${otp.trim().toUpperCase()}`)
+      .digest('hex');
+  }
 
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
@@ -298,6 +322,122 @@ export class AuthService {
     });
 
     return { message: 'Logged out successfully. All sessions invalidated.' };
+  }
+
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    const email = forgotPasswordDto.email.trim().toLowerCase();
+    const emailHash = this.encryptionService.generateHash(email);
+    const user = await this.prisma.user.findUnique({ where: { emailHash } });
+
+    const response = {
+      message: 'If an active account exists for this email, a password reset OTP has been sent.',
+    };
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      await this.auditLogsService.create({
+        action: 'Password Reset Requested',
+        category: 'SECURITY',
+        severity: 'INFO',
+        details: { email, result: 'No active account' },
+      });
+      return response;
+    }
+
+    const otp = this.generatePasswordResetOtp();
+    const otpHash = this.hashPasswordResetOtp(user.id, otp);
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_OTP_TTL_MINUTES * 60 * 1000);
+
+    await (this.prisma.user as any).update({
+      where: { id: user.id },
+      data: {
+        passwordResetOtpHash: otpHash,
+        passwordResetOtpExpiresAt: expiresAt,
+        passwordResetOtpRequestedAt: new Date(),
+        passwordResetOtpAttempts: 0,
+      },
+    });
+
+    const decryptedEmail = this.encryptionService.decrypt(user.email);
+    const sent = await this.notificationsService.sendPasswordResetOtp(
+      decryptedEmail,
+      user.name,
+      otp,
+      PASSWORD_RESET_OTP_TTL_MINUTES,
+    );
+
+    await this.auditLogsService.create({
+      userId: user.id,
+      action: sent ? 'Password Reset OTP Sent' : 'Password Reset OTP Email Failed',
+      category: 'SECURITY',
+      severity: sent ? 'INFO' : 'WARNING',
+      tenantId: user.tenantId,
+    });
+
+    if (!sent) {
+      throw new BadRequestException('Unable to send password reset OTP right now');
+    }
+
+    return response;
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    const email = resetPasswordDto.email.trim().toLowerCase();
+    const otp = resetPasswordDto.otp.trim().toUpperCase();
+    const emailHash = this.encryptionService.generateHash(email);
+    const user: any = await this.prisma.user.findUnique({ where: { emailHash } });
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    if (
+      !user.passwordResetOtpHash ||
+      !user.passwordResetOtpExpiresAt ||
+      new Date(user.passwordResetOtpExpiresAt).getTime() < Date.now()
+    ) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    if ((user.passwordResetOtpAttempts || 0) >= PASSWORD_RESET_MAX_ATTEMPTS) {
+      throw new BadRequestException('Too many invalid OTP attempts. Please request a new OTP.');
+    }
+
+    const otpHash = this.hashPasswordResetOtp(user.id, otp);
+    if (otpHash !== user.passwordResetOtpHash) {
+      await (this.prisma.user as any).update({
+        where: { id: user.id },
+        data: { passwordResetOtpAttempts: (user.passwordResetOtpAttempts || 0) + 1 },
+      });
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    const hashedNewPassword = await bcrypt.hash(resetPasswordDto.newPassword, 10);
+    await (this.prisma.user as any).update({
+      where: { id: user.id },
+      data: {
+        password: hashedNewPassword,
+        mustResetPassword: false,
+        passwordResetOtpHash: null,
+        passwordResetOtpExpiresAt: null,
+        passwordResetOtpRequestedAt: null,
+        passwordResetOtpAttempts: 0,
+      },
+    });
+
+    await this.prisma.session.updateMany({
+      where: { userId: user.id, isCurrentSession: true },
+      data: { isCurrentSession: false, refreshToken: null },
+    });
+
+    await this.auditLogsService.create({
+      userId: user.id,
+      action: 'Password Reset Successfully',
+      category: 'SECURITY',
+      severity: 'INFO',
+      tenantId: user.tenantId,
+    });
+
+    return { message: 'Password reset successfully' };
   }
 
   async getProfile(userId: string) {
