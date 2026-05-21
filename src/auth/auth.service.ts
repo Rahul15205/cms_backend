@@ -412,6 +412,11 @@ export class AuthService {
       throw new BadRequestException('Invalid or expired OTP');
     }
 
+    const isSamePassword = await bcrypt.compare(resetPasswordDto.newPassword, user.password);
+    if (isSamePassword) {
+      throw new BadRequestException('New password cannot be the same as your current password');
+    }
+
     const hashedNewPassword = await bcrypt.hash(resetPasswordDto.newPassword, 10);
     await (this.prisma.user as any).update({
       where: { id: user.id },
@@ -536,6 +541,11 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid current password');
+    }
+
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      throw new BadRequestException('New password cannot be the same as your temporary or current password');
     }
 
     const hashedNewPassword = await bcrypt.hash(newPassword, 10);
