@@ -16,18 +16,18 @@ function generateSecurePassword(): string {
   const numbers = '0123456789';
   const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
   const allChars = uppercase + lowercase + numbers + symbols;
-  
+
   let password = '';
   // Ensure at least one of each category
   password += uppercase[Math.floor(Math.random() * uppercase.length)];
   password += lowercase[Math.floor(Math.random() * lowercase.length)];
   password += numbers[Math.floor(Math.random() * numbers.length)];
   password += symbols[Math.floor(Math.random() * symbols.length)];
-  
+
   for (let i = 4; i < length; i++) {
     password += allChars[Math.floor(Math.random() * allChars.length)];
   }
-  
+
   // Shuffle the password
   return password.split('').sort(() => 0.5 - Math.random()).join('');
 }
@@ -38,7 +38,7 @@ export class UsersService {
     private prisma: PrismaService,
     private encryptionService: EncryptionService,
     private notificationsService: NotificationsService
-  ) {}
+  ) { }
 
   async create(createUserDto: CreateUserDto, tenantId: string) {
     const { roles, password, ...userData } = createUserDto;
@@ -49,7 +49,7 @@ export class UsersService {
     const encryptedEmail = this.encryptionService.encrypt(userData.email);
     const encryptedPhone = userData.phone ? this.encryptionService.encrypt(userData.phone) : null;
     const phoneHash = userData.phone ? this.encryptionService.generateHash(userData.phone) : null;
-    
+
     // Aadhaar handling (if present in DTO)
     const aadhaarRaw = (userData as any).aadhaarNumber;
     const encryptedAadhaar = aadhaarRaw ? this.encryptionService.encrypt(aadhaarRaw) : null;
@@ -78,7 +78,7 @@ export class UsersService {
     });
 
     // Send welcome email with credentials
-    const loginUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const loginUrl = process.env.FRONTEND_URL || 'https://app.prod.pdcmspd.protecciodata.co.in';
     await this.notificationsService.sendWelcomeCredentials(
       userData.email,
       userData.name,
@@ -93,9 +93,9 @@ export class UsersService {
     };
   }
 
-  async findAll(filters?: { 
-    status?: UserStatus; 
-    tenantId?: string; 
+  async findAll(filters?: {
+    status?: UserStatus;
+    tenantId?: string;
     search?: string;
     limit?: number;
     offset?: number;
@@ -128,7 +128,7 @@ export class UsersService {
         orderBy,
         select: {
           id: true, email: true, name: true, phone: true, status: true, accountType: true,
-          department: true, mfaEnabled: true, lastLogin: true, validFrom: true, 
+          department: true, mfaEnabled: true, lastLogin: true, validFrom: true,
           validUntil: true, tenantId: true, createdAt: true, updatedAt: true,
           roles: { include: { role: { select: { name: true } } } }
         }
@@ -164,7 +164,7 @@ export class UsersService {
 
   async update(id: string, updateUserDto: UpdateUserDto) {
     const { roles, password, ...data } = updateUserDto;
-    
+
     // Check if user exists
     await this.findOne(id);
 
@@ -214,7 +214,7 @@ export class UsersService {
 
   async remove(id: string) {
     await this.findOne(id);
-    return this.prisma.user.update({ 
+    return this.prisma.user.update({
       where: { id },
       data: { status: UserStatus.DISABLED }
     });
