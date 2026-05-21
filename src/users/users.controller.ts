@@ -69,6 +69,27 @@ export class UsersController {
     return this.usersService.updateStatus(id, status);
   }
 
+  @Post(':id/end-sessions')
+  @Permissions({ module: ModuleName.USER_SETUP, action: 'edit' })
+  @ApiOperation({ summary: 'Invalidate all active sessions for a user' })
+  endSessions(@Param('id') id: string) {
+    return this.usersService.endSessions(id);
+  }
+
+  @Post(':id/reset-mfa')
+  @Permissions({ module: ModuleName.USER_SETUP, action: 'edit' })
+  @ApiOperation({ summary: 'Reset MFA setup for a user' })
+  resetMfa(@Param('id') id: string) {
+    return this.usersService.resetMfa(id);
+  }
+
+  @Post(':id/send-password-reset')
+  @Permissions({ module: ModuleName.USER_SETUP, action: 'edit' })
+  @ApiOperation({ summary: 'Send a password reset OTP to a user' })
+  sendPasswordReset(@Param('id') id: string) {
+    return this.usersService.sendPasswordReset(id);
+  }
+
   @Delete(':id')
   @Permissions({ module: ModuleName.USER_SETUP, action: 'admin' })
   @ApiOperation({ summary: 'Soft delete a user (sets status to DISABLED)' })

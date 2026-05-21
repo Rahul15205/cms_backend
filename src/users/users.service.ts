@@ -4,10 +4,15 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { paginate } from '../common/dto/paginated-response.dto';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { UserStatus } from '@prisma/client';
 
 import { EncryptionService } from '../encryption/encryption.service';
 import { NotificationsService } from '../notifications/notifications.service';
+
+const PASSWORD_RESET_OTP_LENGTH = 7;
+const PASSWORD_RESET_OTP_TTL_MINUTES = 10;
+const PASSWORD_RESET_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 function generateSecurePassword(): string {
   const length = 12;
@@ -30,6 +35,21 @@ function generateSecurePassword(): string {
 
   // Shuffle the password
   return password.split('').sort(() => 0.5 - Math.random()).join('');
+}
+
+function generatePasswordResetOtp(): string {
+  let otp = '';
+  for (let i = 0; i < PASSWORD_RESET_OTP_LENGTH; i++) {
+    otp += PASSWORD_RESET_ALPHABET[crypto.randomInt(PASSWORD_RESET_ALPHABET.length)];
+  }
+  return otp;
+}
+
+function hashPasswordResetOtp(userId: string, otp: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(`${userId}:${otp.trim().toUpperCase()}`)
+    .digest('hex');
 }
 
 @Injectable()
@@ -204,12 +224,25 @@ export class UsersService {
   }
 
   async updateStatus(id: string, status: UserStatus) {
-    await this.findOne(id);
-    return this.prisma.user.update({
+    const user = await this.findOne(id);
+    const updated = await this.prisma.user.update({
       where: { id },
       data: { status },
       select: { id: true, status: true }
     });
+
+    if (
+      status === UserStatus.DISABLED ||
+      status === UserStatus.LOCKED ||
+      status === UserStatus.SUSPENDED
+    ) {
+      await this.prisma.session.updateMany({
+        where: { userId: user.id, isCurrentSession: true },
+        data: { isCurrentSession: false, refreshToken: null },
+      });
+    }
+
+    return updated;
   }
 
   async remove(id: string) {
@@ -218,5 +251,59 @@ export class UsersService {
       where: { id },
       data: { status: UserStatus.DISABLED }
     });
+  }
+
+  async endSessions(id: string) {
+    await this.findOne(id);
+    const result = await this.prisma.session.updateMany({
+      where: { userId: id, isCurrentSession: true },
+      data: { isCurrentSession: false, refreshToken: null },
+    });
+
+    return { message: 'All active sessions ended', count: result.count };
+  }
+
+  async resetMfa(id: string) {
+    await this.findOne(id);
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        mfaEnabled: false,
+        mfaSecret: null,
+      },
+      select: { id: true, mfaEnabled: true },
+    });
+  }
+
+  async sendPasswordReset(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException(`User with ID ${id} not found`);
+
+    const email = this.encryptionService.decrypt(user.email);
+    const otp = generatePasswordResetOtp();
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_OTP_TTL_MINUTES * 60 * 1000);
+
+    await (this.prisma.user as any).update({
+      where: { id },
+      data: {
+        passwordResetOtpHash: hashPasswordResetOtp(user.id, otp),
+        passwordResetOtpExpiresAt: expiresAt,
+        passwordResetOtpRequestedAt: new Date(),
+        passwordResetOtpAttempts: 0,
+      },
+    });
+
+    const sent = await this.notificationsService.sendPasswordResetOtp(
+      email,
+      user.name,
+      otp,
+      PASSWORD_RESET_OTP_TTL_MINUTES,
+    );
+
+    if (!sent) {
+      throw new Error('Unable to send password reset OTP right now');
+    }
+
+    return { message: 'Password reset OTP sent' };
   }
 }
