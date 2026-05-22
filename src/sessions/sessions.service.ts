@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../encryption/encryption.service';
+import { resolveLocationFromIp } from '../common/utils/request-meta.utils';
 
 const sessionInclude = {
   user: { select: { id: true, name: true, email: true } },
@@ -39,14 +40,20 @@ export class SessionsService {
       }
     }
 
+    const ipAddress = session.ipAddress?.trim() || null;
+    const location =
+      session.location?.trim() ||
+      resolveLocationFromIp(ipAddress) ||
+      null;
+
     return {
       id: session.id,
       userId: session.userId,
       userName,
       device: session.device || 'Desktop',
       browser: session.browser || '—',
-      ipAddress: session.ipAddress || '—',
-      location: session.location || '—',
+      ipAddress: ipAddress || '—',
+      location: location || '—',
       loginTime: session.loginTime,
       lastActivity: session.lastActivity,
       isCurrentSession: session.isCurrentSession,

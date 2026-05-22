@@ -16,7 +16,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyResetOtpDto } from './dto/verify-reset-otp.dto';
 import { Request } from 'express';
-import { getClientIp, parseUserAgent } from '../common/utils/request-meta.utils';
+import { buildSessionMeta } from '../common/utils/request-meta.utils';
 
 const PASSWORD_RESET_OTP_LENGTH = 7;
 const PASSWORD_RESET_OTP_TTL_MINUTES = 10;
@@ -165,9 +165,7 @@ export class AuthService {
     }
 
     const refreshToken = crypto.randomUUID();
-    const ipAddress = getClientIp(req);
-    const userAgent = req?.headers?.['user-agent'] as string | undefined;
-    const { device, browser } = parseUserAgent(userAgent);
+    const sessionMeta = buildSessionMeta(req);
 
     // Create new session record
     await this.prisma.session.create({
@@ -177,10 +175,10 @@ export class AuthService {
         lastActivity: new Date(),
         isCurrentSession: true,
         refreshToken,
-        ipAddress: ipAddress || null,
-        device,
-        browser,
-        location: null,
+        ipAddress: sessionMeta.ipAddress,
+        device: sessionMeta.device,
+        browser: sessionMeta.browser,
+        location: sessionMeta.location,
       }
     });
 
@@ -256,7 +254,7 @@ export class AuthService {
     return { message: 'MFA enabled successfully' };
   }
 
-  async refresh(refreshDto: RefreshDto) {
+  async refresh(refreshDto: RefreshDto, req?: Request) {
     const { refreshToken } = refreshDto;
 
     const session = await this.prisma.session.findUnique({
@@ -280,13 +278,24 @@ export class AuthService {
     }
 
     const newRefreshToken = crypto.randomUUID();
+    const sessionMeta = buildSessionMeta(req);
+    const sessionUpdate: Record<string, unknown> = {
+      refreshToken: newRefreshToken,
+      lastActivity: new Date(),
+    };
+
+    if (!session.ipAddress && sessionMeta.ipAddress) {
+      sessionUpdate.ipAddress = sessionMeta.ipAddress;
+      sessionUpdate.location = sessionMeta.location;
+    } else if (session.ipAddress && !session.location && sessionMeta.location) {
+      sessionUpdate.location = sessionMeta.location;
+    }
+    if (!session.device && sessionMeta.device) sessionUpdate.device = sessionMeta.device;
+    if (!session.browser && sessionMeta.browser) sessionUpdate.browser = sessionMeta.browser;
 
     await this.prisma.session.update({
       where: { id: session.id },
-      data: { 
-        refreshToken: newRefreshToken,
-        lastActivity: new Date()
-      }
+      data: sessionUpdate,
     });
 
     const decryptedEmail = this.encryptionService.decrypt(session.user.email);

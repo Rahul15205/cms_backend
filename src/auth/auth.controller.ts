@@ -30,8 +30,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Rotate your Refresh Token and acquire new JWT access' })
   @ApiResponse({ status: 200, type: AuthResponseDto })
-  refresh(@Body() refreshDto: RefreshDto) {
-    return this.authService.refresh(refreshDto);
+  refresh(@Body() refreshDto: RefreshDto, @Req() req: ExpressRequest) {
+    return this.authService.refresh(refreshDto, req);
   }
 
   @Post('forgot-password')
