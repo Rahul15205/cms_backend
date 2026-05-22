@@ -60,6 +60,7 @@ export class UsersService {
     private notificationsService: NotificationsService
   ) { }
 
+  /** Block roles that can manage User Setup (not view-only). Admin is always allowed. */
   private async ensureRolesDoNotGrantUserSetup(roleIds?: string[]) {
     if (!roleIds || roleIds.length === 0) return;
 
@@ -68,7 +69,15 @@ export class UsersService {
         id: { in: roleIds },
         name: { not: 'Admin' },
         permissions: {
-          some: { module: ModuleName.USER_SETUP },
+          some: {
+            module: ModuleName.USER_SETUP,
+            OR: [
+              { create: true },
+              { edit: true },
+              { configure: true },
+              { admin: true },
+            ],
+          },
         },
       },
       select: { name: true },
@@ -76,7 +85,7 @@ export class UsersService {
 
     if (restrictedRoles.length > 0) {
       throw new BadRequestException(
-        `Roles with User Setup access cannot be assigned: ${restrictedRoles.map((role) => role.name).join(', ')}`,
+        `Roles with User Setup management access cannot be assigned: ${restrictedRoles.map((role) => role.name).join(', ')}. Use Admin or a role without User Setup create/edit rights.`,
       );
     }
   }
