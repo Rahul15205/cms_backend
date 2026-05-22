@@ -3,6 +3,7 @@ import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditCategory, AuditSeverity, SystemLogCategory } from '@prisma/client';
+import { buildHumanLogDetails, sanitizeLogPayload } from '../utils/log-details.utils';
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
@@ -47,10 +48,8 @@ export class AuditInterceptor implements NestInterceptor {
           const category = this.getCategory(url);
           let actionLabel = `${method} ${url}`;
 
-          // Mask password fields in logs to prevent PII leaks
-          const safeBody = { ...body };
-          if (safeBody.password) safeBody.password = '********';
-          if (safeBody.confirmPassword) safeBody.confirmPassword = '********';
+          const safeBody = sanitizeLogPayload(body);
+          const humanDetails = buildHumanLogDetails(method, url, safeBody, oldData);
 
           await this.prisma.auditLog.create({
             data: {
@@ -60,11 +59,7 @@ export class AuditInterceptor implements NestInterceptor {
               category,
               severity: method === 'DELETE' ? AuditSeverity.WARNING : AuditSeverity.INFO,
               ipAddress: ip || '127.0.0.1',
-              details: {
-                requestBody: Object.keys(safeBody).length > 0 ? safeBody : undefined,
-                beforeSnapshot: oldData || undefined,
-                success: true,
-              },
+              details: humanDetails || undefined,
             },
           });
 
@@ -98,10 +93,7 @@ export class AuditInterceptor implements NestInterceptor {
                 userName,
                 target: this.describeTarget(url, method, safeBody, oldData),
                 ipAddress: ip || '127.0.0.1',
-                details: {
-                  requestBody: Object.keys(safeBody).length > 0 ? safeBody : undefined,
-                  success: true,
-                },
+                details: humanDetails || null,
                 tenantId: user?.tenantId || null,
               },
             });

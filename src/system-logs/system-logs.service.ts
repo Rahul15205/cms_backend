@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemLogCategory, Prisma } from '@prisma/client';
+import { normalizeLogDetailsForDisplay } from '../common/utils/log-details.utils';
 
 @Injectable()
 export class SystemLogsService {
@@ -45,7 +46,13 @@ export class SystemLogsService {
       this.prisma.systemLog.count({ where }),
     ]);
 
-    return { data, total };
+    return {
+      data: data.map((log) => ({
+        ...log,
+        details: normalizeLogDetailsForDisplay(log.details) || null,
+      })),
+      total,
+    };
   }
 
   async exportLogs(filters: {

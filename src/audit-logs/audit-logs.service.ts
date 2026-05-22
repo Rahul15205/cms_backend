@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditCategory, AuditSeverity, SystemLogCategory } from '@prisma/client';
 import { maskObjectPii } from '../common/utils/masking.utils';
+import { normalizeLogDetailsForDisplay } from '../common/utils/log-details.utils';
 
 @Injectable()
 export class AuditLogsService {
@@ -46,16 +47,27 @@ export class AuditLogsService {
       this.prisma.auditLog.count({ where })
     ]);
 
-    const returnedData = filters?.anonymize 
-      ? data.map(log => ({
-          ...log,
-          user: log.user ? {
-            ...log.user,
-            email: log.user.email ? log.user.email.includes('@') ? log.user.email[0] + '***@' + log.user.email.split('@')[1] : log.user.email : undefined
-          } : undefined,
-          details: maskObjectPii(log.details)
-        }))
-      : data;
+    const returnedData = data.map((log) => {
+      const normalized = {
+        ...log,
+        details: normalizeLogDetailsForDisplay(log.details) || null,
+      };
+      if (!filters?.anonymize) return normalized;
+      return {
+        ...normalized,
+        user: log.user
+          ? {
+              ...log.user,
+              email: log.user.email?.includes('@')
+                ? log.user.email[0] + '***@' + log.user.email.split('@')[1]
+                : log.user.email,
+            }
+          : undefined,
+        details: typeof normalized.details === 'string'
+          ? normalized.details
+          : maskObjectPii(normalized.details),
+      };
+    });
 
     return { data: returnedData, total };
   }
