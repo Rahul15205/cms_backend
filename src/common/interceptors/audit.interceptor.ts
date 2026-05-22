@@ -93,7 +93,7 @@ export class AuditInterceptor implements NestInterceptor {
                 userName,
                 target: this.describeTarget(url, method, safeBody, oldData),
                 ipAddress: ip || '127.0.0.1',
-                details: humanDetails || null,
+                details: humanDetails || undefined,
                 tenantId: user?.tenantId || null,
               },
             });
