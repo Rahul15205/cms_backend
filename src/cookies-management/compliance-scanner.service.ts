@@ -481,10 +481,8 @@ export class ComplianceScannerService {
       score: localizationPassed ? 3 : 0,
       severity: localizationPassed ? 'LOW' : 'LOW',
       details: localizationPassed
-        ? signals?.hasLocalization
-          ? `Language localization detected (${signals?.languageEvidence?.snippet || 'non-English content found'}). Privacy information is accessible to a broader audience.`
-          : 'Default language (English) is appropriate for the audience.'
-        : 'No language localization signals found. Consider providing privacy information in local languages for better accessibility.',
+        ? `Language localization detected: ${signals?.languageEvidence?.snippet || 'multi-language or regional-language content found'}. Privacy information appears accessible in more than one language.`
+        : 'No language localization signals found (checked HTML lang, hreflang, language switchers, URL locale paths, and regional scripts such as Devanagari/Tamil/Telugu). Consider providing privacy notices in local languages per DPDP accessibility expectations.',
       evidence: signals?.languageEvidence
     });
 

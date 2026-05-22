@@ -9,6 +9,7 @@ import * as puppeteer from 'puppeteer';
 import { CookieClassifierService } from './cookie-classifier.service';
 import { ScanStatus, ScanDepth } from '@prisma/client';
 import { ComplianceScannerService } from './compliance-scanner.service';
+import { detectPageLanguage } from './language-detection.util';
 
 const PRIVACY_URL_PATTERN = /(?:^|[/_-])(?:privacy|privacy[-_]?policy|privacy[-_]?notice|privacy[-_]?statement|privacy[-_]?center|data[-_]?protection|datenschutz|privacidad)(?:[/_.-]|$)/i;
 const COOKIE_URL_PATTERN = /(?:^|[/_-])(?:cookies?|cookie[-_]?policy|cookies[-_]?policy|cookie[-_]?notice|cookie[-_]?declaration|cookie[-_]?statement)(?:[/_.-]|$)/i;
@@ -1035,23 +1036,19 @@ export class CookieScannerProcessor extends WorkerHost {
               preConsentPhaseComplete = true;
             }
 
-            const langData = await page.evaluate(() => {
-              const htmlLang = document.documentElement.lang?.toLowerCase() || '';
-              // Look for common language switcher elements or text
-              const bodyText = document.body?.innerText?.toLowerCase() || '';
-              const switchers = Array.from(document.querySelectorAll('select, button, a'))
-                .some(el => /language|select language|choose language|hindi|telugu|marathi|tamil|kannada|malayalam|bengali|gujarati|punjabi/i.test(el.textContent || ''));
-              return { htmlLang, hasSwitchers: switchers };
-            }).catch(() => ({ htmlLang: '', hasSwitchers: false }));
+            const langResult = await page
+              .evaluate(detectPageLanguage, pageUrl)
+              .catch(() => ({ detected: false, method: 'none', snippet: '', languages: [] as string[] }));
 
-            if (langData.htmlLang && langData.htmlLang !== 'en' && langData.htmlLang !== 'en-us' && langData.htmlLang !== 'en-gb') {
-              // If lang is explicitly non-English, count it
+            if (langResult.detected) {
               complianceSignals.hasLocalization = true;
-              complianceSignals.languageEvidence = { url: pageUrl, snippet: `Page language attribute: ${langData.htmlLang}` };
-            } else if (langData.hasSwitchers) {
-              // If we found a language switcher, count it
-              complianceSignals.hasLocalization = true;
-              complianceSignals.languageEvidence = { url: pageUrl, snippet: `Language switcher/selector detected on page.` };
+              complianceSignals.languageEvidence = {
+                url: pageUrl,
+                snippet: langResult.snippet || `Languages: ${langResult.languages.join(', ')}`,
+              };
+              this.logger.log(
+                `Language localization (${langResult.method}): ${langResult.languages.join(', ')} on ${pageUrl}`,
+              );
             }
 
             // ── CONDITIONAL COMPLIANCE SCANNING ───────────────────────────
