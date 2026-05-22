@@ -15,6 +15,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyResetOtpDto } from './dto/verify-reset-otp.dto';
+import { Request } from 'express';
+import { getClientIp, parseUserAgent } from '../common/utils/request-meta.utils';
 
 const PASSWORD_RESET_OTP_LENGTH = 7;
 const PASSWORD_RESET_OTP_TTL_MINUTES = 10;
@@ -46,7 +48,7 @@ export class AuthService {
       .digest('hex');
   }
 
-  async login(loginDto: LoginDto) {
+  async login(loginDto: LoginDto, req?: Request) {
     const { email, password } = loginDto;
     
     const emailHash = this.encryptionService.generateHash(email);
@@ -163,6 +165,9 @@ export class AuthService {
     }
 
     const refreshToken = crypto.randomUUID();
+    const ipAddress = getClientIp(req);
+    const userAgent = req?.headers?.['user-agent'] as string | undefined;
+    const { device, browser } = parseUserAgent(userAgent);
 
     // Create new session record
     await this.prisma.session.create({
@@ -172,6 +177,10 @@ export class AuthService {
         lastActivity: new Date(),
         isCurrentSession: true,
         refreshToken,
+        ipAddress: ipAddress || null,
+        device,
+        browser,
+        location: null,
       }
     });
 
