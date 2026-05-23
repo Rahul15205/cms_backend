@@ -717,30 +717,71 @@ export class CookiesManagementService {
       
       const html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
       
-      // 2. Look for the script pattern
-      // Pattern: /api/v1/public/cookies/banner-script/{id}
-      const scriptFound = html.includes(`/api/v1/public/cookies/banner-script/${websiteId}`);
-      const globalScriptFound = html.includes(`/api/v1/public/cookies/banner-script/GLOBAL_ID`);
+      const normalizedHtml = html.replace(/\s+/g, ' ').toLowerCase();
+      const scriptPath = `/api/v1/public/cookies/banner-script/${websiteId}`.toLowerCase();
+      const globalPath = '/api/v1/public/cookies/banner-script/global_id';
 
-      if (scriptFound || globalScriptFound) {
+      const detectionPatterns: { id: string; label: string; test: (h: string) => boolean }[] = [
+        {
+          id: 'script_tag',
+          label: 'HTML script tag',
+          test: (h) => h.includes(scriptPath) || h.includes(globalPath),
+        },
+        {
+          id: 'banner_script_url',
+          label: 'Banner script URL',
+          test: (h) =>
+            h.includes('banner-script/') &&
+            (h.includes(websiteId.toLowerCase()) || h.includes('global_id')),
+        },
+        {
+          id: 'proteccio_loader',
+          label: 'Proteccio loader (GTM / dynamic inject)',
+          test: (h) =>
+            h.includes('proteccio-cookie-banner-loader') ||
+            h.includes('proteccio-cookie-banner'),
+        },
+        {
+          id: 'wordpress_enqueue',
+          label: 'WordPress wp_enqueue_script',
+          test: (h) =>
+            h.includes('proteccio-cookie-banner') &&
+            (h.includes('wp_enqueue_script') || h.includes('wp_script_add_data')),
+        },
+        {
+          id: 'gtm_inject',
+          label: 'Google Tag Manager custom HTML',
+          test: (h) =>
+            h.includes(scriptPath) &&
+            (h.includes('googletagmanager') || h.includes('gtm.js') || h.includes('datalayer')),
+        },
+      ];
+
+      const matched = detectionPatterns.filter((p) => p.test(normalizedHtml));
+
+      if (matched.length > 0) {
+        const methods = matched.map((m) => m.label).join(', ');
+        const isSiteSpecific = normalizedHtml.includes(scriptPath);
         return {
           success: true,
-          message: 'Installation verified successfully! The script is active on your website.',
+          message: `Installation verified (${methods}). The Proteccio cookie banner is referenced on your website.`,
           details: {
-            scriptType: scriptFound ? 'Website-specific' : 'Global Template',
+            scriptType: isSiteSpecific ? 'Website-specific' : 'Global Template',
+            detectionMethods: matched.map((m) => m.id),
             urlChecked: website.url,
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         };
       }
 
       return {
         success: false,
-        message: 'Could not find the Proteccio script tag on your website. Please ensure you have pasted the code correctly before the </body> tag.',
+        message:
+          'Could not find the Proteccio banner on your website. Install via HTML script tag, Google Tag Manager, WordPress, Shopify, or another method from the installation guide, then verify again.',
         details: {
           urlChecked: website.url,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       };
     } catch (e) {
       console.warn(`Proteccio: Verification failed for ${website.url}`, e.message);
