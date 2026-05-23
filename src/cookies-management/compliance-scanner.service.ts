@@ -95,8 +95,7 @@ export class ComplianceScannerService {
 
     // ── Banner Detection ────────────────────────────────────────────────────
     const hasProteccioBanner = website.cookieBanners && website.cookieBanners.length > 0;
-    const hasExternalCmp = signals?.hasCmpBanner === true;
-    const hasBanner = hasProteccioBanner || hasExternalCmp;
+    const hasBanner = hasProteccioBanner || signals?.bannerVerified === true;
     const cmpProvider = hasProteccioBanner ? 'Proteccio' : (signals?.cmpProvider || null);
 
     // ── Page existence signals ──────────────────────────────────────────────
@@ -150,7 +149,7 @@ export class ComplianceScannerService {
       severity: hasBanner ? 'LOW' : 'CRITICAL',
       details: hasBanner
         ? `Cookie consent banner detected${cmpProvider ? ` (${cmpProvider})` : ''}. Users can manage their cookie preferences.`
-        : 'No cookie consent banner detected. This is a critical GDPR/DPDP requirement — users must be able to give or withhold consent before non-essential cookies are set.',
+        : 'No cookie consent banner detected on the live site. A visible consent banner with accept/reject controls is required before non-essential cookies load.',
       evidence: signals?.bannerEvidence
     });
 
@@ -203,8 +202,8 @@ export class ComplianceScannerService {
       score: hasPrivacyPolicy ? 10 : 0,
       severity: hasPrivacyPolicy ? 'LOW' : 'CRITICAL',
       details: hasPrivacyPolicy
-        ? 'Privacy Notice page detected on the website.'
-        : 'No Privacy Notice page found. A privacy notice is a legal requirement under GDPR (Article 13/14) and DPDP Act (Section 6).',
+        ? 'Dedicated Privacy Notice page detected (blog/category pages excluded).'
+        : 'No dedicated Privacy Notice page found. A standalone privacy notice is required under GDPR (Article 13/14) and DPDP Act (Section 6).',
       evidence: signals?.privacyPolicyEvidence
     });
 
@@ -451,7 +450,7 @@ export class ComplianceScannerService {
     });
 
     // ── 13. Opt-out Mechanism (5 pts) ───────────────────────────────────────
-    const optOutFromBanner = hasBanner;
+    const optOutFromBanner = hasBanner && (hasProteccioBanner || signals?.bannerVerified === true);
     const optOutFromPolicy = signals?.hasOptOut === true;
     const optOutPassed = optOutFromBanner || optOutFromPolicy;
 

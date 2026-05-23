@@ -70,6 +70,20 @@ export function detectPageLanguage(pageUrl?: string): LanguageDetectionResult {
     return !ENGLISH_LANG_CODES.has(base);
   };
 
+  /** Blog/topic slugs that look like ISO 639-1 codes (e.g. /category/ma for M&A) */
+  const PATH_SEGMENT_LANG_BLOCKLIST = new Set([
+    'ma', 'us', 'uk', 'in', 'eu', 'ai', 'ar', 'id', 'me', 'be', 'or', 'no',
+    'is', 'it', 'at', 'by', 'to', 'do', 'go', 'my', 'we', 'he', 'as', 'an',
+    'ad', 'tv', 'fm', 'am', 'pm', 'cd', 'pc', 'os', 'ui', 'ux', 'hr', 'pr',
+    'qa', 'se', 'es', 'gst', 'dpdp', 'gdpr', 'ccpa', 'rbi', 'sebi',
+  ]);
+
+  const isPathSegmentLikelyLanguage = (code: string): boolean => {
+    const base = code.toLowerCase().split('-')[0];
+    if (PATH_SEGMENT_LANG_BLOCKLIST.has(base)) return false;
+    return base.length === 2;
+  };
+
   const collectLangCodesFromUrl = (url: string): string[] => {
     const found: string[] = [];
     try {
@@ -78,7 +92,7 @@ export function detectPageLanguage(pageUrl?: string): LanguageDetectionResult {
         const m = seg.match(/^([a-z]{2})(?:[-_]([a-z]{2}))?$/i);
         if (m) {
           const code = m[2] ? `${m[1]}-${m[2]}`.toLowerCase() : m[1].toLowerCase();
-          if (isNonEnglishLangCode(code)) found.push(code);
+          if (isPathSegmentLikelyLanguage(code) && isNonEnglishLangCode(code)) found.push(code);
         }
       }
       const langParam =

@@ -10,8 +10,16 @@ import { CookieClassifierService } from './cookie-classifier.service';
 import { ScanStatus, ScanDepth } from '@prisma/client';
 import { ComplianceScannerService } from './compliance-scanner.service';
 import { detectPageLanguage } from './language-detection.util';
+import {
+  isBlogOrArchiveUrl,
+  isDedicatedCookiePolicyUrl,
+  isDedicatedPrivacyPolicyUrl,
+  isValidCookieBannerSnippet,
+  scorePrivacyPolicyPage,
+  urlImpliesCookiePolicy,
+  urlImpliesPrivacyPolicy,
+} from './compliance-detection.util';
 
-const PRIVACY_URL_PATTERN = /(?:^|[/_-])(?:privacy|privacy[-_]?policy|privacy[-_]?notice|privacy[-_]?statement|privacy[-_]?center|data[-_]?protection|datenschutz|privacidad)(?:[/_.-]|$)/i;
 const COOKIE_URL_PATTERN = /(?:^|[/_-])(?:cookies?|cookie[-_]?policy|cookies[-_]?policy|cookie[-_]?notice|cookie[-_]?declaration|cookie[-_]?statement)(?:[/_.-]|$)/i;
 const COMPLIANCE_URL_PATTERN = /(?:compliance|legal|grievance|terms[-_]?of[-_]?(use|service)|terms|gdpr|ccpa|dpdp|dpo|nodal[-_]?officer)/i;
 const POLICY_LINK_PATTERN = /privacy|cookie|legal|terms|gdpr|ccpa|dpdp|compliance|grievance|dpo|nodal/i;
@@ -231,8 +239,8 @@ function classifyPageByUrl(url: string): PageType[] {
   const lower = `${parsed.pathname}${parsed.search}`.toLowerCase();
 
   if (/^\/?$|\/home(?:[/_.-]|$)|\/index(?:[/_.-]|$)/.test(lower)) types.push('HOME');
-  if (PRIVACY_URL_PATTERN.test(lower)) types.push('PRIVACY_POLICY');
-  if (COOKIE_URL_PATTERN.test(lower)) types.push('COOKIE_POLICY');
+  if (urlImpliesPrivacyPolicy(url)) types.push('PRIVACY_POLICY');
+  if (urlImpliesCookiePolicy(url) || COOKIE_URL_PATTERN.test(lower)) types.push('COOKIE_POLICY');
   if (COMPLIANCE_URL_PATTERN.test(lower)) types.push('COMPLIANCE');
 
   return types.length ? types : ['GENERAL'];
@@ -273,23 +281,17 @@ async function classifyPageByContent(page: puppeteer.Page, url: string): Promise
     
     const types: PageType[] = [];
 
-    // Privacy Policy Detection
-    const privacyHeading = /privacy policy|privacy notice|privacy statement|data protection notice|privacy center|privacy information/.test(headingText);
-    const privacyContent = 
-      /privacy policy|privacy notice|privacy statement|personal data we collect|your privacy rights/.test(mainLower) &&
-      /personal data|personal information|data subject|controller|processor|collect|process|rights/.test(mainLower);
-    
-    if (privacyHeading || privacyContent) {
+    const privacyScore = scorePrivacyPolicyPage(url, data.title, data.mainText);
+    if (privacyScore >= 55) {
       types.push('PRIVACY_POLICY');
     }
 
-    // Cookie Policy Detection
     const cookieHeading = /cookie policy|cookie notice|cookie declaration|cookie statement/.test(headingText);
     const cookieContent =
       /how we use cookies|types of cookies|manage cookies|cookie preferences|strictly necessary cookies/.test(mainLower) &&
       /necessary|essential|analytics|performance|marketing|advertising|functional/.test(mainLower);
-    
-    if (cookieHeading || cookieContent) {
+
+    if ((cookieHeading || cookieContent || isDedicatedCookiePolicyUrl(url)) && !isBlogOrArchiveUrl(url)) {
       types.push('COOKIE_POLICY');
     }
 
@@ -327,7 +329,8 @@ interface ComplianceSignals {
   hasPrivacyPolicy: boolean;
   hasCookieNotice: boolean;
   hasComplianceNotice: boolean;
-  hasCmpBanner: boolean;         // NEW: proper CMP detected (not just any banner)
+  hasCmpBanner: boolean;         // CMP / consent UI detected with validated proof
+  bannerVerified?: boolean;      // DOM text passed cookie-banner validation
   hasDsar: boolean;
   hasGrievance: boolean;
   hasOptOut: boolean;
@@ -378,17 +381,22 @@ const CMP_ACCEPT_SELECTORS = [
   'button[class*="accept" i]',
   '[data-action="accept" i]',
   ':has-text("Accept All")',
-  ':has-text("Accept")',
   ':has-text("Accept Cookies")',
   ':has-text("I Agree")',
   ':has-text("Allow All")',
-  ':has-text("Agree")',
   ':has-text("Got it")',
-  ':has-text("OK")',
-  ':has-text("Continue")',
   ':has-text("Akzeptieren")',
   ':has-text("Aceptar")',
-  ':has-text("Tout accepter")'
+  ':has-text("Tout accepter")',
+];
+
+/** Selectors used only to dismiss banners during scan — must not alone prove a banner exists */
+const CMP_DISMISS_SELECTORS = [
+  ...CMP_ACCEPT_SELECTORS,
+  ':has-text("Accept")',
+  ':has-text("Agree")',
+  ':has-text("OK")',
+  ':has-text("Continue")',
 ];
 
 export interface CookieScanJobData {
@@ -649,13 +657,11 @@ export class CookieScannerProcessor extends WorkerHost {
               // Old code only checked <script src> — missed pixels, fetch, XHR, iframes
               try {
                 const responseUrl = params.response.url.toLowerCase();
-                if (!complianceSignals.hasCmpBanner) {
+                if (!complianceSignals.cmpProvider) {
                   for (const { pattern, name: cmpName } of CMP_SCRIPT_PATTERNS) {
                     if (pattern.test(responseUrl)) {
-                      complianceSignals.hasCmpBanner = true;
                       complianceSignals.cmpProvider = cmpName;
-                      complianceSignals.bannerEvidence = { url: currentUrl, snippet: `CMP detected via network request: ${cmpName}` };
-                      this.logger.log(`CMP detected via network request: ${cmpName} on ${currentUrl}`);
+                      this.logger.log(`CMP script hint via network: ${cmpName} on ${currentUrl}`);
                       break;
                     }
                   }
@@ -763,59 +769,38 @@ export class CookieScannerProcessor extends WorkerHost {
               title: pageTitle,
             });
  
-            const calculatePrivacyConfidence = (url: string, title: string) => {
-              let score = 0;
-              const lowUrl = url.toLowerCase();
-              const lowTitle = title.toLowerCase();
-
-              // Base Domain Bonus: Strongly prefer policies hosted on the official domain
+            const privacyConfidenceForPage = (url: string, title: string, mainText: string) => {
+              let score = scorePrivacyPolicyPage(url, title, mainText);
               try {
-                const targetDomain = getBaseDomain(new URL(url).hostname);
-                if (targetDomain === baseDomain) {
-                  score += 40;
-                }
+                if (getBaseDomain(new URL(url).hostname) === baseDomain) score += 15;
               } catch {}
-
-              // URL signals (Strongest)
-              if (lowUrl.includes('privacy-policy') || lowUrl.includes('privacy-notice')) score += 100;
-              else if (lowUrl.includes('/privacy')) score += 80; // High score for clean /privacy path
-              else if (lowUrl.includes('privacy')) score += 40;
-              
-              if (lowUrl.includes('/legal')) score += 20; // Legal directory is a good sign
-              if (lowUrl.includes('policy') || lowUrl.includes('notice')) score += 20;
-              
-              // Title signals (Medium)
-              if (lowTitle.includes('privacy policy') || lowTitle.includes('privacy notice')) score += 60;
-              else if (lowTitle.includes('privacy')) score += 30;
-              
-              // Penalty for non-policy pages
-              if (lowUrl.includes('manage') || lowUrl.includes('communication') || lowUrl.includes('setting') || lowUrl.includes('preference')) score -= 80;
-              if (lowUrl.includes('terms') || lowUrl.includes('condition')) score -= 40; // Terms of service pages often mention privacy
-              
+              if (url.includes('manage') || url.includes('communication')) score -= 50;
               return score;
             };
+
+            const privacyScore = privacyConfidenceForPage(pageUrl, pageTitle, pageMainText || '');
+            if (privacyScore >= 55) {
+              allTypes = [...new Set<PageType>([...allTypes.filter((t) => t !== 'PRIVACY_POLICY'), 'PRIVACY_POLICY'])];
+            } else {
+              allTypes = allTypes.filter((t) => t !== 'PRIVACY_POLICY');
+            }
 
             // Update top-level signals based on page type
             if (allTypes.includes('PRIVACY_POLICY')) {
               complianceSignals.hasPrivacyPolicy = true;
-              
-              const currentPrivacyConfidence = calculatePrivacyConfidence(pageUrl, pageTitle);
+
               const prevPrivacyConfidence = complianceSignals.privacyPolicyConfidence || -1000;
-              
-              // Always prefer the higher confidence page
-              if (currentPrivacyConfidence > prevPrivacyConfidence || !complianceSignals.privacyPolicyEvidence) {
-                complianceSignals.privacyPolicyEvidence = { 
-                  url: pageUrl, 
-                  snippet: pageTitle ? `Privacy Policy: ${pageTitle}` : 'Privacy Policy page detected.' 
+
+              if (privacyScore > prevPrivacyConfidence || !complianceSignals.privacyPolicyEvidence) {
+                complianceSignals.privacyPolicyEvidence = {
+                  url: pageUrl,
+                  snippet: pageTitle ? `Privacy Policy: ${pageTitle}` : 'Privacy Policy page detected.',
                 };
-                complianceSignals.privacyPolicyConfidence = currentPrivacyConfidence;
+                complianceSignals.privacyPolicyConfidence = privacyScore;
               }
             }
             if (allTypes.includes('COOKIE_POLICY')) {
               complianceSignals.hasCookieNotice = true;
-              if (!complianceSignals.bannerEvidence) {
-                 complianceSignals.bannerEvidence = { url: pageUrl, snippet: `Cookie Policy found: ${pageTitle || pageUrl}` };
-              }
             }
             if (allTypes.includes('COMPLIANCE')) complianceSignals.hasComplianceNotice = true;
 
@@ -825,7 +810,7 @@ export class CookieScannerProcessor extends WorkerHost {
             // ── CMP Detection (Enhanced & Evidence-Focused) ────────────────
             // Focus: High-reliability detection + text evidence for compliance proof
             
-            if (!complianceSignals.hasCmpBanner) {
+            if (!complianceSignals.bannerVerified) {
               try {
                 // Method 1: Fingerprinting (Scripts/Global APIs)
                 // This gives us the PROVIDER name even if the banner isn't visible yet
@@ -857,10 +842,8 @@ export class CookieScannerProcessor extends WorkerHost {
                 }
 
                 if (detectedCmpName) {
-                  complianceSignals.hasCmpBanner = true;
                   complianceSignals.cmpProvider = detectedCmpName;
-                  complianceSignals.bannerEvidence = { url: currentUrl, snippet: `CMP detected via script/API: ${detectedCmpName}` };
-                  this.logger.log(`CMP fingerprint detected: ${detectedCmpName} on ${currentUrl}`);
+                  this.logger.log(`CMP fingerprint hint: ${detectedCmpName} on ${currentUrl}`);
                 }
 
                 // Method 2: Deep DOM Inspection (Now mandatory for proof extraction)
@@ -908,13 +891,15 @@ export class CookieScannerProcessor extends WorkerHost {
                       const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
                       const lowerText = text.toLowerCase();
                       
-                      // Filter for cookie banner characteristics
-                      const hasKeywords = /(cookie|consent|privacy|gdpr|akceptuj|cookies)/i.test(lowerText);
-                      const hasChoices = /(accept|allow|agree|reject|manage|preferences|settings|customize|decline)/i.test(lowerText);
+                      const hasCookieContext = /\b(cookie|cookies|consent|gdpr|ccpa|dpdp|tracking)\b/i.test(lowerText);
+                      const hasConsentAction = /\b(accept all|accept cookies|reject all|decline|allow all|manage preferences|cookie settings|customize|i agree|got it|only necessary)\b/i.test(lowerText);
+                      const marketingNoise = /\b(welcome to|read more|law firm|advocates|legal strategists)\b/i.test(lowerText) &&
+                        !/\b(we use cookies|this (site|website) uses cookies)\b/i.test(lowerText);
                       const isSticky = ['fixed', 'sticky'].includes(window.getComputedStyle(el).position);
                       const zIndex = parseInt(window.getComputedStyle(el).zIndex) || 0;
-                      
-                      if (hasKeywords && hasChoices && (isSticky || zIndex > 10 || text.length < 1000)) {
+
+                      if (hasCookieContext && hasConsentAction && !marketingNoise && text.length < 1200 &&
+                          (isSticky || zIndex > 10)) {
                         return { text, selector: `heuristic:${el.tagName}` };
                       }
                     }
@@ -932,14 +917,17 @@ export class CookieScannerProcessor extends WorkerHost {
                   return findGeneric(document);
                 }).catch(() => null);
 
-                if (bannerInfo && bannerInfo.text) {
-                  complianceSignals.hasCmpBanner = true;
+                if (bannerInfo?.text) {
                   const cleanText = bannerInfo.text.replace(/\s+/g, ' ').trim().substring(0, 600);
-                  complianceSignals.bannerEvidence = { 
-                    url: currentUrl, 
-                    snippet: cleanText || `Cookie banner detected (${bannerInfo.selector})` 
-                  };
-                  this.logger.log(`Banner text captured from ${currentUrl} (${bannerInfo.selector})`);
+                  if (isValidCookieBannerSnippet(cleanText)) {
+                    complianceSignals.hasCmpBanner = true;
+                    complianceSignals.bannerVerified = true;
+                    complianceSignals.bannerEvidence = {
+                      url: currentUrl,
+                      snippet: cleanText,
+                    };
+                    this.logger.log(`Banner text captured from ${currentUrl} (${bannerInfo.selector})`);
+                  }
                 }
 
                 // Method 3: Proteccio-Specific & Proteccio-Managed check
@@ -950,6 +938,7 @@ export class CookieScannerProcessor extends WorkerHost {
                   
                   if (proteccioDetected) {
                     complianceSignals.hasCmpBanner = true;
+                    complianceSignals.bannerVerified = true;
                     complianceSignals.cmpProvider = 'Proteccio';
                     complianceSignals.bannerEvidence = { url: currentUrl, snippet: 'Proteccio consent management platform detected.' };
                   }
@@ -978,7 +967,7 @@ export class CookieScannerProcessor extends WorkerHost {
             }
 
             // Click accept to trigger post-consent cookies
-            for (const sel of CMP_ACCEPT_SELECTORS) {
+            for (const sel of CMP_DISMISS_SELECTORS) {
               try {
                 const clicked = await page.evaluate((s) => {
                   let btn: HTMLElement | null = null;
@@ -1015,14 +1004,6 @@ export class CookieScannerProcessor extends WorkerHost {
                 }, sel);
                 
                 if (clicked) {
-                  // If we successfully clicked an "Accept" button but haven't marked the banner as found yet, mark it now!
-                  if (!complianceSignals.hasCmpBanner) {
-                    complianceSignals.hasCmpBanner = true;
-                    complianceSignals.cmpProvider = complianceSignals.cmpProvider || 'Custom/Generic CMP';
-                    complianceSignals.bannerEvidence = { url: currentUrl, snippet: 'Consent banner detected and accepted via generic clicker.' };
-                    this.logger.log(`CMP detected via fallback clicker on ${currentUrl}`);
-                  }
-                  
                   // Wait 3 seconds to let third-party scripts load and inject tracking cookies after consent
                   await new Promise(r => setTimeout(r, 3000));
                   preConsentPhaseComplete = true;  // Mark phase complete after consent interaction
@@ -1076,10 +1057,9 @@ export class CookieScannerProcessor extends WorkerHost {
               const textForSnippet = pageMainText || pageText;
 
               if (allTypes.includes('PRIVACY_POLICY')) {
-                const currentConfidence = calculatePrivacyConfidence(pageUrl, pageTitle);
+                const currentConfidence = privacyConfidenceForPage(pageUrl, pageTitle, textForSnippet);
                 const previousConfidence = complianceSignals.privacyPolicyConfidence || -1000;
 
-                // Always prefer the higher confidence page
                 if (currentConfidence > previousConfidence || !complianceSignals.privacyPolicyEvidence) {
                   const privacySnippet = extractSnippet(textForSnippet, 'privacy policy') ||
                     extractSnippet(textForSnippet, 'privacy notice') ||
@@ -1099,8 +1079,12 @@ export class CookieScannerProcessor extends WorkerHost {
 
               // DSAR → PRIVACY_POLICY or COOKIE_POLICY
               if ((allTypes.includes('PRIVACY_POLICY') || allTypes.includes('COOKIE_POLICY')) && !complianceSignals.hasDsar) {
-                const dsarRegex = /dsar|data subject|your rights|exercise.*rights|right to access|request access|data portability|rectification|erasure|anonymization|right to be informed/i;
-                if (dsarRegex.test(lowerText)) {
+                const dsarRegex = /dsar|data subject access|right to access|request access|data portability|rectification|erasure|anonymization|right to be informed|access your (personal )?data/i;
+                const listingNoise =
+                  isBlogOrArchiveUrl(pageUrl) ||
+                  /\/sitemap(?:\/|$)/i.test(pageUrl) ||
+                  (allTypes.includes('GENERAL') && /know your rights/i.test(pageTitle.toLowerCase()));
+                if (dsarRegex.test(lowerText) && !listingNoise) {
                   complianceSignals.hasDsar = true;
                   complianceSignals.dsarEvidence = {
                     url: currentUrl,
