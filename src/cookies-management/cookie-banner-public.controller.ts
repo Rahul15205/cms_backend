@@ -435,7 +435,7 @@ export class CookieBannerPublicController {
     await resolveVisitorId();
 
     // Browser cookies/localStorage cleared → show banner again (UX).
-    // Server still links same IP user (VIS-*) for audit when they re-accept.
+    // Server still links same IP user (IN-XXX-USER-####) for audit when they re-accept.
     const localConsent = localStorage.getItem('proteccio-consent');
     if (!localConsent) {
       initBanner();

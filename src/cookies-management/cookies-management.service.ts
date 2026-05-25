@@ -345,7 +345,7 @@ export class CookiesManagementService {
     if (shouldReplaceClientVisitorId(clientUserId)) {
       return ipBasedId;
     }
-    return clientUserId!.startsWith('VIS-') ? clientUserId! : ipBasedId;
+    return ipBasedId;
   }
 
   async recordPublicConsent(websiteId: string, dto: any) {

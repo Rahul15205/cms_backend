@@ -2,6 +2,7 @@ import {
   deriveVisitorIdFromIp,
   normalizeClientIp,
   shouldReplaceClientVisitorId,
+  isGeoVisitorId,
 } from './visitor-id.utils';
 
 describe('visitor-id.utils', () => {
@@ -14,7 +15,7 @@ describe('visitor-id.utils', () => {
     const a = deriveVisitorIdFromIp('203.0.113.50', 'website-abc');
     const b = deriveVisitorIdFromIp('203.0.113.50', 'website-abc');
     expect(a).toBe(b);
-    expect(a).toMatch(/^VIS-[A-F0-9]{16}$/);
+    expect(a).toMatch(/^[A-Z]{2}-[A-Z0-9]{3}-USER-\d{4}$/);
   });
 
   it('returns different IDs for different IPs or scopes', () => {
@@ -27,7 +28,8 @@ describe('visitor-id.utils', () => {
 
   it('flags legacy client IDs for replacement', () => {
     expect(shouldReplaceClientVisitorId('U-ABC123')).toBe(true);
-    expect(shouldReplaceClientVisitorId('IN-DEL-USER-0001')).toBe(true);
-    expect(shouldReplaceClientVisitorId('VIS-A1B2C3D4E5F67890')).toBe(false);
+    expect(shouldReplaceClientVisitorId('VIS-A1B2C3D4E5F67890')).toBe(true);
+    expect(shouldReplaceClientVisitorId('IN-DEL-USER-3597')).toBe(false);
+    expect(isGeoVisitorId('IN-SHI-USER-3597')).toBe(true);
   });
 });

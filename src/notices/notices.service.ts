@@ -41,7 +41,7 @@ export class NoticesService {
     if (shouldReplaceClientVisitorId(clientUserId)) {
       return ipBasedId;
     }
-    return clientUserId!.startsWith('VIS-') ? clientUserId! : ipBasedId;
+    return ipBasedId;
   }
 
   // ==========================================
