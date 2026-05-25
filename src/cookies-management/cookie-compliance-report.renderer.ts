@@ -309,11 +309,18 @@ export function renderCookieComplianceReport(data: CookieComplianceReportData): 
     gap: 18px;
     align-items: stretch;
   }
-  .chart-card-donut { padding: 18px 16px !important; min-width: 0; }
+  .chart-card-donut {
+    padding: 18px 16px 20px !important;
+    min-width: 0;
+    display: flex !important;
+    flex-direction: column;
+    min-height: 300px;
+  }
   .chart-card-donut .donut-wrap {
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    flex-shrink: 0;
   }
   .chart-card-donut .donut-canvas-wrap {
     width: 108px;
@@ -324,16 +331,19 @@ export function renderCookieComplianceReport(data: CookieComplianceReportData): 
   .chart-card-donut .legend-list {
     width: 100%;
     flex: none;
+    margin-top: auto;
+    padding-top: 28px;
   }
   .chart-card-donut .legend-item {
-    padding: 3px 0;
+    padding: 4px 0;
     font-size: 11px;
   }
   .chart-card-trend {
-    padding: 18px 20px !important;
+    padding: 18px 16px 20px !important;
     min-width: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
   .chart-card-trend .trend-legend { margin-bottom: 8px; flex-shrink: 0; }
   .chart-card-trend .trend-canvas-wrap {
@@ -341,6 +351,13 @@ export function renderCookieComplianceReport(data: CookieComplianceReportData): 
     height: 260px;
     min-height: 260px;
     width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding: 4px 18px 10px 8px;
+  }
+  .chart-card-trend .trend-canvas-wrap canvas {
+    max-width: 100% !important;
   }
 </style>
 </head>
@@ -554,17 +571,22 @@ new Chart(trendCtx, {
   options: {
     responsive: true,
     maintainAspectRatio: false,
-    layout: { padding: { left: 4, right: 12, top: 4, bottom: 0 } },
+    clip: false,
+    layout: { padding: { left: 8, right: 20, top: 8, bottom: 14 } },
     plugins: { legend: { display: false } },
     interaction: { mode: 'index', intersect: false },
+    elements: { point: { radius: 3, hitRadius: 6 } },
     scales: {
       x: {
+        offset: true,
         grid: { display: false },
-        ticks: { font: { size: 10 }, color: '#7a9585', maxRotation: 0, autoSkip: false, padding: 6 }
+        border: { display: false },
+        ticks: { font: { size: 10 }, color: '#7a9585', maxRotation: 0, autoSkip: false, padding: 4 }
       },
       y: {
         grid: { color: 'rgba(0,0,0,.06)' },
-        ticks: { font: { size: 10 }, color: '#7a9585', maxTicksLimit: 6 },
+        border: { display: false },
+        ticks: { font: { size: 10 }, color: '#7a9585', maxTicksLimit: 6, padding: 6 },
         beginAtZero: true
       }
     }
