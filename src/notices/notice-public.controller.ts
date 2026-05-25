@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Param, Header, Request, NotFoundException } from '@nestjs/common';
 import { NoticesService } from './notices.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { getClientIp } from '../common/utils/request-meta.utils';
 
 @Controller('api/v1/public/notices')
 export class NoticePublicController {
@@ -25,10 +26,22 @@ export class NoticePublicController {
     return this.noticesService.getPublicNoticeByType(websiteId as string, typeName, lang as string);
   }
 
+  @Get('visitor-id/:websiteId')
+  async resolveVisitorId(@Param('websiteId') websiteId: string, @Request() req: any) {
+    const website = await this.prisma.scannedWebsite.findUnique({
+      where: { id: websiteId },
+      select: { tenantId: true },
+    });
+    const scope = website?.tenantId || websiteId;
+    const ip = getClientIp(req) || '';
+    const userId = this.noticesService.resolveVisitorId(ip, scope);
+    return { userId };
+  }
+
   @Post('acknowledge/:noticeId')
   async acknowledgeNotice(@Param('noticeId') noticeId: string, @Body() dto: any, @Request() req: any) {
-    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    return this.noticesService.recordNoticeAcknowledgement(noticeId, { ...dto, ipAddress });
+    const ip = getClientIp(req) || '';
+    return this.noticesService.recordNoticeAcknowledgement(noticeId, { ...dto, ipAddress: ip });
   }
 
   @Get('script/:websiteId')
@@ -119,8 +132,21 @@ export class NoticePublicController {
       if (notice) this.renderModal(notice);
     },
 
+    resolveVisitorId: async function() {
+      try {
+        const res = await fetch(\`\${config.baseUrl}/api/v1/public/notices/visitor-id/\${config.websiteId}\`);
+        const data = await res.json();
+        if (data && data.userId) {
+          localStorage.setItem('proteccio_user_id', data.userId);
+        }
+      } catch (e) {
+        console.warn('Proteccio: Could not resolve notice visitor ID', e);
+      }
+    },
+
     acknowledge: function(noticeId) {
       const viewDuration = Math.round((new Date().getTime() - (this.startTime || new Date().getTime())) / 1000);
+      const storedUserId = localStorage.getItem('proteccio_user_id') || localStorage.getItem('userId');
       fetch(\`\${config.baseUrl}/api/v1/public/notices/acknowledge/\${noticeId}\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,9 +156,12 @@ export class NoticePublicController {
           url: window.location.href,
           userAgent: navigator.userAgent,
           viewDuration: viewDuration,
-          userId: localStorage.getItem('proteccio_user_id') || localStorage.getItem('userId')
+          userId: storedUserId
         })
-      }).then(() => {
+      }).then(res => res.json()).then(data => {
+        if (data && data.userId) {
+          localStorage.setItem('proteccio_user_id', data.userId);
+        }
         localStorage.setItem('proteccio_ack_' + noticeId, new Date().getTime());
       }).catch(err => console.error('Proteccio: Failed to record acknowledgement', err));
     },
@@ -176,7 +205,8 @@ export class NoticePublicController {
   };
 
   window.ProteccioNotice = ProteccioNotice;
-  
+  ProteccioNotice.resolveVisitorId();
+
   // Auto-show disabled as per user request to stop popups
   /*
   if (document.readyState === 'complete') {

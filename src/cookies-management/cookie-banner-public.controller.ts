@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body, Param, Header, Request } from '@nestjs/common';
 import { CookiesManagementService } from './cookies-management.service';
+import { getClientIp } from '../common/utils/request-meta.utils';
 
 @Controller('api/v1/public/cookies')
 export class CookieBannerPublicController {
@@ -10,21 +11,16 @@ export class CookieBannerPublicController {
     return this.cookiesManagementService.getPublicBanner(websiteId);
   }
 
+  @Get('visitor-id/:websiteId')
+  async resolveVisitorId(@Param('websiteId') websiteId: string, @Request() req: any) {
+    const ip = getClientIp(req) || '';
+    const userId = this.cookiesManagementService.resolveVisitorId(ip, websiteId);
+    return { userId };
+  }
+
   @Post('consent/:websiteId')
   async recordConsent(@Param('websiteId') websiteId: string, @Body() dto: any, @Request() req: any) {
-    const xForwardedFor = req.headers['x-forwarded-for'];
-    const xRealIp = req.headers['x-real-ip'];
-    const cfIp = req.headers['cf-connecting-ip'];
-    
-    // Pick the most reliable IP
-    let rawIp = cfIp || xRealIp || xForwardedFor || req.ip || req.socket.remoteAddress;
-
-    // Normalize (handle lists and IPv6 prefix)
-    let ip = '';
-    if (typeof rawIp === 'string') {
-      ip = rawIp.split(',')[0].trim().replace(/^::ffff:/, '');
-    }
-
+    const ip = getClientIp(req) || '';
     return this.cookiesManagementService.recordPublicConsent(websiteId, { ...dto, ipAddress: ip });
   }
 
@@ -61,11 +57,7 @@ export class CookieBannerPublicController {
   const categories = ${JSON.stringify(categories)};
   const logoUrl = '${logoUrl}';
   
-  let userId = localStorage.getItem('proteccio_user_id');
-  if (!userId) {
-    userId = 'U-' + Math.random().toString(36).substring(2, 9).toUpperCase();
-    localStorage.setItem('proteccio_user_id', userId);
-  }
+  let userId = localStorage.getItem('proteccio_user_id') || '';
 
   function initBanner() {
     if (document.getElementById('proteccio-cookie-banner')) return;
@@ -426,7 +418,21 @@ export class CookieBannerPublicController {
     };
   }
 
+  async function resolveVisitorId() {
+    try {
+      const res = await fetch(\`\${config.baseUrl}/api/v1/public/cookies/visitor-id/\${config.websiteId}\`);
+      const data = await res.json();
+      if (data && data.userId) {
+        userId = data.userId;
+        localStorage.setItem('proteccio_user_id', userId);
+      }
+    } catch (e) {
+      console.warn('Proteccio: Could not resolve visitor ID from IP', e);
+    }
+  }
+
   async function checkConsent() {
+    await resolveVisitorId();
     try {
       const response = await fetch(\`\${config.baseUrl}/api/v1/public/cookies/consent-status/\${config.websiteId}/\${userId}\`);
       const data = await response.json();

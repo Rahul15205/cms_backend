@@ -9,6 +9,10 @@ import { CreateCookieBannerDto } from './dto/create-cookie-banner.dto';
 import { CreateCookieConsentLogDto } from './dto/create-cookie-consent-log.dto';
 import * as geoip from 'geoip-lite';
 import axios from 'axios';
+import {
+  deriveVisitorIdFromIp,
+  shouldReplaceClientVisitorId,
+} from '../common/utils/visitor-id.utils';
 
 @Injectable()
 export class CookiesManagementService {
@@ -335,47 +339,13 @@ export class CookiesManagementService {
     return 'Global Access';
   }
 
-  private async generateSmartUserId(ip: string, websiteId: string): Promise<string> {
-    let countryCode = 'XX';
-    let cityCode = 'UNK';
-
-    try {
-      let cleanIp = ip.split(',')[0].trim().replace(/^::ffff:/, '');
-      const isPrivate = 
-        cleanIp === '127.0.0.1' || cleanIp === '::1' || cleanIp.includes('localhost') ||
-        cleanIp.startsWith('10.') || cleanIp.startsWith('192.168.') || 
-        (/^172\.(1[6-9]|2\d|3[0-1])\./.test(cleanIp));
-
-      if (!isPrivate) {
-        // 1. Try local geoip
-        const geo = geoip.lookup(cleanIp);
-        if (geo) {
-          countryCode = geo.country || 'XX';
-          const rawCity = geo.city || geo.region || 'UNK';
-          cityCode = rawCity.substring(0, 3).toUpperCase();
-        } 
-        
-        // 2. If local failed or city is unknown, try external fallback
-        if (countryCode === 'XX' || cityCode === 'UNK') {
-          const response = await axios.get(`https://ipapi.co/${cleanIp}/json/`, { timeout: 3000 });
-          if (response.data && !response.data.error) {
-            countryCode = response.data.country_code || countryCode;
-            const rawCity = response.data.city || response.data.region_code || 'UNK';
-            cityCode = rawCity.substring(0, 3).toUpperCase();
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Proteccio: Smart ID generation geo lookup failed', e.message);
+  /** Stable visitor ID: same IP + website → same userId on every consent. */
+  resolveVisitorId(ip: string | undefined, websiteId: string, clientUserId?: string): string {
+    const ipBasedId = deriveVisitorIdFromIp(ip, websiteId);
+    if (shouldReplaceClientVisitorId(clientUserId)) {
+      return ipBasedId;
     }
-
-    // Get sequence number for this website
-    const count = await this.prisma.cookieConsentLog.count({
-      where: { websiteId }
-    });
-    const sequence = (count + 1).toString().padStart(4, '0');
-
-    return `${countryCode}-${cityCode}-USER-${sequence}`;
+    return clientUserId!.startsWith('VIS-') ? clientUserId! : ipBasedId;
   }
 
   async recordPublicConsent(websiteId: string, dto: any) {
@@ -391,12 +361,7 @@ export class CookiesManagementService {
     else if (rawStatus === 'WITHDRAWN') status = 'WITHDRAWN';
 
     const location = await this.getLocation(dto.ipAddress);
-    
-    // Generate the smart User ID if not provided or if it's the old U-XXXX format
-    let userId = dto.userId;
-    if (!userId || userId.startsWith('U-')) {
-      userId = await this.generateSmartUserId(dto.ipAddress, websiteId);
-    }
+    const userId = this.resolveVisitorId(dto.ipAddress, websiteId, dto.userId);
 
     return this.prisma.cookieConsentLog.create({
       data: {

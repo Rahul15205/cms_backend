@@ -6,8 +6,10 @@ import { UpdateNoticeDto } from './dto/update-notice.dto';
 import { CreateNoticeTypeDto } from './dto/create-notice-type.dto';
 import { NoticeStatus } from '@prisma/client';
 import { TranslationService } from '../translation/translation.service';
-import * as geoip from 'geoip-lite';
-import axios from 'axios';
+import {
+  deriveVisitorIdFromIp,
+  shouldReplaceClientVisitorId,
+} from '../common/utils/visitor-id.utils';
 
 @Injectable()
 export class NoticesService {
@@ -34,44 +36,12 @@ export class NoticesService {
     return cleanIp;
   }
 
-  private async generateSmartUserId(ip: string, tenantId: string): Promise<string> {
-    let countryCode = 'XX';
-    let cityCode = 'UNK';
-
-    try {
-      let cleanIp = ip.split(',')[0].trim().replace(/^::ffff:/, '');
-      const isPrivate = 
-        cleanIp === '127.0.0.1' || cleanIp === '::1' || cleanIp.includes('localhost') ||
-        cleanIp.startsWith('10.') || cleanIp.startsWith('192.168.') || 
-        (/^172\.(1[6-9]|2\d|3[0-1])\./.test(cleanIp));
-
-      if (!isPrivate) {
-        const geo = geoip.lookup(cleanIp);
-        if (geo) {
-          countryCode = geo.country || 'XX';
-          cityCode = (geo.city || geo.region || 'UNK').substring(0, 3).toUpperCase();
-        } else {
-          try {
-            const response = await axios.get(`https://ipapi.co/${cleanIp}/json/`, { timeout: 2000 });
-            if (response.data && !response.data.error) {
-              countryCode = response.data.country_code || 'XX';
-              cityCode = (response.data.city || response.data.region_code || 'UNK').substring(0, 3).toUpperCase();
-            }
-          } catch (e) {
-            // Silently fail external API
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Proteccio: Smart ID generation geo lookup failed', e.message);
+  resolveVisitorId(ip: string | undefined, tenantId: string, clientUserId?: string): string {
+    const ipBasedId = deriveVisitorIdFromIp(ip, tenantId);
+    if (shouldReplaceClientVisitorId(clientUserId)) {
+      return ipBasedId;
     }
-
-    const count = await this.prisma.noticeAcknowledgement.count({
-      where: { notice: { tenantId } }
-    });
-    const sequence = (count + 1).toString().padStart(4, '0');
-
-    return `${countryCode}-${cityCode}-USER-${sequence}`;
+    return clientUserId!.startsWith('VIS-') ? clientUserId! : ipBasedId;
   }
 
   // ==========================================
@@ -340,10 +310,11 @@ export class NoticesService {
 
     if (!notice) throw new NotFoundException('Notice not found');
 
-    let userId = dto.userId;
-    if (!userId || userId.startsWith('VISIT-') || userId.startsWith('U-')) {
-      userId = await this.generateSmartUserId(dto.ipAddress, notice.tenantId || '');
-    }
+    const userId = this.resolveVisitorId(
+      dto.ipAddress,
+      notice.tenantId || '',
+      dto.userId,
+    );
 
     const data: any = {
       noticeId,
