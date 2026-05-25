@@ -1207,7 +1207,10 @@ export class ConsentWidgetPublicController {
   }
 
   @Post('otp/send/:applicationId')
-  async sendConsentOtp(@Param('applicationId') applicationId: string, @Body() dto: { email?: string; phone?: string }) {
+  async sendConsentOtp(
+    @Param('applicationId') applicationId: string,
+    @Body() dto: { email?: string; phone?: string; guardianEmail?: string },
+  ) {
     const widget = await this.widgetService.getPublicWidgetConfig(applicationId);
     if (!widget) {
       return { success: false, message: 'Widget not found' };
