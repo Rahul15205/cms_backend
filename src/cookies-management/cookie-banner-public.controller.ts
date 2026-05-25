@@ -433,19 +433,25 @@ export class CookieBannerPublicController {
 
   async function checkConsent() {
     await resolveVisitorId();
+
+    // Browser cookies/localStorage cleared → show banner again (UX).
+    // Server still links same IP user (VIS-*) for audit when they re-accept.
+    const localConsent = localStorage.getItem('proteccio-consent');
+    if (!localConsent) {
+      initBanner();
+      return;
+    }
+
     try {
       const response = await fetch(\`\${config.baseUrl}/api/v1/public/cookies/consent-status/\${config.websiteId}/\${userId}\`);
       const data = await response.json();
-      
+
       if (data.status === 'WITHDRAWN' || data.status === 'NONE') {
         localStorage.removeItem('proteccio-consent');
         initBanner();
-      } else {
-        console.log('Proteccio: Valid consent found on server.');
       }
     } catch (e) {
-      const localConsent = localStorage.getItem('proteccio-consent');
-      if (!localConsent) initBanner();
+      // Offline: trust local consent; banner stays hidden
     }
   }
 
@@ -460,9 +466,18 @@ export class CookieBannerPublicController {
   window.Proteccio.showBanner = function() {
     initBanner();
   };
-  window.Proteccio.withdrawConsent = function() {
+  window.Proteccio.withdrawConsent = async function() {
     localStorage.removeItem('proteccio-consent');
-    // Call backend to log withdrawal if necessary, or just show banner:
+    await resolveVisitorId();
+    try {
+      await fetch(\`\${config.baseUrl}/api/v1/public/cookies/consent/\${config.websiteId}\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'withdrawn', userId: userId, categories: [] })
+      });
+    } catch (e) {
+      console.warn('Proteccio: Failed to log consent withdrawal', e);
+    }
     initBanner();
   };
   window.Proteccio.resetConsent = window.Proteccio.withdrawConsent;
