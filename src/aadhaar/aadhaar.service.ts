@@ -1,12 +1,16 @@
-import { Injectable, BadRequestException, UnauthorizedException, Inject } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, Inject, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { EncryptionService } from '../encryption/encryption.service';
 import * as crypto from 'crypto';
 
+const CONSENT_AADHAAR_TTL_MS = 10 * 60 * 1000;
+const CONSENT_AADHAAR_VERIFIED_TTL_MS = 30 * 60 * 1000;
+
 @Injectable()
 export class AadhaarService {
+  private readonly logger = new Logger(AadhaarService.name);
   constructor(
     private prisma: PrismaService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
@@ -87,6 +91,118 @@ export class AadhaarService {
     return {
       success: true,
       message: 'Aadhaar verified successfully.',
+    };
+  }
+
+  // ─── Public consent widget (end-user, no platform User record) ───
+
+  isAadhaarRequiredForConsent(template: any): boolean {
+    if (template?.requiresAadhaarVerification === true) return true;
+    const wizard = template?.wizardFields;
+    if (wizard?.requiresAadhaarVerification === true) return true;
+    const method = (wizard?.verificationMethod || '').toString().toLowerCase();
+    return method === 'aadhaar_ekyc' || method === 'aadhaar';
+  }
+
+  private consentVerifiedCacheKey(applicationId: string, aadhaarHash: string): string {
+    return `consent_aadhaar_verified_${applicationId}_${aadhaarHash}`;
+  }
+
+  async initiateConsentVerification(
+    applicationId: string,
+    tenantId: string | null | undefined,
+    aadhaarNumber: string,
+  ) {
+    if (!/^\d{12}$/.test(aadhaarNumber)) {
+      throw new BadRequestException('Invalid Aadhaar number. Must be 12 digits.');
+    }
+
+    const config = tenantId
+      ? await this.prisma.aadhaarConfig.findUnique({ where: { tenantId } })
+      : await this.prisma.aadhaarConfig.findFirst();
+
+    if (config && !config.enabled) {
+      throw new BadRequestException('Aadhaar verification is disabled for this organization.');
+    }
+
+    const transactionId = crypto.randomUUID();
+    const mockOtp = process.env.AADHAAR_MOCK_OTP || '123456';
+    const aadhaarHash = this.encryptionService.generateHash(aadhaarNumber);
+
+    await this.cacheManager.set(
+      `consent_aadhaar_${transactionId}`,
+      {
+        applicationId,
+        tenantId: tenantId || null,
+        aadhaarHash,
+        otp: mockOtp,
+      },
+      CONSENT_AADHAAR_TTL_MS,
+    );
+
+    this.logger.log(
+      `Consent Aadhaar OTP initiated for app ${applicationId} (simulated UIDAI send)`,
+    );
+
+    return {
+      success: true,
+      transactionId,
+      message:
+        'OTP sent to the mobile number registered with your Aadhaar (simulated).',
+      consentText: config?.consentText || null,
+      ...(process.env.NODE_ENV !== 'production' ? { devOtp: mockOtp } : {}),
+    };
+  }
+
+  async verifyConsentOtp(applicationId: string, transactionId: string, otp: string) {
+    const cacheKey = `consent_aadhaar_${transactionId}`;
+    const transactionData: any = await this.cacheManager.get(cacheKey);
+
+    if (!transactionData || transactionData.applicationId !== applicationId) {
+      throw new UnauthorizedException('Invalid or expired Aadhaar verification session.');
+    }
+
+    if (otp.trim() !== transactionData.otp) {
+      throw new BadRequestException('Invalid Aadhaar OTP.');
+    }
+
+    const verifiedKey = this.consentVerifiedCacheKey(applicationId, transactionData.aadhaarHash);
+    await this.cacheManager.set(
+      verifiedKey,
+      {
+        verifiedAt: new Date().toISOString(),
+        transactionId,
+      },
+      CONSENT_AADHAAR_VERIFIED_TTL_MS,
+    );
+    await this.cacheManager.del(cacheKey);
+
+    return {
+      success: true,
+      verified: true,
+      message: 'Aadhaar verified. You may submit consent.',
+    };
+  }
+
+  async assertConsentAadhaarVerified(applicationId: string, aadhaarNumber: string) {
+    if (!/^\d{12}$/.test(aadhaarNumber)) {
+      throw new BadRequestException('Valid 12-digit Aadhaar number is required.');
+    }
+    const aadhaarHash = this.encryptionService.generateHash(aadhaarNumber);
+    const verified = await this.cacheManager.get(this.consentVerifiedCacheKey(applicationId, aadhaarHash));
+    if (!verified) {
+      throw new BadRequestException(
+        'Aadhaar verification required. Complete Aadhaar OTP verification before submitting consent.',
+      );
+    }
+  }
+
+  buildAadhaarConsentMetadata(aadhaarNumber: string): Record<string, unknown> {
+    return {
+      verificationMethod: 'AADHAAR_EKYC',
+      aadhaarVerifiedAt: new Date().toISOString(),
+      aadhaarLastFour: aadhaarNumber.slice(-4),
+      aadhaarHash: this.encryptionService.generateHash(aadhaarNumber),
     };
   }
 }

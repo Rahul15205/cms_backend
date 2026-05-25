@@ -5,12 +5,18 @@ import { CreateConsentWidgetDto } from './dto/create-consent-widget.dto';
 import { UpdateConsentWidgetDto } from './dto/update-consent-widget.dto';
 import { WidgetStatus, DeploymentStatus, ConsentStatus, Purpose } from '@prisma/client';
 import * as crypto from 'crypto';
+import { ConsentOtpService } from './consent-otp.service';
+import { ConsentParentalService, ParentalConsentContext } from './consent-parental.service';
+import { AadhaarService } from '../aadhaar/aadhaar.service';
 
 @Injectable()
 export class ConsentWidgetService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryptionService: EncryptionService,
+    private readonly consentOtpService: ConsentOtpService,
+    private readonly consentParentalService: ConsentParentalService,
+    private readonly aadhaarService: AadhaarService,
   ) {}
 
   // ─── CRUD (Dashboard Admin) ─────────────────────────────
@@ -195,18 +201,50 @@ export class ConsentWidgetService {
     }
 
     const template = widget.template as any;
+    const parental = this.consentParentalService.resolveContext(template, dto);
+
+    if (parental.needsGuardianOtp) {
+      await this.consentOtpService.assertVerified(
+        widget.applicationId,
+        parental.guardianEmail,
+        undefined,
+      );
+    } else if (this.consentOtpService.isOtpRequired(template)) {
+      await this.consentOtpService.assertVerified(widget.applicationId, dto.email, dto.phone);
+    }
+
+    if (this.aadhaarService.isAadhaarRequiredForConsent(template)) {
+      if (!dto.aadhaarNumber) {
+        throw new BadRequestException('Aadhaar number is required for this consent form.');
+      }
+      await this.aadhaarService.assertConsentAadhaarVerified(
+        widget.applicationId,
+        dto.aadhaarNumber,
+      );
+    }
+
+    const recordDto = this.applyParentalToDto(dto, parental);
+    if (dto.aadhaarNumber) {
+      recordDto.aadhaarMeta = this.aadhaarService.buildAadhaarConsentMetadata(dto.aadhaarNumber);
+    }
     const separateConsents = this.isSeparateConsentsEnabled(template);
 
     if (separateConsents && (template.purposes?.length ?? 0) > 0) {
-      if (!dto.email && !dto.phone) {
+      if (!recordDto.email && !recordDto.phone) {
         throw new BadRequestException(
           'Email or phone is required when separate consents per purpose is enabled.',
         );
       }
-      return this.recordSeparatePurposeConsents(widget, latestVersion, dto, template.purposes);
+      return this.recordSeparatePurposeConsents(
+        widget,
+        latestVersion,
+        recordDto,
+        template.purposes,
+        parental,
+      );
     }
 
-    return this.recordCombinedConsent(widget, latestVersion, dto);
+    return this.recordCombinedConsent(widget, latestVersion, recordDto, parental);
   }
 
   async checkConsentStatus(id: string, identifier: string) {
@@ -386,7 +424,37 @@ export class ConsentWidgetService {
     return allPurposes.filter((p) => names.has(p.name)).map((p) => p.id);
   }
 
-  private async recordCombinedConsent(widget: any, latestVersion: any, dto: any) {
+  private applyParentalToDto(dto: any, parental: ParentalConsentContext) {
+    return {
+      ...dto,
+      email: parental.recordEmail ?? dto.email,
+      phone: parental.recordPhone ?? dto.phone,
+    };
+  }
+
+  private buildVerificationMeta(
+    template: any,
+    parental: ParentalConsentContext,
+    dto?: any,
+  ) {
+    if (dto?.aadhaarMeta) {
+      return dto.aadhaarMeta;
+    }
+    const otpUsed =
+      parental.needsGuardianOtp || this.consentOtpService.isOtpRequired(template);
+    return {
+      verificationMethod: otpUsed ? 'OTP' : null,
+      verifiedAt: otpUsed ? new Date().toISOString() : null,
+    };
+  }
+
+  private async recordCombinedConsent(
+    widget: any,
+    latestVersion: any,
+    dto: any,
+    parental: ParentalConsentContext,
+  ) {
+    const template = widget.template as any;
     const record = await this.prisma.consentRecord.create({
       data: {
         versionId: latestVersion.id,
@@ -407,6 +475,8 @@ export class ConsentWidgetService {
           language: dto.language || 'en',
           timestamp: new Date().toISOString(),
           separateConsents: false,
+          ...this.buildVerificationMeta(template, parental, dto),
+          ...parental.metadata,
         },
       },
     });
@@ -418,6 +488,7 @@ export class ConsentWidgetService {
       recordId: record.id,
       recordIds: [record.id],
       separateConsents: false,
+      consentGivenBy: parental.consentGivenBy,
       message: 'Consent recorded successfully',
     };
   }
@@ -427,7 +498,9 @@ export class ConsentWidgetService {
     latestVersion: any,
     dto: any,
     allPurposes: Purpose[],
+    parental: ParentalConsentContext,
   ) {
+    const template = widget.template as any;
     const selectedNames = this.resolveSelectedPurposeNames(dto, allPurposes);
     const submissionId = crypto.randomUUID();
     const emailHash = dto.email ? this.encryptionService.generateHash(dto.email) : null;
@@ -489,6 +562,8 @@ export class ConsentWidgetService {
               language: dto.language || 'en',
               timestamp: new Date().toISOString(),
               separateConsents: true,
+              ...this.buildVerificationMeta(template, parental, dto),
+              ...parental.metadata,
             },
           },
         });
@@ -521,6 +596,7 @@ export class ConsentWidgetService {
       recordId: recordIds[0] ?? null,
       recordIds,
       separateConsents: true,
+      consentGivenBy: parental.consentGivenBy,
       purposes: purposeResults,
       message: `Consent recorded for ${purposeResults.filter((p) => p.status === 'GRANTED').length} purpose(s)`,
     };

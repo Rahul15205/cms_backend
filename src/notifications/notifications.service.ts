@@ -271,6 +271,31 @@ export class NotificationsService {
     }
   }
 
+  async sendConsentVerificationOtp(
+    email: string,
+    otp: string,
+    expiresInMinutes: number,
+  ): Promise<boolean> {
+    try {
+      this.logger.log(`Dispatching consent verification OTP to ${email}`);
+      await this.mailerService.sendMail({
+        to: email,
+        subject: 'Verify your consent — Proteccio',
+        template: 'password-reset-otp',
+        context: {
+          name: 'User',
+          otp,
+          expiresInMinutes,
+          year: new Date().getFullYear(),
+        },
+      });
+      return true;
+    } catch (error) {
+      this.logger.error({ err: error }, `Failed to send consent OTP to ${email}`);
+      return false;
+    }
+  }
+
   async sendPasswordResetOtp(email: string, name: string, otp: string, expiresInMinutes: number): Promise<boolean> {
     try {
       this.logger.log(`Dispatching password reset OTP to ${email}`);

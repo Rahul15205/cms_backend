@@ -1,9 +1,15 @@
 import { Controller, Get, Post, Body, Param, Header, Request } from '@nestjs/common';
 import { ConsentWidgetService } from './consent-widget.service';
+import { ConsentOtpService } from './consent-otp.service';
+import { AadhaarService } from '../aadhaar/aadhaar.service';
 
 @Controller('api/v1/public/consent')
 export class ConsentWidgetPublicController {
-  constructor(private readonly widgetService: ConsentWidgetService) {}
+  constructor(
+    private readonly widgetService: ConsentWidgetService,
+    private readonly consentOtpService: ConsentOtpService,
+    private readonly aadhaarService: AadhaarService,
+  ) {}
 
   /**
    * Returns the widget configuration as JSON (for API-based integrations).
@@ -42,13 +48,21 @@ export class ConsentWidgetPublicController {
     const withdrawal = wizard.withdrawal || {};
     const supportedLanguages: string[] = template?.supportedLanguages || wizard.supportedLanguages || [widget.defaultLanguage || 'en'];
     const validityDuration = wizard.validityDuration || (template?.noExpiry ? 'No Expiry' : null);
+    const targetCategories = template?.targetUserCategory || wizard.targetUserCategory || [];
+    const parentalRequired =
+      (template?.type || '').toUpperCase() === 'PARENTAL' ||
+      (Array.isArray(targetCategories) &&
+        targetCategories.some((c: string) => String(c).toUpperCase() === 'MINOR'));
+    const ageThreshold = template?.ageThreshold ?? wizard.ageThreshold ?? 18;
+
     const dataPrincipal = {
       targetUserCategory: (template?.targetUserCategory || wizard.targetUserCategory || []).join(', '),
-      ageThreshold: template?.ageThreshold ?? wizard.ageThreshold ?? null,
+      ageThreshold: ageThreshold,
       consentGivenBy: template?.consentGivenBy || wizard.consentGivenBy || null,
     };
     
     const logoUrl = widget.logoUrl || `https://res.cloudinary.com/dlfzzfdx0/image/upload/v1777286182/Brand_title_with_tagline-removebg-preview_jpjpet.png`;
+    const requiresAadhaar = this.aadhaarService.isAadhaarRequiredForConsent(template);
 
     return `
 (function() {
@@ -79,7 +93,49 @@ export class ConsentWidgetPublicController {
     defaultLanguage: widget.defaultLanguage,
     customCss: widget.customCss,
     separateConsents: !!(template?.separateConsents || wizard?.separateConsents),
+    baseRequiresOtp: ${JSON.stringify(
+      !!(template?.requiresOtpVerification || wizard?.requiresOtpVerification || template?.mechanism === 'SIGNATURE'),
+    )},
+    parentalRequired: ${JSON.stringify(parentalRequired)},
+    ageThreshold: ${ageThreshold},
+    requiresAadhaar: ${JSON.stringify(requiresAadhaar)},
   })};
+  var otpVerified = false;
+  var aadhaarVerified = false;
+  var aadhaarTransactionId = null;
+
+  function isMinorBelowThreshold() {
+    if (!config.parentalRequired) return false;
+    var ageEl = document.getElementById('proteccio-minor-age');
+    if (!ageEl) return false;
+    var age = parseInt(ageEl.value, 10);
+    return !isNaN(age) && age >= 0 && age < config.ageThreshold;
+  }
+
+  function needsOtpVerification() {
+    if (config.baseRequiresOtp) return true;
+    return config.parentalRequired && isMinorBelowThreshold();
+  }
+
+  function getOtpContact() {
+    if (config.parentalRequired && isMinorBelowThreshold()) {
+      var gEmail = document.getElementById('proteccio-guardian-email');
+      return { email: gEmail ? gEmail.value.trim() : null, phone: null };
+    }
+    var data = getFormData();
+    return { email: data.email, phone: data.phone };
+  }
+
+  function updateParentalVisibility() {
+    var parentalSec = document.getElementById('proteccio-parental-section');
+    var guardianSec = document.getElementById('proteccio-guardian-section');
+    var otpSec = document.getElementById('proteccio-otp-section');
+    if (config.parentalRequired && parentalSec) parentalSec.style.display = 'block';
+    var below = isMinorBelowThreshold();
+    if (guardianSec) guardianSec.style.display = below ? 'block' : 'none';
+    if (otpSec) otpSec.style.display = needsOtpVerification() ? 'block' : 'none';
+    if (!below) otpVerified = false;
+  }
   config.applicationId = '${applicationId}';
   config.baseUrl = '${baseUrl}';
   var purposes = ${JSON.stringify((purposes || []).map(p => ({
@@ -210,6 +266,16 @@ export class ConsentWidgetPublicController {
     css += '.proteccio-lang-bar { display: flex; justify-content: flex-end; margin-bottom: 12px; }';
     css += '.proteccio-lang-select { font-size: 12px; padding: 4px 8px; border: 1px solid rgba(0,0,0,0.12); border-radius: 6px; background: rgba(0,0,0,0.03); color: ' + textColor + '; cursor: pointer; outline: none; }';
     css += '.proteccio-lang-select:focus { border-color: ' + themeColor + '; }';
+    css += '.proteccio-otp-section { margin-top: 12px; padding: 12px; border-radius: 8px; background: rgba(0,0,0,0.03); }';
+    css += '.proteccio-otp-hint { font-size: 12px; opacity: 0.75; margin: 0 0 10px; }';
+    css += '.proteccio-otp-row { display: flex; gap: 8px; margin-bottom: 8px; }';
+    css += '.proteccio-otp-row input { flex: 1; }';
+    css += '.proteccio-otp-send { width: 100%; margin-bottom: 4px; }';
+    css += '.proteccio-otp-success { font-size: 12px; color: ' + themeColor + '; font-weight: 600; margin-top: 6px; }';
+    css += '.proteccio-parental-section { margin-top: 12px; padding: 12px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.08); }';
+    css += '.proteccio-parental-title { font-size: 13px; font-weight: 600; margin: 0 0 10px; }';
+    css += '.proteccio-guardian-section { margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(0,0,0,0.12); }';
+    css += '.proteccio-aadhaar-section { margin-top: 12px; padding: 12px; border-radius: 8px; background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); }';
 
     if (config.customCss) css += config.customCss;
     style.textContent = css;
@@ -222,12 +288,53 @@ export class ConsentWidgetPublicController {
     if (config.collectName) {
       fieldsHtml += '<div class="proteccio-field"><input type="text" id="proteccio-name" placeholder="Your Name" autocomplete="name"></div>';
     }
-    if (config.collectEmail) {
+    if (config.baseRequiresOtp && !config.collectEmail && !config.parentalRequired) {
+      fieldsHtml += '<div class="proteccio-field"><input type="email" id="proteccio-email" placeholder="Email Address (for OTP)" autocomplete="email" required></div>';
+      fieldsHtml += '<div class="proteccio-error" id="proteccio-email-error">Please enter a valid email address</div>';
+    } else if (config.collectEmail) {
       fieldsHtml += '<div class="proteccio-field"><input type="email" id="proteccio-email" placeholder="Email Address" autocomplete="email" required></div>';
       fieldsHtml += '<div class="proteccio-error" id="proteccio-email-error">Please enter a valid email address</div>';
     }
     if (config.collectPhone) {
       fieldsHtml += '<div class="proteccio-field"><input type="tel" id="proteccio-phone" placeholder="Phone Number" autocomplete="tel"></div>';
+    }
+    if (config.parentalRequired) {
+      fieldsHtml += '<div class="proteccio-parental-section" id="proteccio-parental-section" style="display:none;">' +
+        '<p class="proteccio-parental-title">Age verification (parental consent)</p>' +
+        '<div class="proteccio-field"><input type="number" id="proteccio-minor-age" min="0" max="120" placeholder="Your age" required></div>' +
+        '<div class="proteccio-guardian-section" id="proteccio-guardian-section" style="display:none;">' +
+          '<p class="proteccio-otp-hint">A parent or guardian must verify consent for users under ' + config.ageThreshold + '.</p>' +
+          '<div class="proteccio-field"><input type="text" id="proteccio-guardian-name" placeholder="Guardian full name"></div>' +
+          '<div class="proteccio-field"><input type="email" id="proteccio-guardian-email" placeholder="Guardian email"></div>' +
+          '<div class="proteccio-field"><input type="text" id="proteccio-guardian-relationship" placeholder="Relationship (e.g. Parent)"></div>' +
+        '</div>' +
+      '</div>';
+    }
+    if (config.requiresAadhaar) {
+      fieldsHtml += '<div class="proteccio-aadhaar-section" id="proteccio-aadhaar-section">' +
+        '<p class="proteccio-parental-title">Aadhaar eKYC verification</p>' +
+        '<p class="proteccio-otp-hint">Enter your 12-digit Aadhaar number. OTP will be sent to your Aadhaar-linked mobile (simulated).</p>' +
+        '<div class="proteccio-field"><input type="text" id="proteccio-aadhaar" inputmode="numeric" maxlength="12" placeholder="XXXX XXXX XXXX" autocomplete="off"></div>' +
+        '<button type="button" class="proteccio-btn proteccio-btn-secondary proteccio-otp-send" id="proteccio-aadhaar-send-btn">Send Aadhaar OTP</button>' +
+        '<div class="proteccio-otp-row" style="margin-top:8px;">' +
+          '<input type="text" id="proteccio-aadhaar-otp" placeholder="6-digit OTP" maxlength="6" inputmode="numeric">' +
+          '<button type="button" class="proteccio-btn proteccio-btn-secondary" id="proteccio-aadhaar-verify-btn">Verify</button>' +
+        '</div>' +
+        '<div class="proteccio-error" id="proteccio-aadhaar-error" style="display:none;"></div>' +
+        '<div class="proteccio-otp-success" id="proteccio-aadhaar-success" style="display:none;">Aadhaar verified</div>' +
+      '</div>';
+    }
+    if (config.baseRequiresOtp || config.parentalRequired) {
+      fieldsHtml += '<div class="proteccio-otp-section" id="proteccio-otp-section" style="display:none;">' +
+        '<p class="proteccio-otp-hint" id="proteccio-otp-hint">Verify with a one-time code before submitting consent.</p>' +
+        '<div class="proteccio-otp-row">' +
+          '<input type="text" id="proteccio-otp-input" placeholder="6-digit OTP" maxlength="6" inputmode="numeric" autocomplete="one-time-code">' +
+          '<button type="button" class="proteccio-btn proteccio-btn-secondary" id="proteccio-otp-verify-btn">Verify</button>' +
+        '</div>' +
+        '<button type="button" class="proteccio-btn proteccio-btn-secondary proteccio-otp-send" id="proteccio-otp-send-btn">Send OTP</button>' +
+        '<div class="proteccio-error" id="proteccio-otp-error" style="display:none;"></div>' +
+        '<div class="proteccio-otp-success" id="proteccio-otp-success" style="display:none;">OTP verified</div>' +
+      '</div>';
     }
 
     var requiredText = (window.proteccioTranslations && window.proteccioTranslations.required) || 'Required';
@@ -389,6 +496,7 @@ export class ConsentWidgetPublicController {
 
     // Bind events
     bindEvents();
+    updateParentalVisibility();
   }
 
   function hideWidget() {
@@ -409,6 +517,20 @@ export class ConsentWidgetPublicController {
     if (acceptBtn) acceptBtn.onclick = function() { submitConsent('accept_all'); };
     if (rejectBtn) rejectBtn.onclick = function() { submitConsent('reject_all'); };
     if (saveBtn) saveBtn.onclick = function() { submitConsent('save_preferences'); };
+
+    var otpSendBtn = document.getElementById('proteccio-otp-send-btn');
+    var otpVerifyBtn = document.getElementById('proteccio-otp-verify-btn');
+    if (otpSendBtn) otpSendBtn.onclick = sendConsentOtp;
+    if (otpVerifyBtn) otpVerifyBtn.onclick = verifyConsentOtp;
+
+    var minorAgeEl = document.getElementById('proteccio-minor-age');
+    if (minorAgeEl) minorAgeEl.addEventListener('input', updateParentalVisibility);
+    if (minorAgeEl) minorAgeEl.addEventListener('change', updateParentalVisibility);
+
+    var aadhaarSendBtn = document.getElementById('proteccio-aadhaar-send-btn');
+    var aadhaarVerifyBtn = document.getElementById('proteccio-aadhaar-verify-btn');
+    if (aadhaarSendBtn) aadhaarSendBtn.onclick = sendAadhaarOtp;
+    if (aadhaarVerifyBtn) aadhaarVerifyBtn.onclick = verifyAadhaarOtp;
 
     // Language switcher
     var langSelect = document.getElementById('proteccio-lang-select');
@@ -572,8 +694,85 @@ export class ConsentWidgetPublicController {
   }
 
   // ─── COLLECT DATA & SUBMIT ───────────────────────────────
+  function getAadhaarNumber() {
+    var el = document.getElementById('proteccio-aadhaar');
+    if (!el) return null;
+    var digits = el.value.replace(/\\D/g, '');
+    return digits.length === 12 ? digits : null;
+  }
+
+  function showAadhaarError(msg) {
+    var err = document.getElementById('proteccio-aadhaar-error');
+    var ok = document.getElementById('proteccio-aadhaar-success');
+    if (ok) ok.style.display = 'none';
+    if (err) { err.textContent = msg; err.style.display = 'block'; }
+  }
+
+  function showAadhaarSuccess() {
+    var err = document.getElementById('proteccio-aadhaar-error');
+    var ok = document.getElementById('proteccio-aadhaar-success');
+    if (err) err.style.display = 'none';
+    if (ok) ok.style.display = 'block';
+  }
+
+  function sendAadhaarOtp() {
+    var aadhaar = getAadhaarNumber();
+    if (!aadhaar) {
+      showAadhaarError('Enter a valid 12-digit Aadhaar number.');
+      return;
+    }
+    var btn = document.getElementById('proteccio-aadhaar-send-btn');
+    if (btn) btn.disabled = true;
+    fetch(config.baseUrl + '/api/v1/public/consent/aadhaar/initiate/' + config.applicationId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aadhaarNumber: aadhaar })
+    })
+    .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }); })
+    .then(function(res) {
+      if (!res.ok) throw new Error((res.j && res.j.message) || 'Failed to send Aadhaar OTP');
+      aadhaarTransactionId = res.j.transactionId;
+      aadhaarVerified = false;
+      showAadhaarError(res.j.message || 'OTP sent.');
+    })
+    .catch(function(e) { showAadhaarError(e.message || 'Failed'); })
+    .finally(function() { if (btn) btn.disabled = false; });
+  }
+
+  function verifyAadhaarOtp() {
+    if (!aadhaarTransactionId) {
+      showAadhaarError('Send Aadhaar OTP first.');
+      return;
+    }
+    var otpEl = document.getElementById('proteccio-aadhaar-otp');
+    var otp = otpEl ? otpEl.value.trim() : '';
+    if (!otp || otp.length < 6) {
+      showAadhaarError('Enter the 6-digit OTP.');
+      return;
+    }
+    fetch(config.baseUrl + '/api/v1/public/consent/aadhaar/verify/' + config.applicationId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transactionId: aadhaarTransactionId, otp: otp })
+    })
+    .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }); })
+    .then(function(res) {
+      if (!res.ok) throw new Error((res.j && res.j.message) || 'Invalid OTP');
+      aadhaarVerified = true;
+      showAadhaarSuccess();
+    })
+    .catch(function(e) {
+      aadhaarVerified = false;
+      showAadhaarError(e.message || 'Invalid OTP');
+    });
+  }
+
   function getFormData() {
-    var data = { purposes: [], purposeIds: [], name: null, email: null, phone: null };
+    var data = {
+      purposes: [], purposeIds: [], name: null, email: null, phone: null,
+      minorAge: null, guardianName: null, guardianEmail: null, guardianRelationship: null,
+      aadhaarNumber: null
+    };
 
     var nameEl = document.getElementById('proteccio-name');
     if (nameEl) data.name = nameEl.value.trim();
@@ -584,7 +783,89 @@ export class ConsentWidgetPublicController {
     var phoneEl = document.getElementById('proteccio-phone');
     if (phoneEl) data.phone = phoneEl.value.trim();
 
+    var ageEl = document.getElementById('proteccio-minor-age');
+    if (ageEl && ageEl.value !== '') data.minorAge = parseInt(ageEl.value, 10);
+
+    var gName = document.getElementById('proteccio-guardian-name');
+    if (gName) data.guardianName = gName.value.trim();
+    var gEmail = document.getElementById('proteccio-guardian-email');
+    if (gEmail) data.guardianEmail = gEmail.value.trim();
+    var gRel = document.getElementById('proteccio-guardian-relationship');
+    if (gRel) data.guardianRelationship = gRel.value.trim();
+
+    if (config.requiresAadhaar) data.aadhaarNumber = getAadhaarNumber();
+
     return data;
+  }
+
+  function showOtpError(msg) {
+    var err = document.getElementById('proteccio-otp-error');
+    var ok = document.getElementById('proteccio-otp-success');
+    if (ok) ok.style.display = 'none';
+    if (err) { err.textContent = msg; err.style.display = 'block'; }
+  }
+
+  function showOtpSuccess() {
+    var err = document.getElementById('proteccio-otp-error');
+    var ok = document.getElementById('proteccio-otp-success');
+    if (err) err.style.display = 'none';
+    if (ok) ok.style.display = 'block';
+  }
+
+  function sendConsentOtp() {
+    var contact = getOtpContact();
+    if (!contact.email && !contact.phone) {
+      showOtpError(config.parentalRequired && isMinorBelowThreshold()
+        ? 'Enter guardian email before requesting OTP.'
+        : 'Enter email or phone before requesting OTP.');
+      return;
+    }
+    var hint = document.getElementById('proteccio-otp-hint');
+    if (hint && config.parentalRequired && isMinorBelowThreshold()) {
+      hint.textContent = 'Guardian: verify with the OTP sent to your email.';
+    }
+    var btn = document.getElementById('proteccio-otp-send-btn');
+    if (btn) btn.disabled = true;
+    fetch(config.baseUrl + '/api/v1/public/consent/otp/send/' + config.applicationId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: contact.email, phone: contact.phone })
+    })
+    .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }); })
+    .then(function(res) {
+      if (!res.ok) throw new Error(res.j.message || 'Failed to send OTP');
+      otpVerified = false;
+      showOtpError(res.j.message || 'OTP sent.');
+      var err = document.getElementById('proteccio-otp-error');
+      if (err) err.style.color = '';
+    })
+    .catch(function(e) { showOtpError(e.message || 'Failed to send OTP'); })
+    .finally(function() { if (btn) btn.disabled = false; });
+  }
+
+  function verifyConsentOtp() {
+    var contact = getOtpContact();
+    var otpEl = document.getElementById('proteccio-otp-input');
+    var otp = otpEl ? otpEl.value.trim() : '';
+    if (!otp || otp.length < 6) {
+      showOtpError('Enter the 6-digit OTP.');
+      return;
+    }
+    fetch(config.baseUrl + '/api/v1/public/consent/otp/verify/' + config.applicationId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: contact.email, phone: contact.phone, otp: otp })
+    })
+    .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }); })
+    .then(function(res) {
+      if (!res.ok) throw new Error(res.j.message || 'Invalid OTP');
+      otpVerified = true;
+      showOtpSuccess();
+    })
+    .catch(function(e) {
+      otpVerified = false;
+      showOtpError(e.message || 'Invalid OTP');
+    });
   }
 
   function validateForm(data) {
@@ -597,6 +878,39 @@ export class ConsentWidgetPublicController {
       var errEl = document.getElementById('proteccio-email-error');
       if (errEl) errEl.style.display = 'block';
       return false;
+    }
+    if (config.parentalRequired) {
+      if (data.minorAge === null || isNaN(data.minorAge)) {
+        showOtpError('Please enter a valid age.');
+        return false;
+      }
+      if (isMinorBelowThreshold()) {
+        if (!data.guardianName || !data.guardianEmail || !data.guardianRelationship) {
+          showOtpError('Guardian details are required for users below ' + config.ageThreshold + '.');
+          return false;
+        }
+      }
+    }
+    if (needsOtpVerification()) {
+      var contact = getOtpContact();
+      if (!contact.email && !contact.phone) {
+        showOtpError('Enter contact details before submitting consent.');
+        return false;
+      }
+      if (!otpVerified) {
+        showOtpError('Please verify OTP before submitting consent.');
+        return false;
+      }
+    }
+    if (config.requiresAadhaar) {
+      if (!data.aadhaarNumber) {
+        showAadhaarError('Enter a valid 12-digit Aadhaar number.');
+        return false;
+      }
+      if (!aadhaarVerified) {
+        showAadhaarError('Complete Aadhaar OTP verification before submitting.');
+        return false;
+      }
     }
     return true;
   }
@@ -650,6 +964,11 @@ export class ConsentWidgetPublicController {
         phone: data.phone,
         purposes: data.purposes,
         purposeIds: data.purposeIds,
+        minorAge: data.minorAge,
+        guardianName: data.guardianName,
+        guardianEmail: data.guardianEmail,
+        guardianRelationship: data.guardianRelationship,
+        aadhaarNumber: data.aadhaarNumber,
         language: currentLanguage || config.defaultLanguage || 'en',
         userAgent: navigator.userAgent,
       })
@@ -855,6 +1174,65 @@ export class ConsentWidgetPublicController {
   }
 })();
     `;
+  }
+
+  @Post('aadhaar/initiate/:applicationId')
+  async initiateAadhaarConsent(
+    @Param('applicationId') applicationId: string,
+    @Body() dto: { aadhaarNumber: string },
+  ) {
+    const widget = await this.widgetService.getPublicWidgetConfig(applicationId);
+    if (!widget) return { success: false, message: 'Widget not found' };
+    if (!this.aadhaarService.isAadhaarRequiredForConsent(widget.template)) {
+      return { success: false, message: 'Aadhaar verification is not required for this template' };
+    }
+    return this.aadhaarService.initiateConsentVerification(
+      applicationId,
+      widget.tenantId,
+      dto.aadhaarNumber,
+    );
+  }
+
+  @Post('aadhaar/verify/:applicationId')
+  async verifyAadhaarConsent(
+    @Param('applicationId') applicationId: string,
+    @Body() dto: { transactionId: string; otp: string },
+  ) {
+    const widget = await this.widgetService.getPublicWidgetConfig(applicationId);
+    if (!widget) return { success: false, message: 'Widget not found' };
+    return this.aadhaarService.verifyConsentOtp(applicationId, dto.transactionId, dto.otp);
+  }
+
+  @Post('otp/send/:applicationId')
+  async sendConsentOtp(@Param('applicationId') applicationId: string, @Body() dto: { email?: string; phone?: string }) {
+    const widget = await this.widgetService.getPublicWidgetConfig(applicationId);
+    if (!widget) {
+      return { success: false, message: 'Widget not found' };
+    }
+    const template = widget.template as any;
+    const parentalMinor =
+      dto.guardianEmail &&
+      (template?.type === 'PARENTAL' ||
+        (template?.targetUserCategory || []).some((c: string) => String(c).toUpperCase() === 'MINOR'));
+    if (!this.consentOtpService.isOtpRequired(template) && !parentalMinor && !dto.guardianEmail) {
+      return { success: false, message: 'OTP verification is not required for this template' };
+    }
+    return this.consentOtpService.sendOtp(applicationId, {
+      email: dto.guardianEmail || dto.email,
+      phone: dto.phone,
+    });
+  }
+
+  @Post('otp/verify/:applicationId')
+  async verifyConsentOtp(
+    @Param('applicationId') applicationId: string,
+    @Body() dto: { email?: string; phone?: string; otp: string },
+  ) {
+    const widget = await this.widgetService.getPublicWidgetConfig(applicationId);
+    if (!widget) {
+      return { success: false, message: 'Widget not found' };
+    }
+    return this.consentOtpService.verifyOtp(applicationId, dto);
   }
 
   /**

@@ -60,6 +60,16 @@ export class CreateConsentTemplateDto {
   @IsBoolean()
   separateConsents?: boolean;
 
+  @ApiPropertyOptional({ example: false, description: 'Require OTP before consent is recorded' })
+  @IsOptional()
+  @IsBoolean()
+  requiresOtpVerification?: boolean;
+
+  @ApiPropertyOptional({ example: false, description: 'Require Aadhaar eKYC OTP before consent is recorded' })
+  @IsOptional()
+  @IsBoolean()
+  requiresAadhaarVerification?: boolean;
+
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()

@@ -503,8 +503,10 @@ model ConsentTemplate {
   targetUserCategory TargetUserCategory[]
   ageThreshold       Int                  @default(18)
   consentGivenBy     ConsentGivenBy       @default(SELF)
-  mechanism          ConsentMechanism     @default(CHECKBOX)
-  separateConsents   Boolean              @default(false)
+  mechanism               ConsentMechanism     @default(CHECKBOX)
+  separateConsents        Boolean              @default(false)
+  requiresOtpVerification Boolean              @default(false)
+  requiresAadhaarVerification Boolean          @default(false)
   withdrawVisible    Boolean              @default(true)
   dataSharing        Boolean              @default(false)
   privacyNoticeRef   String?
