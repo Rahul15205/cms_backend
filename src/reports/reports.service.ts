@@ -12,7 +12,7 @@ export class ReportsService {
     @InjectQueue('reports') private readonly reportsQueue: Queue
   ) {}
 
-  async create(dto: CreateReportDto, userId: string) {
+  async create(dto: CreateReportDto, userId: string, userTenantId?: string) {
     const report = await this.prisma.generatedReport.create({
       data: {
         name: dto.name,
@@ -20,7 +20,7 @@ export class ReportsService {
         format: dto.format ?? 'CSV',
         generatedBy: userId,
         parameters: dto.parameters ?? {},
-        tenantId: dto.tenantId,
+        tenantId: dto.tenantId ?? userTenantId,
         status: 'RPT_PENDING',
       },
     });

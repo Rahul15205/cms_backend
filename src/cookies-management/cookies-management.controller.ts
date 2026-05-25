@@ -9,7 +9,9 @@ import {
   UseGuards,
   Request,
   Query,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { CookiesManagementService } from './cookies-management.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateCookieCategoryDto } from './dto/create-cookie-category.dto';
@@ -123,6 +125,18 @@ export class CookiesManagementController {
   startScan(@Param('id') id: string, @Request() req) {
     const tenantId = req.user.tenantId;
     return this.cookiesManagementService.startScan(id, tenantId);
+  }
+
+  @Get('websites/:id/compliance-report')
+  async getComplianceReport(
+    @Param('id') id: string,
+    @Request() req,
+    @Res() res: Response,
+  ) {
+    const tenantId = req.user.tenantId;
+    const html = await this.cookiesManagementService.generateComplianceReportHtml(id, tenantId);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
   }
 
   // ---------------------------------------------------------

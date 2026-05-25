@@ -237,7 +237,7 @@ export class NotificationsService {
         },
         attachments: [
           {
-            filename: `Compliance_Report_${websiteName.replace(/\s+/g, '_')}.pdf`,
+            filename: `Compliance_Report_${websiteName.replace(/\s+/g, '_')}${filePath.endsWith('.html') ? '.html' : '.pdf'}`,
             path: filePath,
           }
         ]

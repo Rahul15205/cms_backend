@@ -13,12 +13,14 @@ import {
   deriveVisitorIdFromIp,
   shouldReplaceClientVisitorId,
 } from '../common/utils/visitor-id.utils';
+import { CookieComplianceReportService } from './cookie-compliance-report.service';
 
 @Injectable()
 export class CookiesManagementService {
   constructor(
     private readonly prisma: PrismaService,
-    @InjectQueue('cookie-scanner') private readonly cookieScannerQueue: Queue
+    @InjectQueue('cookie-scanner') private readonly cookieScannerQueue: Queue,
+    private readonly cookieComplianceReportService: CookieComplianceReportService,
   ) {}
 
   // ---------------------------------------------------------
@@ -759,5 +761,9 @@ export class CookiesManagementService {
         }
       };
     }
+  }
+
+  async generateComplianceReportHtml(websiteId: string, tenantId: string): Promise<string> {
+    return this.cookieComplianceReportService.generateHtml(websiteId, tenantId);
   }
 }

@@ -7,6 +7,7 @@ import { ReportGeneratorProcessor } from './report-generator.processor';
 import { EncryptionModule } from '../encryption/encryption.module';
 import { StorageModule } from '../common/storage/storage.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { CookiesManagementModule } from '../cookies-management/cookies-management.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     EncryptionModule,
     StorageModule,
     NotificationsModule,
+    CookiesManagementModule,
     BullModule.registerQueue({
       name: 'reports',
     }),

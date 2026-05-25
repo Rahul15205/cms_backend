@@ -10,6 +10,7 @@ import PDFDocument = require('pdfkit');
 import { ReportStatus, ReportType } from '@prisma/client';
 import { EncryptionService } from '../encryption/encryption.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CookieComplianceReportService } from '../cookies-management/cookie-compliance-report.service';
 
 export interface ReportJobData {
   reportId: string;
@@ -26,7 +27,8 @@ export class ReportGeneratorProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly encryptionService: EncryptionService,
-    private readonly notificationsService: NotificationsService
+    private readonly notificationsService: NotificationsService,
+    private readonly cookieComplianceReportService: CookieComplianceReportService,
   ) {
     super();
   }
@@ -112,7 +114,28 @@ export class ReportGeneratorProcessor extends WorkerHost {
 
   private async generateStandardReport(data: ReportJobData): Promise<string> {
      const tempDir = path.join(process.cwd(), 'tmp');
-     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+     const report = await this.prisma.generatedReport.findUnique({
+       where: { id: data.reportId },
+     });
+     const params = (report?.parameters as Record<string, unknown>) || {};
+     const isCookieCompliance =
+       data.type === ReportType.COMPLIANCE &&
+       params?.module === 'COOKIES_MANAGEMENT' &&
+       typeof params?.websiteId === 'string' &&
+       typeof data.tenantId === 'string';
+
+     if (isCookieCompliance) {
+       const html = await this.cookieComplianceReportService.generateHtml(
+         params.websiteId as string,
+         data.tenantId as string,
+       );
+       const filePath = path.join(tempDir, `report-${data.reportId}.html`);
+       fs.writeFileSync(filePath, html, 'utf8');
+       return filePath;
+     }
+
      const filePath = path.join(tempDir, `report-${data.reportId}.${data.format.toLowerCase()}`);
      
      if (data.format === 'PDF') {

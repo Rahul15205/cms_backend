@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cookie Compliance Report — Proteccio Data</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --brand: #1dd05e;
+    --brand-dark: #15a34a;
+    --brand-light: #d4f7e4;
+    --brand-faint: #f0fdf6;
+    --ink: #0f1a13;
+    --ink-2: #2d4035;
+    --ink-3: #4a6657;
+    --muted: #7a9585;
+    --border: #d4e4dc;
+    --border-light: #eaf4ef;
+    --surface: #ffffff;
+    --surface-2: #f5faf7;
+    --surface-3: #eef7f2;
+    --red: #e53935;
+    --red-light: #fdecea;
+    --red-dark: #b71c1c;
+    --amber: #f59e0b;
+    --amber-light: #fef3c7;
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --shadow: 0 1px 3px rgba(0,80,30,.08), 0 4px 16px rgba(0,80,30,.05);
+    --shadow-lg: 0 2px 8px rgba(0,80,30,.10), 0 12px 40px rgba(0,80,30,.08);
+  }
+
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: #f0f6f2;
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── PRINT LAYOUT ── */
+  @media print {
+    body { background: white; }
+    .no-print { display: none !important; }
+    .page { box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    background: var(--brand);
+    padding: 0 40px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(29,208,94,.3);
+  }
+  .topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 15px;
+    color: white;
+    letter-spacing: -.01em;
+  }
+  .topbar-brand svg { flex-shrink: 0; }
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .topbar-right label {
+    color: rgba(255,255,255,.85);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .period-select {
+    background: rgba(255,255,255,.2);
+    border: 1px solid rgba(255,255,255,.35);
+    color: white;
+    border-radius: var(--radius-sm);
+    padding: 5px 10px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 28px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+  }
+  .period-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,.4); }
+  .period-select option { background: #1a6632; color: white; }
+  .btn-print {
+    background: rgba(255,255,255,.15);
+    border: 1px solid rgba(255,255,255,.35);
+    color: white;
+    border-radius: var(--radius-sm);
+    padding: 5px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background .15s;
+  }
+  .btn-print:hover { background: rgba(255,255,255,.25); }
+
+  /* ── PAGE ── */
+  .page {
+    max-width: 960px;
+    margin: 28px auto 60px;
+    background: var(--surface);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+  }
+
+  /* ── COVER HEADER ── */
+  .cover {
+    background: linear-gradient(135deg, #0a3d20 0%, #1a6632 60%, #1dd05e 100%);
+    padding: 48px 48px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: -60px;
+    right: -60px;
+    width: 320px;
+    height: 320px;
+    border-radius: 50%;
+    background: rgba(29,208,94,.12);
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    bottom: -40px;
+    left: 200px;
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: rgba(29,208,94,.08);
+  }
+  .cover-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 36px;
+  }
+  .cover-meta { position: relative; z-index: 1; }
+  .cover-tag {
+    display: inline-block;
+    background: rgba(29,208,94,.25);
+    border: 1px solid rgba(29,208,94,.5);
+    color: #a7f3cc;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 100px;
+    margin-bottom: 10px;
+  }
+  .cover-title {
+    font-size: 28px;
+    font-weight: 600;
+    color: white;
+    letter-spacing: -.02em;
+    line-height: 1.2;
+    margin-bottom: 6px;
+  }
+  .cover-subtitle {
+    font-size: 14px;
+    color: rgba(255,255,255,.65);
+  }
+  .cover-subtitle a {
+    color: #6ee7a5;
+    text-decoration: none;
+  }
+
+  /* Score ring */
+  .score-ring-wrap {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+  }
+  .score-ring {
+    width: 110px;
+    height: 110px;
+    transform: rotate(-90deg);
+  }
+  .score-ring-bg { fill: none; stroke: rgba(255,255,255,.15); stroke-width: 10; }
+  .score-ring-fill { fill: none; stroke: #1dd05e; stroke-width: 10; stroke-linecap: round;
+    stroke-dasharray: 283; stroke-dashoffset: 51; /* 82% = 283 * 0.18 */
+    filter: drop-shadow(0 0 6px rgba(29,208,94,.6));
+  }
+  .score-ring-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .score-pct {
+    font-size: 28px;
+    font-weight: 600;
+    color: white;
+    letter-spacing: -.03em;
+    line-height: 1;
+  }
+  .score-lbl { font-size: 10px; color: rgba(255,255,255,.6); font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+
+  /* Cover stats row */
+  .cover-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: rgba(255,255,255,.1);
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+  }
+  .cover-stat {
+    background: rgba(0,0,0,.15);
+    padding: 16px 20px;
+    backdrop-filter: blur(4px);
+  }
+  .cover-stat-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.55);
+    margin-bottom: 4px;
+  }
+  .cover-stat-value {
+    font-size: 20px;
+    font-weight: 600;
+    color: white;
+    letter-spacing: -.01em;
+    line-height: 1.1;
+  }
+  .badge-risk {
+    display: inline-block;
+    background: var(--brand);
+    color: #0a3d20;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    padding: 2px 10px;
+    border-radius: 100px;
+    margin-top: 2px;
+  }
+
+  /* ── BODY SECTIONS ── */
+  .body { padding: 0 48px 48px; }
+
+  .section { margin-top: 40px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1.5px solid var(--border);
+  }
+  .section-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--brand-faint);
+    border: 1px solid var(--brand-light);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--brand-dark);
+  }
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -.01em;
+  }
+  .section-count {
+    margin-left: auto;
+    background: var(--surface-3);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 100px;
+    letter-spacing: .03em;
+  }
+
+  /* ── SCAN TRACE GRID ── */
+  .trace-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+  }
+  .trace-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .trace-card-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .trace-card-value {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -.02em;
+  }
+  .trace-card-value.mono {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--brand-dark);
+    margin-top: 4px;
+  }
+
+  /* ── SCORE BREAKDOWN ── */
+  .score-item {
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    background: var(--surface);
+    transition: border-color .15s;
+  }
+  .score-item:hover { border-color: var(--border); }
+  .score-item.fail {
+    background: #fff8f8;
+    border-color: #ffd5d5;
+  }
+  .score-item-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .score-icon {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+  .score-icon.pass { background: var(--brand-light); color: var(--brand-dark); }
+  .score-icon.fail { background: var(--red-light); color: var(--red-dark); }
+  .score-icon svg { width: 12px; height: 12px; }
+  .score-info { flex: 1; }
+  .score-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 2px;
+  }
+  .score-desc {
+    font-size: 12px;
+    color: var(--ink-3);
+    line-height: 1.5;
+  }
+  .score-points {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .score-fraction {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    line-height: 1;
+    margin-bottom: 1px;
+  }
+  .score-fraction.pass { color: var(--brand-dark); }
+  .score-fraction.fail { color: var(--red); }
+  .score-pts-lbl {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .score-bar-wrap {
+    margin-top: 10px;
+    height: 4px;
+    background: var(--border-light);
+    border-radius: 100px;
+    overflow: hidden;
+  }
+  .score-bar {
+    height: 100%;
+    border-radius: 100px;
+    transition: width .6s ease;
+  }
+  .score-bar.pass { background: var(--brand); }
+  .score-bar.partial { background: var(--amber); }
+  .score-bar.fail { background: var(--red); }
+
+  /* Proof box */
+  .proof-box {
+    margin-top: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .proof-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .proof-text {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-3);
+    line-height: 1.5;
+  }
+  .proof-link {
+    font-size: 11px;
+    color: var(--brand-dark);
+    text-decoration: none;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+    margin-top: 14px;
+  }
+  .proof-link:hover { text-decoration: underline; }
+
+  /* ── TWO COLS ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  /* ── THIRD-PARTY HOSTS ── */
+  .host-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .host-tag {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--ink-2);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 100px;
+    white-space: nowrap;
+  }
+
+  /* ── CHARTS ── */
+  .chart-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+  }
+  .chart-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .chart-card-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+  .donut-wrap {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .donut-canvas-wrap {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    flex-shrink: 0;
+  }
+  .donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .donut-num { font-size: 24px; font-weight: 600; color: var(--ink); }
+  .donut-lbl { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .legend-list { list-style: none; flex: 1; }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 12px;
+    color: var(--ink-2);
+    border-bottom: 1px solid var(--border-light);
+  }
+  .legend-item:last-child { border-bottom: none; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .legend-count { margin-left: auto; font-weight: 600; color: var(--ink); }
+
+  .trend-canvas-wrap { position: relative; width: 100%; height: 200px; }
+  .trend-legend {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .trend-legend-item { display: flex; align-items: center; gap: 5px; }
+  .trend-legend-line { width: 18px; height: 2px; border-radius: 1px; }
+
+  /* ── CONSENT TABLE ── */
+  .consent-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .consent-table thead th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 8px 12px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .consent-table thead th:first-child { border-radius: var(--radius-sm) 0 0 0; }
+  .consent-table thead th:last-child { border-radius: 0 var(--radius-sm) 0 0; }
+  .consent-table tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--ink-2);
+    vertical-align: middle;
+  }
+  .consent-table tbody tr:last-child td { border-bottom: none; }
+  .consent-table tbody tr:hover td { background: var(--surface-2); }
+  .uid-mono { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ink); }
+  .cat-badge {
+    display: inline-block;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    color: var(--ink-3);
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin: 1px 2px 1px 0;
+  }
+  .status-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    padding: 3px 9px;
+    border-radius: 100px;
+  }
+  .status-badge.accepted { background: var(--brand-light); color: var(--brand-dark); }
+  .status-badge.rejected { background: #fff3e0; color: #e65100; }
+  .action-link { color: var(--red); font-size: 11px; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .action-link:hover { text-decoration: underline; }
+
+  /* ── SCAN CONFIG SECTION ── */
+  .config-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .config-item {
+    background: var(--surface-2);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .config-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .config-value {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .toggle-on {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--brand-dark);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .toggle-pill {
+    width: 28px;
+    height: 16px;
+    background: var(--brand);
+    border-radius: 100px;
+    position: relative;
+  }
+  .toggle-pill::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+  }
+
+  /* ── FOOTER ── */
+  .report-footer {
+    border-top: 1px solid var(--border-light);
+    padding: 20px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface-2);
+  }
+  .footer-brand {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .footer-brand strong { color: var(--brand-dark); }
+  .footer-meta { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- ── TOP NAVIGATION BAR ── -->
+<nav class="topbar no-print">
+  <div class="topbar-brand">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2L4 6v6c0 5.25 3.4 10.15 8 11.35C16.6 22.15 20 17.25 20 12V6l-8-4z" fill="rgba(255,255,255,.9)"/>
+      <path d="M9 12l2 2 4-4" stroke="#1dd05e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Proteccio Data — Cookie Compliance Report
+  </div>
+  <div class="topbar-right">
+    <label for="period">Report Period</label>
+    <select class="period-select" id="period" onchange="updatePeriod(this.value)">
+      <option value="first">First Time Scan — 23 May 2026</option>
+      <option value="daily" selected>Daily — 23 May 2026</option>
+      <option value="weekly">Weekly — 19–25 May 2026</option>
+      <option value="monthly">Monthly — May 2026</option>
+      <option value="quarterly">Quarterly — Q2 2026</option>
+    </select>
+    <button class="btn-print" onclick="window.print()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+        <rect x="6" y="14" width="12" height="8"/>
+      </svg>
+      Print / Export PDF
+    </button>
+  </div>
+</nav>
+
+<!-- ── MAIN PAGE ── -->
+<div class="page">
+
+  <!-- COVER HEADER -->
+  <div class="cover">
+    <div class="cover-top">
+      <div class="cover-meta">
+        <div class="cover-tag" id="period-tag">Daily Scan Report</div>
+        <div class="cover-title">Compliance Audit Results</div>
+        <div class="cover-subtitle">
+          <svg style="display:inline;vertical-align:-2px;margin-right:3px" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+          <a href="https://protecciodata.com" target="_blank">https://protecciodata.com/</a>
+          &nbsp;·&nbsp; <span id="scan-date">Last scanned: 23 May 2026, 12:17 PM</span>
+        </div>
+      </div>
+      <div class="score-ring-wrap">
+        <svg class="score-ring" viewBox="0 0 100 100" role="img" aria-label="Compliance score 82%">
+          <circle class="score-ring-bg" cx="50" cy="50" r="45"/>
+          <circle class="score-ring-fill" cx="50" cy="50" r="45"/>
+        </svg>
+        <div class="score-ring-label">
+          <div class="score-pct">82%</div>
+          <div class="score-lbl">Score</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cover-stats">
+      <div class="cover-stat">
+        <div class="cover-stat-label">Risk Level</div>
+        <div><span class="badge-risk">LOW</span></div>
+      </div>
+      <div class="cover-stat">
+        <div class="cover-stat-label">Pages Crawled</div>
+        <div class="cover-stat-value">47</div>
+      </div>
+      <div class="cover-stat">
+        <div class="cover-stat-label">Cookies Found</div>
+        <div class="cover-stat-value">17</div>
+      </div>
+      <div class="cover-stat">
+        <div class="cover-stat-label">Base Domain</div>
+        <div class="cover-stat-value" style="font-size:13px;margin-top:3px">protecciodata.com</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- SCAN TRACE -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        </div>
+        <div class="section-title">Scan Trace</div>
+      </div>
+      <div class="trace-grid">
+        <div class="trace-card">
+          <div class="trace-card-label">Queued</div>
+          <div class="trace-card-value">49</div>
+        </div>
+        <div class="trace-card">
+          <div class="trace-card-label">Attempted</div>
+          <div class="trace-card-value">49</div>
+        </div>
+        <div class="trace-card">
+          <div class="trace-card-label">Crawled</div>
+          <div class="trace-card-value">47</div>
+        </div>
+        <div class="trace-card">
+          <div class="trace-card-label">Skipped</div>
+          <div class="trace-card-value">378</div>
+        </div>
+        <div class="trace-card">
+          <div class="trace-card-label">Base Domain</div>
+          <div class="trace-card-value" style="font-size:13px;margin-top:2px">protecciodata.com</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCORE BREAKDOWN -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+        </div>
+        <div class="section-title">Score Breakdown</div>
+        <div class="section-count">16 checks</div>
+      </div>
+
+      <!-- PASS items -->
+      <div id="score-list">
+
+        <!-- Pre-Consent Cookie Audit -->
+        <div class="score-item">
+          <div class="score-item-top">
+            <div class="score-icon pass">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Pre-Consent Cookie Audit</div>
+              <div class="score-desc">All 8 cookie(s) detected before consent are essential (Necessary/Functional). No GDPR Art. 5(3) / DPDP Section 4 violations.</div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction pass">7 / 7</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar pass" style="width:100%"></div></div>
+        </div>
+
+        <!-- Cookie Banner Installed -->
+        <div class="score-item">
+          <div class="score-item-top">
+            <div class="score-icon pass">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Cookie Banner Installed</div>
+              <div class="score-desc">Cookie consent banner detected (Proteccio). Users can manage their cookie preferences.</div>
+              <div class="proof-box">
+                <div>
+                  <div class="proof-label">Proof of Compliance</div>
+                  <div class="proof-text">Proteccio consent banner active on all pages</div>
+                </div>
+                <a class="proof-link" href="https://protecciodata.com" target="_blank">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  View Page
+                </a>
+              </div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction pass">10 / 10</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar pass" style="width:100%"></div></div>
+        </div>
+
+        <!-- Cookie Categorization -->
+        <div class="score-item">
+          <div class="score-item-top">
+            <div class="score-icon pass">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Cookie Categorization</div>
+              <div class="score-desc">Proteccio auto-categorization active — cookies are classified by category.</div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction pass">8 / 8</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar pass" style="width:100%"></div></div>
+        </div>
+
+        <!-- Consent Logging -->
+        <div class="score-item">
+          <div class="score-item-top">
+            <div class="score-icon pass">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Consent Logging</div>
+              <div class="score-desc">Proteccio consent management platform logs all user consent records with timestamps and preferences.</div>
+              <div class="proof-box">
+                <div>
+                  <div class="proof-label">Proof of Compliance</div>
+                  <div class="proof-text">Consent records timestamped and stored in compliance logs</div>
+                </div>
+                <a class="proof-link" href="https://protecciodata.com/compliance-information" target="_blank">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  View Page
+                </a>
+              </div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction pass">8 / 8</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar pass" style="width:100%"></div></div>
+        </div>
+
+        <!-- Privacy Notice -->
+        <div class="score-item">
+          <div class="score-item-top">
+            <div class="score-icon pass">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Privacy Notice</div>
+              <div class="score-desc">Dedicated Privacy Notice page detected (blog/category pages excluded).</div>
+              <div class="proof-box">
+                <div>
+                  <div class="proof-label">Proof of Compliance</div>
+                  <div class="proof-text">Privacy Policy: Privacy Notice | Proteccio</div>
+                </div>
+                <a class="proof-link" href="https://protecciodata.com" target="_blank">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  View Page
+                </a>
+              </div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction pass">10 / 10</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar pass" style="width:100%"></div></div>
+        </div>
+
+        <!-- Cookie Policy Page -->
+        <div class="score-item">
+          <div class="score-item-top">
+            <div class="score-icon pass">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Cookie Policy Page</div>
+              <div class="score-desc">Dedicated cookie policy/notice page found. Users can learn which cookies are used and why.</div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction pass">5 / 5</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar pass" style="width:100%"></div></div>
+        </div>
+
+        <!-- DSAR – FAIL -->
+        <div class="score-item fail">
+          <div class="score-item-top">
+            <div class="score-icon fail">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Data Subject Access Request (DSAR)</div>
+              <div class="score-desc">No DSAR provisions detected. Add clear information about user data rights (access, rectification, erasure, portability) in your privacy notice.</div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction fail">0 / 5</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar fail" style="width:0%"></div></div>
+        </div>
+
+        <!-- HTTPS Security -->
+        <div class="score-item">
+          <div class="score-item-top">
+            <div class="score-icon pass">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">HTTPS Security</div>
+              <div class="score-desc">Website uses secure HTTPS connection. Cookie data is encrypted in transit.</div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction pass">8 / 8</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar pass" style="width:100%"></div></div>
+        </div>
+
+        <!-- Secure Flag Audit – PARTIAL -->
+        <div class="score-item fail">
+          <div class="score-item-top">
+            <div class="score-icon fail">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Secure Flag Audit</div>
+              <div class="score-desc">3 of 8 cookie(s) missing Secure flag: <code style="font-family:'DM Mono',monospace;font-size:11px">_ga_KWKSGLHXEY</code>, <code style="font-family:'DM Mono',monospace;font-size:11px">_ga</code>, <code style="font-family:'DM Mono',monospace;font-size:11px">_ga_8YMXEKB11V</code>. Cookies without Secure flag can be transmitted over unencrypted connections.</div>
+              <div class="proof-box">
+                <div>
+                  <div class="proof-label">Failing Cookies</div>
+                  <div class="proof-text">_ga_KWKSGLHXEY, _ga, _ga_8YMXEKB11V</div>
+                </div>
+                <a class="proof-link" href="https://protecciodata.com" target="_blank">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  View Page
+                </a>
+              </div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction fail">5 / 8</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar partial" style="width:62.5%"></div></div>
+        </div>
+
+        <!-- HttpOnly Flag Audit – FAIL -->
+        <div class="score-item fail">
+          <div class="score-item-top">
+            <div class="score-icon fail">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">HttpOnly Flag Audit</div>
+              <div class="score-desc">1 of 1 session cookie(s) missing HttpOnly flag: <code style="font-family:'DM Mono',monospace;font-size:11px">__hssrc</code>. These cookies are vulnerable to JavaScript-based attacks (XSS).</div>
+              <div class="proof-box">
+                <div>
+                  <div class="proof-label">Failing Session Cookies</div>
+                  <div class="proof-text">__hssrc</div>
+                </div>
+                <a class="proof-link" href="https://protecciodata.com" target="_blank">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  View Page
+                </a>
+              </div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction fail">0 / 8</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar fail" style="width:0%"></div></div>
+        </div>
+
+        <!-- Cookie Expiry Audit – PARTIAL -->
+        <div class="score-item fail">
+          <div class="score-item-top">
+            <div class="score-icon fail">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Cookie Expiry Audit</div>
+              <div class="score-desc">3 of 8 cookie(s) exceed the 1-year GDPR recommended maximum: <code style="font-family:'DM Mono',monospace;font-size:11px">_ga_KWKSGLHXEY</code>, <code style="font-family:'DM Mono',monospace;font-size:11px">_ga</code>, <code style="font-family:'DM Mono',monospace;font-size:11px">_ga_8YMXEKB11V</code>. Long-lived cookies increase privacy risk and may violate data minimization principles.</div>
+              <div class="proof-box">
+                <div>
+                  <div class="proof-label">Long-lived Cookies</div>
+                  <div class="proof-text">_ga_KWKSGLHXEY, _ga, _ga_8YMXEKB11V</div>
+                </div>
+              </div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction fail">4.4 / 7</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar partial" style="width:62.9%"></div></div>
+        </div>
+
+        <!-- SameSite Attribute – PARTIAL -->
+        <div class="score-item fail">
+          <div class="score-item-top">
+            <div class="score-icon fail">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">SameSite Attribute</div>
+              <div class="score-desc">3 of 8 cookie(s) missing proper SameSite attribute: <code style="font-family:'DM Mono',monospace;font-size:11px">_ga_KWKSGLHXEY</code>, <code style="font-family:'DM Mono',monospace;font-size:11px">_ga</code>, <code style="font-family:'DM Mono',monospace;font-size:11px">_ga_8YMXEKB11V</code>. Without SameSite, cookies are sent with all cross-site requests, enabling CSRF attacks.</div>
+              <div class="proof-box">
+                <div>
+                  <div class="proof-label">Cookies without SameSite</div>
+                  <div class="proof-text">_ga_KWKSGLHXEY, _ga, _ga_8YMXEKB11V</div>
+                </div>
+              </div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction fail">3.1 / 5</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar partial" style="width:62%"></div></div>
+        </div>
+
+        <!-- Third-party Disclosure -->
+        <div class="score-item">
+          <div class="score-item-top">
+            <div class="score-icon pass">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Third-party Disclosure</div>
+              <div class="score-desc">Third-party disclosures found in policy. 11 third-party domain(s) detected and properly disclosed.</div>
+              <div class="proof-box">
+                <div>
+                  <div class="proof-label">Proof of Compliance</div>
+                  <div class="proof-text">PROTECCIO CORE DATA MAPPING THIRD PARTY SECURITY ROPA DPIA ASSURANCE — 11 domains disclosed</div>
+                </div>
+                <a class="proof-link" href="https://protecciodata.com" target="_blank">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  View Page
+                </a>
+              </div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction pass">5 / 5</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar pass" style="width:100%"></div></div>
+        </div>
+
+        <!-- Opt-out Mechanism -->
+        <div class="score-item">
+          <div class="score-item-top">
+            <div class="score-icon pass">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Opt-out Mechanism</div>
+              <div class="score-desc">Opt-out available via Proteccio banner consent controls. Users can withdraw consent at any time.</div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction pass">5 / 5</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar pass" style="width:100%"></div></div>
+        </div>
+
+        <!-- Language Localization -->
+        <div class="score-item">
+          <div class="score-item-top">
+            <div class="score-icon pass">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Language Localization</div>
+              <div class="score-desc">Language localization detected: Language options: EN. Privacy information appears accessible in more than one language.</div>
+              <div class="proof-box">
+                <div>
+                  <div class="proof-label">Proof of Compliance</div>
+                  <div class="proof-text">Language options: EN</div>
+                </div>
+                <a class="proof-link" href="https://protecciodata.com" target="_blank">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  View Page
+                </a>
+              </div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction pass">3 / 3</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar pass" style="width:100%"></div></div>
+        </div>
+
+        <!-- Grievance Mechanism – FAIL -->
+        <div class="score-item fail">
+          <div class="score-item-top">
+            <div class="score-icon fail">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg>
+            </div>
+            <div class="score-info">
+              <div class="score-name">Grievance Mechanism</div>
+              <div class="score-desc">No grievance mechanism detected. Required under India DPDP Act Section 8 — add a grievance officer with contact details in your privacy notice.</div>
+            </div>
+            <div class="score-points">
+              <div class="score-fraction fail">0 / 5</div>
+              <div class="score-pts-lbl">Points</div>
+            </div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar fail" style="width:0%"></div></div>
+        </div>
+
+      </div><!-- /score-list -->
+    </div>
+
+    <!-- THIRD-PARTY HOSTS -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+        </div>
+        <div class="section-title">Detected Third-Party Hosts</div>
+        <div class="section-count">11 domains</div>
+      </div>
+      <div class="host-tags">
+        <span class="host-tag">google-analytics.com</span>
+        <span class="host-tag">google.com</span>
+        <span class="host-tag">googleapis.com</span>
+        <span class="host-tag">googletagmanager.com</span>
+        <span class="host-tag">hs-analytics.net</span>
+        <span class="host-tag">hs-banner.com</span>
+        <span class="host-tag">hs-scripts.com</span>
+        <span class="host-tag">hscollectedforms.net</span>
+        <span class="host-tag">hubspot.com</span>
+        <span class="host-tag">protecciodata.co.in</span>
+        <span class="host-tag">usemessages.com</span>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21H4.6C4.04 21 3.76 21 3.55 20.89a1 1 0 01-.44-.44C3 20.24 3 19.96 3 19.4V3"/><path d="M7 17l4-8 4 6 2-4"/></svg>
+        </div>
+        <div class="section-title">Cookie Distribution &amp; Consent Activity</div>
+        <div class="section-count">May 19–25, 2026</div>
+      </div>
+      <div class="two-col">
+
+        <!-- Donut Chart -->
+        <div class="chart-card">
+          <div class="chart-card-title">Cookie Distribution</div>
+          <div class="chart-card-sub">Total cookies by category</div>
+          <div class="donut-wrap">
+            <div class="donut-canvas-wrap">
+              <canvas id="donutChart" role="img" aria-label="Donut chart: 31 total cookies. Strictly Necessary 8, Analytics 8, Marketing 9, Uncategorized 4, Functional 2.">31 cookies: Strictly Necessary 8, Analytics 8, Marketing 9, Uncategorized 4, Functional 2.</canvas>
+              <div class="donut-center">
+                <div class="donut-num">31</div>
+                <div class="donut-lbl">Total</div>
+              </div>
+            </div>
+            <ul class="legend-list">
+              <li class="legend-item"><span class="legend-dot" style="background:#1dd05e"></span> Strictly Necessary <span class="legend-count">8</span></li>
+              <li class="legend-item"><span class="legend-dot" style="background:#3b82f6"></span> Analytics <span class="legend-count">8</span></li>
+              <li class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span> Marketing <span class="legend-count">9</span></li>
+              <li class="legend-item"><span class="legend-dot" style="background:#9ca3af"></span> Uncategorized <span class="legend-count">4</span></li>
+              <li class="legend-item"><span class="legend-dot" style="background:#8b5cf6"></span> Functional <span class="legend-count">2</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Line Chart -->
+        <div class="chart-card">
+          <div class="chart-card-title">Consent Activity Trend</div>
+          <div class="chart-card-sub">Last 7 days</div>
+          <div class="trend-legend">
+            <div class="trend-legend-item"><span class="trend-legend-line" style="background:#1dd05e"></span> Accepted</div>
+            <div class="trend-legend-item"><span class="trend-legend-line" style="background:#f59e0b;border-top:2px dashed #f59e0b;height:0"></span> Rejected</div>
+            <div class="trend-legend-item"><span class="trend-legend-line" style="background:#ef4444;border-top:2px dotted #ef4444;height:0"></span> Withdrawn</div>
+          </div>
+          <div class="trend-canvas-wrap">
+            <canvas id="trendChart" role="img" aria-label="Line chart showing consent activity from May 19-25 2026. Accepted peaked at 900 on May 22. Rejected peaked at 400. Withdrawn remained low.">Consent trend May 19–25: Accepted peaked at 900 (May 22), Rejected peaked at 400, Withdrawn remained low throughout.</canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECENT CONSENT ACTIVITY -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
+        <div class="section-title">Recent Consent Activity</div>
+        <div class="section-count">Latest preferences</div>
+      </div>
+      <div style="border:1px solid var(--border-light);border-radius:var(--radius-lg);overflow:hidden">
+        <table class="consent-table">
+          <thead>
+            <tr>
+              <th>User ID</th>
+              <th>Region</th>
+              <th>Language</th>
+              <th>Categories</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="uid-mono">VIS-C3879E3951880D92</span></td>
+              <td>IN</td>
+              <td>EN</td>
+              <td><span class="cat-badge">Strictly Necessary</span></td>
+              <td><span class="status-badge rejected">REJECTED</span></td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><span class="uid-mono">VIS-8025C6CC19602F5E</span></td>
+              <td>Bengaluru, KA, IN</td>
+              <td>EN</td>
+              <td>
+                <span class="cat-badge">Strictly Necessary</span>
+                <span class="cat-badge">Analytics</span>
+                <span class="cat-badge">Marketing</span>
+                <span class="cat-badge">UNCATEGORIZED</span>
+                <span class="cat-badge">FUNCTIONAL</span>
+              </td>
+              <td><span class="status-badge accepted">ACCEPTED</span></td>
+              <td><a class="action-link">Withdraw</a></td>
+            </tr>
+            <tr>
+              <td><span class="uid-mono">VIS-C3370F4C86C95E50</span></td>
+              <td>Kochi, KL, IN</td>
+              <td>EN</td>
+              <td>
+                <span class="cat-badge">Strictly Necessary</span>
+                <span class="cat-badge">Analytics</span>
+                <span class="cat-badge">Marketing</span>
+                <span class="cat-badge">UNCATEGORIZED</span>
+                <span class="cat-badge">FUNCTIONAL</span>
+              </td>
+              <td><span class="status-badge accepted">ACCEPTED</span></td>
+              <td><a class="action-link">Withdraw</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SCAN CONFIGURATION -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 00-14.14 0M21 12a9 9 0 01-9 9 9 9 0 01-9-9 9 9 0 0118 0z"/></svg>
+        </div>
+        <div class="section-title">Scan Configuration</div>
+      </div>
+      <div class="config-grid">
+        <div class="config-item">
+          <div class="config-label">Website Name</div>
+          <div class="config-value">Proteccio Data</div>
+        </div>
+        <div class="config-item">
+          <div class="config-label">Website URL</div>
+          <div class="config-value" style="font-size:12px;color:var(--brand-dark)">https://protecciodata.com/</div>
+        </div>
+        <div class="config-item">
+          <div class="config-label">Scan Frequency</div>
+          <div class="config-value">Daily</div>
+        </div>
+        <div class="config-item">
+          <div class="config-label">Scan Depth</div>
+          <div class="config-value">Deep (Unlimited)</div>
+        </div>
+        <div class="config-item">
+          <div class="config-label">Automatic Categorization</div>
+          <div class="toggle-on"><span class="toggle-pill"></span> Enabled</div>
+        </div>
+        <div class="config-item">
+          <div class="config-label">Scan Behind Login</div>
+          <div class="toggle-on"><span class="toggle-pill"></span> Enabled</div>
+        </div>
+        <div class="config-item" style="grid-column:1/-1">
+          <div class="config-label">Notification Email</div>
+          <div class="config-value" style="font-family:'DM Mono',monospace;font-size:12px">rahulkumarshukla4627@gmail.com</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /body -->
+
+  <!-- FOOTER -->
+  <div class="report-footer">
+    <div class="footer-brand">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2L4 6v6c0 5.25 3.4 10.15 8 11.35C16.6 22.15 20 17.25 20 12V6l-8-4z" fill="#1dd05e"/>
+      </svg>
+      Generated by <strong>Proteccio Data</strong> &nbsp;·&nbsp; Cookie Compliance Platform
+    </div>
+    <div class="footer-meta" id="footer-date">Report date: 23 May 2026, 12:17:19 PM &nbsp;·&nbsp; protecciodata.com</div>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+/* ─ Charts ─ */
+const donutCtx = document.getElementById('donutChart').getContext('2d');
+new Chart(donutCtx, {
+  type: 'doughnut',
+  data: {
+    labels: ['Strictly Necessary','Analytics','Marketing','Uncategorized','Functional'],
+    datasets: [{
+      data: [8, 8, 9, 4, 2],
+      backgroundColor: ['#1dd05e','#3b82f6','#f59e0b','#9ca3af','#8b5cf6'],
+      borderWidth: 2,
+      borderColor: '#f5faf7',
+      hoverOffset: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '68%',
+    plugins: { legend: { display: false }, tooltip: {
+      callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` }
+    }}
+  }
+});
+
+const trendCtx = document.getElementById('trendChart').getContext('2d');
+new Chart(trendCtx, {
+  type: 'line',
+  data: {
+    labels: ['May 19','May 20','May 21','May 22','May 23','May 24','May 25'],
+    datasets: [
+      {
+        label: 'Accepted',
+        data: [45, 60, 80, 900, 420, 130, 70],
+        borderColor: '#1dd05e',
+        backgroundColor: 'rgba(29,208,94,.08)',
+        borderWidth: 2,
+        pointBackgroundColor: '#1dd05e',
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        tension: 0.4,
+        fill: true
+      },
+      {
+        label: 'Rejected',
+        data: [10, 12, 15, 400, 120, 60, 30],
+        borderColor: '#f59e0b',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        borderDash: [5, 3],
+        pointBackgroundColor: '#f59e0b',
+        pointRadius: 4,
+        tension: 0.4
+      },
+      {
+        label: 'Withdrawn',
+        data: [5, 8, 5, 40, 18, 20, 15],
+        borderColor: '#ef4444',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        borderDash: [2, 3],
+        pointBackgroundColor: '#ef4444',
+        pointRadius: 4,
+        tension: 0.4
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { mode: 'index', intersect: false }
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(0,0,0,.05)' },
+        ticks: { font: { size: 11 }, color: '#7a9585', autoSkip: false }
+      },
+      y: {
+        grid: { color: 'rgba(0,0,0,.05)' },
+        ticks: { font: { size: 11 }, color: '#7a9585' },
+        beginAtZero: true
+      }
+    }
+  }
+});
+
+/* ─ Period selector ─ */
+const periodMeta = {
+  first:     { tag: 'First-Time Scan Report',      date: 'First scanned: 23 May 2026, 12:17 PM',    footer: 'First scan date: 23 May 2026, 12:17:19 PM' },
+  daily:     { tag: 'Daily Scan Report',            date: 'Last scanned: 23 May 2026, 12:17 PM',     footer: 'Report date: 23 May 2026, 12:17:19 PM' },
+  weekly:    { tag: 'Weekly Scan Report',           date: 'Period: 19 May – 25 May 2026',            footer: 'Week of 19–25 May 2026' },
+  monthly:   { tag: 'Monthly Scan Report',          date: 'Period: May 2026',                        footer: 'Monthly report: May 2026' },
+  quarterly: { tag: 'Quarterly Scan Report',        date: 'Period: Q2 2026 (Apr – Jun)',             footer: 'Quarterly report: Q2 2026' }
+};
+function updatePeriod(val) {
+  const m = periodMeta[val] || periodMeta.daily;
+  document.getElementById('period-tag').textContent = m.tag;
+  document.getElementById('scan-date').textContent = m.date;
+  document.getElementById('footer-date').textContent = m.footer + ' · protecciodata.com';
+}
+</script>
+</body>
+</html>

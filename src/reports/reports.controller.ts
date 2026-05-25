@@ -23,7 +23,7 @@ export class ReportsController {
   @Permissions({ module: ModuleName.REPORTS, action: 'create' })
   @ApiOperation({ summary: 'Generate a new report' })
   create(@Body() dto: CreateReportDto, @Request() req: any) {
-    return this.reportsService.create(dto, req.user.userId);
+    return this.reportsService.create(dto, req.user.userId, req.user.tenantId);
   }
 
   @Get()
