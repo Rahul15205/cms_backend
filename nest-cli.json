@@ -4,6 +4,6 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "assets": ["**/*.hbs", "**/*.json", "**/*.html"]
+    "assets": ["**/*.hbs", "**/*.json", "**/*.html", "cookies-management/assets/**"]
   }
 }

@@ -10,6 +10,30 @@ import {
   renderCookieComplianceReport,
 } from './cookie-compliance-report.renderer';
 
+const REPORT_TIMEZONE = 'Asia/Kolkata';
+
+/** Formats timestamps for PDF/HTML reports in Indian Standard Time */
+function formatReportDateTimeIST(date: Date): string {
+  return date.toLocaleString('en-IN', {
+    timeZone: REPORT_TIMEZONE,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZoneName: 'short',
+  });
+}
+
+function formatTrendDayKeyIST(date: Date): string {
+  return date.toLocaleDateString('en-IN', {
+    timeZone: REPORT_TIMEZONE,
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 @Injectable()
 export class CookieComplianceReportService {
   private readonly logger = new Logger(CookieComplianceReportService.name);
@@ -114,16 +138,6 @@ export class CookieComplianceReportService {
     const trend = await this.buildConsentTrend(websiteId, tenantId);
     const recentConsents = await this.buildRecentConsents(websiteId, tenantId, categoryMap);
 
-    const fmt = (d: Date) =>
-      d.toLocaleString('en-IN', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      });
-
     const now = new Date();
     const lastScan = website.lastScan;
 
@@ -135,8 +149,8 @@ export class CookieComplianceReportService {
       riskLevel: website.riskLevel || 'UNKNOWN',
       pagesCrawled: website.pagesCrawled ?? 0,
       cookiesFound: website.cookiesDetected ?? inventory.length,
-      lastScanLabel: lastScan ? `Last scanned: ${fmt(lastScan)}` : 'Not scanned yet',
-      generatedAtLabel: `Report date: ${fmt(now)}`,
+      lastScanLabel: lastScan ? `Last scanned: ${formatReportDateTimeIST(lastScan)}` : 'Not scanned yet',
+      generatedAtLabel: `Report date: ${formatReportDateTimeIST(now)}`,
       scanTrace: crawlDebug?.debug?.totals
         ? {
             queued: crawlDebug.debug.totals.queuedUnique ?? crawlDebug.debug.totals.queued ?? 0,
@@ -235,12 +249,12 @@ export class CookieComplianceReportService {
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const key = formatTrendDayKeyIST(d);
       trendMap.set(key, { accepted: 0, rejected: 0, withdrawn: 0 });
     }
 
     logs.forEach((log) => {
-      const key = new Date(log.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const key = formatTrendDayKeyIST(new Date(log.createdAt));
       const stats = trendMap.get(key);
       if (!stats) return;
       if (log.status === 'ACCEPTED') stats.accepted++;
@@ -259,7 +273,7 @@ export class CookieComplianceReportService {
     const logs = await this.prisma.cookieConsentLog.findMany({
       where: { tenantId, websiteId },
       orderBy: { createdAt: 'desc' },
-      take: 10,
+      take: 5,
     });
 
     return logs.map((log) => ({
