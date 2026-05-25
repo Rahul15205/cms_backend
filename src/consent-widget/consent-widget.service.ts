@@ -3,7 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { CreateConsentWidgetDto } from './dto/create-consent-widget.dto';
 import { UpdateConsentWidgetDto } from './dto/update-consent-widget.dto';
-import { WidgetStatus, DeploymentStatus } from '@prisma/client';
+import { WidgetStatus, DeploymentStatus, ConsentStatus, Purpose } from '@prisma/client';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class ConsentWidgetService {
@@ -179,85 +180,80 @@ export class ConsentWidgetService {
   }
 
   async recordPublicConsent(id: string, dto: any) {
-    // 1. Get the active widget config
     const widget = await this.getPublicWidgetConfig(id);
     if (!widget) return null;
 
-    // 2. Find the latest version for this template
     const latestVersion = await this.prisma.consentVersion.findFirst({
-      where: {
-        templateId: widget.templateId,
-        status: 'ACTIVE',
-      },
+      where: { templateId: widget.templateId, status: 'ACTIVE' },
       orderBy: { versionNumber: 'desc' },
     });
 
     if (!latestVersion) {
-      throw new BadRequestException('No active consent version found for this template. Please publish a version first.');
+      throw new BadRequestException(
+        'No active consent version found for this template. Please publish a version first.',
+      );
     }
 
-    // 3. Create the consent record with PII hashing
-    const record = await this.prisma.consentRecord.create({
-      data: {
-        versionId: latestVersion.id,
-        applicationId: widget.applicationId,
-        endUserEmail: dto.email || null,
-        endUserPhone: dto.phone || null,
-        endUserIp: dto.ipAddress ? this.maskIp(dto.ipAddress) : null,
-        endUserEmailHash: dto.email ? this.encryptionService.generateHash(dto.email) : null,
-        endUserPhoneHash: dto.phone ? this.encryptionService.generateHash(dto.phone) : null,
-        status: 'GRANTED',
-        metadata: {
-          purposes: dto.purposes || [],
-          consentSource: 'widget',
-          widgetId: widget.id,
-          widgetName: widget.name,
-          userName: dto.name || null,
-          userAgent: dto.userAgent || null,
-          language: dto.language || 'en',
-          timestamp: new Date().toISOString(),
-        },
-      },
-    });
+    const template = widget.template as any;
+    const separateConsents = this.isSeparateConsentsEnabled(template);
 
-    // 4. Create a usage record for analytics/traceability
-    await this.prisma.consentUsageRecord.create({
-      data: {
-        userIdentifier: dto.email || dto.phone || 'anonymous',
-        ipAddress: dto.ipAddress ? this.maskIp(dto.ipAddress) : '192.168.1.xxx',
-        templateId: widget.templateId,
-        version: latestVersion.versionNumber.toString(),
-        purposeMapped: (dto.purposes || []).join(', ') || 'General',
-        systemApp: widget.application?.name || 'Widget',
-        consentDateTime: new Date(),
-        consentStatus: 'ACTIVE',
-      },
-    }).catch(err => {
-      console.error('Proteccio: Failed to create widget usage record:', err);
-    });
+    if (separateConsents && (template.purposes?.length ?? 0) > 0) {
+      if (!dto.email && !dto.phone) {
+        throw new BadRequestException(
+          'Email or phone is required when separate consents per purpose is enabled.',
+        );
+      }
+      return this.recordSeparatePurposeConsents(widget, latestVersion, dto, template.purposes);
+    }
 
-    return {
-      success: true,
-      recordId: record.id,
-      message: 'Consent recorded successfully',
-    };
+    return this.recordCombinedConsent(widget, latestVersion, dto);
   }
 
   async checkConsentStatus(id: string, identifier: string) {
     const widget = await this.getPublicWidgetConfig(id);
-    if (!widget) return { hasConsent: false, status: 'NONE', purposes: [] };
+    if (!widget) return { hasConsent: false, status: 'NONE', purposes: [], separateConsents: false };
 
-    // Try matching by email hash first, then by phone hash
-    const emailHash = this.encryptionService.generateHash(identifier);
+    const template = widget.template as any;
+    const separateConsents = this.isSeparateConsentsEnabled(template);
+    const userWhere = this.buildSubjectWhere(identifier);
+
+    if (separateConsents && (template.purposes?.length ?? 0) > 0) {
+      const purposeStatuses = await Promise.all(
+        template.purposes.map(async (purpose: Purpose) => {
+          const record = await this.prisma.consentRecord.findFirst({
+            where: {
+              applicationId: widget.applicationId,
+              purposeId: purpose.id,
+              ...userWhere,
+            },
+            orderBy: { grantedAt: 'desc' },
+          });
+          return {
+            id: purpose.id,
+            name: purpose.name,
+            status: record?.status ?? 'NONE',
+            grantedAt: record?.grantedAt ?? null,
+            granted: record?.status === ConsentStatus.GRANTED,
+          };
+        }),
+      );
+
+      const granted = purposeStatuses.filter((p) => p.granted);
+      return {
+        hasConsent: granted.length > 0,
+        status: granted.length > 0 ? 'GRANTED' : 'NONE',
+        separateConsents: true,
+        purposes: purposeStatuses,
+        grantedPurposes: granted.map((p) => p.name),
+      };
+    }
 
     const record = await this.prisma.consentRecord.findFirst({
       where: {
         applicationId: widget.applicationId,
-        status: 'GRANTED',
-        OR: [
-          { endUserEmailHash: emailHash },
-          { endUserPhoneHash: emailHash },
-        ],
+        purposeId: null,
+        status: ConsentStatus.GRANTED,
+        ...userWhere,
       },
       orderBy: { grantedAt: 'desc' },
     });
@@ -267,32 +263,41 @@ export class ConsentWidgetService {
         hasConsent: true,
         status: record.status,
         grantedAt: record.grantedAt,
+        separateConsents: false,
         purposes: (record.metadata as any)?.purposes || [],
       };
     }
 
-    return { hasConsent: false, status: 'NONE', purposes: [] };
+    return { hasConsent: false, status: 'NONE', purposes: [], separateConsents: false };
   }
 
-  async withdrawConsent(id: string, identifier: string) {
+  async withdrawConsent(id: string, identifier: string, dto?: { purposes?: string[]; purposeIds?: string[] }) {
     const widget = await this.getPublicWidgetConfig(id);
     if (!widget) return { success: false, message: 'Widget not found' };
 
-    const emailHash = this.encryptionService.generateHash(identifier);
+    const template = widget.template as any;
+    const userWhere = this.buildSubjectWhere(identifier);
+    const where: any = {
+      applicationId: widget.applicationId,
+      status: ConsentStatus.GRANTED,
+      ...userWhere,
+    };
+
+    if (dto?.purposeIds?.length || dto?.purposes?.length) {
+      const purposeIds = this.resolvePurposeIdsForWithdraw(template.purposes || [], dto);
+      if (purposeIds.length === 0) {
+        return { success: false, revokedCount: 0, message: 'No matching purposes to revoke' };
+      }
+      where.purposeId = { in: purposeIds };
+    } else if (this.isSeparateConsentsEnabled(template)) {
+      where.purposeId = { not: null };
+    } else {
+      where.purposeId = null;
+    }
 
     const result = await this.prisma.consentRecord.updateMany({
-      where: {
-        applicationId: widget.applicationId,
-        status: 'GRANTED',
-        OR: [
-          { endUserEmailHash: emailHash },
-          { endUserPhoneHash: emailHash },
-        ],
-      },
-      data: {
-        status: 'REVOKED',
-        revokedAt: new Date(),
-      },
+      where,
+      data: { status: ConsentStatus.REVOKED, revokedAt: new Date() },
     });
 
     return {
@@ -341,6 +346,202 @@ export class ConsentWidgetService {
   }
 
   // ─── Private Helpers ────────────────────────────────────
+
+  private isSeparateConsentsEnabled(template: any): boolean {
+    if (template?.separateConsents === true) return true;
+    const wizard = template?.wizardFields;
+    return wizard?.separateConsents === true;
+  }
+
+  private buildSubjectWhere(identifier: string) {
+    const hash = this.encryptionService.generateHash(identifier);
+    return {
+      OR: [{ endUserEmailHash: hash }, { endUserPhoneHash: hash }],
+    };
+  }
+
+  private resolveSelectedPurposeNames(dto: any, allPurposes: Purpose[]): Set<string> {
+    const selected = new Set<string>();
+    if (Array.isArray(dto.purposes)) {
+      dto.purposes.forEach((name: string) => selected.add(name));
+    }
+    if (Array.isArray(dto.purposeIds)) {
+      allPurposes.forEach((p) => {
+        if (dto.purposeIds.includes(p.id)) selected.add(p.name);
+      });
+    }
+    return selected;
+  }
+
+  private resolvePurposeIdsForWithdraw(
+    allPurposes: Purpose[],
+    dto: { purposes?: string[]; purposeIds?: string[] },
+  ): string[] {
+    const names = new Set<string>();
+    dto.purposes?.forEach((n) => names.add(n));
+    dto.purposeIds?.forEach((id) => {
+      const p = allPurposes.find((x) => x.id === id);
+      if (p) names.add(p.name);
+    });
+    return allPurposes.filter((p) => names.has(p.name)).map((p) => p.id);
+  }
+
+  private async recordCombinedConsent(widget: any, latestVersion: any, dto: any) {
+    const record = await this.prisma.consentRecord.create({
+      data: {
+        versionId: latestVersion.id,
+        applicationId: widget.applicationId,
+        endUserEmail: dto.email || null,
+        endUserPhone: dto.phone || null,
+        endUserIp: dto.ipAddress ? this.maskIp(dto.ipAddress) : null,
+        endUserEmailHash: dto.email ? this.encryptionService.generateHash(dto.email) : null,
+        endUserPhoneHash: dto.phone ? this.encryptionService.generateHash(dto.phone) : null,
+        status: ConsentStatus.GRANTED,
+        metadata: {
+          purposes: dto.purposes || [],
+          consentSource: 'widget',
+          widgetId: widget.id,
+          widgetName: widget.name,
+          userName: dto.name || null,
+          userAgent: dto.userAgent || null,
+          language: dto.language || 'en',
+          timestamp: new Date().toISOString(),
+          separateConsents: false,
+        },
+      },
+    });
+
+    await this.createUsageRecord(widget, latestVersion, dto, (dto.purposes || []).join(', ') || 'General');
+
+    return {
+      success: true,
+      recordId: record.id,
+      recordIds: [record.id],
+      separateConsents: false,
+      message: 'Consent recorded successfully',
+    };
+  }
+
+  private async recordSeparatePurposeConsents(
+    widget: any,
+    latestVersion: any,
+    dto: any,
+    allPurposes: Purpose[],
+  ) {
+    const selectedNames = this.resolveSelectedPurposeNames(dto, allPurposes);
+    const submissionId = crypto.randomUUID();
+    const emailHash = dto.email ? this.encryptionService.generateHash(dto.email) : null;
+    const phoneHash = dto.phone ? this.encryptionService.generateHash(dto.phone) : null;
+    const userWhere =
+      emailHash || phoneHash
+        ? {
+            OR: [
+              ...(emailHash ? [{ endUserEmailHash: emailHash }] : []),
+              ...(phoneHash ? [{ endUserPhoneHash: phoneHash }] : []),
+            ],
+          }
+        : null;
+
+    const recordIds: string[] = [];
+    const purposeResults: Array<{ id: string; name: string; status: string; recordId?: string }> = [];
+
+    for (const purpose of allPurposes) {
+      const isSelected = selectedNames.has(purpose.name);
+
+      if (isSelected) {
+        const active = userWhere
+          ? await this.prisma.consentRecord.findFirst({
+              where: {
+                applicationId: widget.applicationId,
+                purposeId: purpose.id,
+                status: ConsentStatus.GRANTED,
+                ...userWhere,
+              },
+            })
+          : null;
+
+        if (active) {
+          recordIds.push(active.id);
+          purposeResults.push({ id: purpose.id, name: purpose.name, status: 'GRANTED', recordId: active.id });
+          continue;
+        }
+
+        const record = await this.prisma.consentRecord.create({
+          data: {
+            versionId: latestVersion.id,
+            applicationId: widget.applicationId,
+            purposeId: purpose.id,
+            endUserEmail: dto.email || null,
+            endUserPhone: dto.phone || null,
+            endUserIp: dto.ipAddress ? this.maskIp(dto.ipAddress) : null,
+            endUserEmailHash: emailHash,
+            endUserPhoneHash: phoneHash,
+            status: ConsentStatus.GRANTED,
+            metadata: {
+              purposeName: purpose.name,
+              purposeNecessity: purpose.necessity,
+              submissionId,
+              consentSource: 'widget',
+              widgetId: widget.id,
+              widgetName: widget.name,
+              userName: dto.name || null,
+              userAgent: dto.userAgent || null,
+              language: dto.language || 'en',
+              timestamp: new Date().toISOString(),
+              separateConsents: true,
+            },
+          },
+        });
+
+        recordIds.push(record.id);
+        purposeResults.push({ id: purpose.id, name: purpose.name, status: 'GRANTED', recordId: record.id });
+        await this.createUsageRecord(widget, latestVersion, dto, purpose.name);
+      } else if (userWhere) {
+        const revoked = await this.prisma.consentRecord.updateMany({
+          where: {
+            applicationId: widget.applicationId,
+            purposeId: purpose.id,
+            status: ConsentStatus.GRANTED,
+            ...userWhere,
+          },
+          data: { status: ConsentStatus.REVOKED, revokedAt: new Date() },
+        });
+        purposeResults.push({
+          id: purpose.id,
+          name: purpose.name,
+          status: revoked.count > 0 ? 'REVOKED' : 'NONE',
+        });
+      } else {
+        purposeResults.push({ id: purpose.id, name: purpose.name, status: 'NONE' });
+      }
+    }
+
+    return {
+      success: true,
+      recordId: recordIds[0] ?? null,
+      recordIds,
+      separateConsents: true,
+      purposes: purposeResults,
+      message: `Consent recorded for ${purposeResults.filter((p) => p.status === 'GRANTED').length} purpose(s)`,
+    };
+  }
+
+  private async createUsageRecord(widget: any, latestVersion: any, dto: any, purposeMapped: string) {
+    await this.prisma.consentUsageRecord
+      .create({
+        data: {
+          userIdentifier: dto.email || dto.phone || 'anonymous',
+          ipAddress: dto.ipAddress ? this.maskIp(dto.ipAddress) : '192.168.1.xxx',
+          templateId: widget.templateId,
+          version: latestVersion.versionNumber.toString(),
+          purposeMapped,
+          systemApp: widget.application?.name || 'Widget',
+          consentDateTime: new Date(),
+          consentStatus: 'ACTIVE',
+        },
+      })
+      .catch((err) => console.error('Proteccio: Failed to create widget usage record:', err));
+  }
 
   private maskIp(ip: string): string {
     if (!ip || ip === '::1' || ip === '127.0.0.1') return 'Localhost';

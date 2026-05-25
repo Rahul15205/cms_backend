@@ -13,6 +13,11 @@ export class CreateConsentRecordDto {
   @IsString()
   applicationId!: string;
 
+  @ApiPropertyOptional({ example: 'uuid-purpose-id', description: 'Per-purpose consent record' })
+  @IsOptional()
+  @IsString()
+  purposeId?: string;
+
   @ApiPropertyOptional({ example: 'uuid-user-id', description: 'Internal platform user ID if known' })
   @IsOptional()
   @IsString()

@@ -78,6 +78,7 @@ export class ConsentWidgetPublicController {
     savePrefsText: widget.savePrefsText,
     defaultLanguage: widget.defaultLanguage,
     customCss: widget.customCss,
+    separateConsents: !!(template?.separateConsents || wizard?.separateConsents),
   })};
   config.applicationId = '${applicationId}';
   config.baseUrl = '${baseUrl}';
@@ -572,7 +573,7 @@ export class ConsentWidgetPublicController {
 
   // ─── COLLECT DATA & SUBMIT ───────────────────────────────
   function getFormData() {
-    var data = { purposes: [], name: null, email: null, phone: null };
+    var data = { purposes: [], purposeIds: [], name: null, email: null, phone: null };
 
     var nameEl = document.getElementById('proteccio-name');
     if (nameEl) data.name = nameEl.value.trim();
@@ -606,13 +607,19 @@ export class ConsentWidgetPublicController {
     // Determine selected purposes
     if (action === 'accept_all') {
       data.purposes = purposes.map(function(p) { return p.name; });
+      data.purposeIds = purposes.filter(function(p) { return p.id; }).map(function(p) { return p.id; });
     } else if (action === 'reject_all') {
-      data.purposes = purposes.filter(function(p) { return p.necessity === 'ESSENTIAL'; }).map(function(p) { return p.name; });
+      var essential = purposes.filter(function(p) { return p.necessity === 'ESSENTIAL'; });
+      data.purposes = essential.map(function(p) { return p.name; });
+      data.purposeIds = essential.filter(function(p) { return p.id; }).map(function(p) { return p.id; });
     } else {
-      // save_preferences → get checked toggles
       var toggles = document.querySelectorAll('#proteccio-consent-widget input[data-purpose-id]');
       toggles.forEach(function(t) {
-        if (t.checked) data.purposes.push(t.getAttribute('data-purpose-name'));
+        if (t.checked) {
+          data.purposes.push(t.getAttribute('data-purpose-name'));
+          var pid = t.getAttribute('data-purpose-id');
+          if (pid) data.purposeIds.push(pid);
+        }
       });
     }
 
@@ -642,6 +649,7 @@ export class ConsentWidgetPublicController {
         email: data.email,
         phone: data.phone,
         purposes: data.purposes,
+        purposeIds: data.purposeIds,
         language: currentLanguage || config.defaultLanguage || 'en',
         userAgent: navigator.userAgent,
       })
@@ -656,6 +664,9 @@ export class ConsentWidgetPublicController {
           email: data.email,
           name: data.name,
           recordId: result.recordId,
+          recordIds: result.recordIds || [],
+          separateConsents: result.separateConsents || false,
+          purposeDetails: result.purposes || [],
         });
       } else if (window.ProteccioConsent && window.ProteccioConsent._onConsentCallback) {
         window.ProteccioConsent._onConsentCallback({
@@ -664,6 +675,9 @@ export class ConsentWidgetPublicController {
           email: data.email,
           name: data.name,
           recordId: result.recordId,
+          recordIds: result.recordIds || [],
+          separateConsents: result.separateConsents || false,
+          purposeDetails: result.purposes || [],
         });
       }
 
@@ -882,8 +896,8 @@ export class ConsentWidgetPublicController {
   @Post('withdraw/:applicationId')
   async withdrawConsent(
     @Param('applicationId') applicationId: string,
-    @Body() dto: { identifier: string },
+    @Body() dto: { identifier: string; purposes?: string[]; purposeIds?: string[] },
   ) {
-    return this.widgetService.withdrawConsent(applicationId, dto.identifier);
+    return this.widgetService.withdrawConsent(applicationId, dto.identifier, dto);
   }
 }

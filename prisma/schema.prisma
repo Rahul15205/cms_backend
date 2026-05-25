@@ -392,6 +392,8 @@ model Purpose {
   templateId String
   template   ConsentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
+  consentRecords ConsentRecord[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -728,6 +730,10 @@ model ConsentRecord {
   endUserEmail String? // If capturing consent for an anonymous user via email
   endUserPhone String?
   endUserIp    String? // Traceability
+
+  // Per-purpose consent (when template.separateConsents is true)
+  purposeId String?
+  purpose   Purpose? @relation(fields: [purposeId], references: [id], onDelete: SetNull)
   
   // Blind Indexes for PII Search (DSAR fulfillment)
   endUserEmailHash String?
@@ -744,6 +750,9 @@ model ConsentRecord {
   @@index([grantedAt])
   @@index([endUserEmailHash])
   @@index([endUserPhoneHash])
+  @@index([applicationId, purposeId, endUserEmailHash])
+  @@index([applicationId, purposeId, endUserPhoneHash])
+  @@index([purposeId])
 }
 
 // ==========================================
