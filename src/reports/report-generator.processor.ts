@@ -127,12 +127,12 @@ export class ReportGeneratorProcessor extends WorkerHost {
        typeof data.tenantId === 'string';
 
      if (isCookieCompliance) {
-       const html = await this.cookieComplianceReportService.generateHtml(
+       const pdfBuffer = await this.cookieComplianceReportService.generatePdf(
          params.websiteId as string,
          data.tenantId as string,
        );
-       const filePath = path.join(tempDir, `report-${data.reportId}.html`);
-       fs.writeFileSync(filePath, html, 'utf8');
+       const filePath = path.join(tempDir, `report-${data.reportId}.pdf`);
+       fs.writeFileSync(filePath, pdfBuffer);
        return filePath;
      }
 

@@ -145,6 +145,15 @@ export class CookiesManagementService {
     });
   }
 
+  async getWebsiteById(id: string, tenantId: string) {
+    const website = await this.prisma.scannedWebsite.findFirst({
+      where: { id, tenantId },
+      select: { id: true, name: true, url: true },
+    });
+    if (!website) throw new NotFoundException('Website not found');
+    return website;
+  }
+
   async updateWebsite(id: string, dto: Partial<CreateScannedWebsiteDto>, tenantId: string) {
     const website = await this.prisma.scannedWebsite.findUnique({
       where: { id },
@@ -765,5 +774,9 @@ export class CookiesManagementService {
 
   async generateComplianceReportHtml(websiteId: string, tenantId: string): Promise<string> {
     return this.cookieComplianceReportService.generateHtml(websiteId, tenantId);
+  }
+
+  async generateComplianceReportPdf(websiteId: string, tenantId: string): Promise<Buffer> {
+    return this.cookieComplianceReportService.generatePdf(websiteId, tenantId);
   }
 }

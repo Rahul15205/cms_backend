@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import * as puppeteer from 'puppeteer';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CookieComplianceReportData,
@@ -11,11 +12,49 @@ import {
 
 @Injectable()
 export class CookieComplianceReportService {
+  private readonly logger = new Logger(CookieComplianceReportService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async generateHtml(websiteId: string, tenantId: string): Promise<string> {
     const data = await this.buildReportData(websiteId, tenantId);
     return renderCookieComplianceReport(data);
+  }
+
+  async generatePdf(websiteId: string, tenantId: string): Promise<Buffer> {
+    const html = await this.generateHtml(websiteId, tenantId);
+    let browser: puppeteer.Browser | null = null;
+
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+      });
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0', timeout: 90_000 });
+      await page
+        .waitForFunction(() => typeof (window as unknown as { Chart?: unknown }).Chart !== 'undefined', {
+          timeout: 20_000,
+        })
+        .catch(() => undefined);
+      await new Promise((r) => setTimeout(r, 1200));
+
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '10mm', right: '8mm', bottom: '10mm', left: '8mm' },
+        preferCSSPageSize: false,
+      });
+
+      return Buffer.from(pdf);
+    } catch (err) {
+      this.logger.error(`PDF generation failed: ${(err as Error).message}`);
+      throw new BadRequestException(
+        'Failed to generate PDF report. Ensure Chromium/Puppeteer is available on the server.',
+      );
+    } finally {
+      if (browser) await browser.close().catch(() => undefined);
+    }
   }
 
   async buildReportData(websiteId: string, tenantId: string): Promise<CookieComplianceReportData> {

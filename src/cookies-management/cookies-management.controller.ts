@@ -130,13 +130,24 @@ export class CookiesManagementController {
   @Get('websites/:id/compliance-report')
   async getComplianceReport(
     @Param('id') id: string,
+    @Query('format') format: string | undefined,
     @Request() req,
     @Res() res: Response,
   ) {
     const tenantId = req.user.tenantId;
-    const html = await this.cookiesManagementService.generateComplianceReportHtml(id, tenantId);
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+
+    if (format === 'html') {
+      const html = await this.cookiesManagementService.generateComplianceReportHtml(id, tenantId);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(html);
+    }
+
+    const website = await this.cookiesManagementService.getWebsiteById(id, tenantId);
+    const safeName = (website?.name || 'website').replace(/[^\w.-]+/g, '_');
+    const pdf = await this.cookiesManagementService.generateComplianceReportPdf(id, tenantId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Cookie_Compliance_${safeName}.pdf"`);
+    res.send(pdf);
   }
 
   // ---------------------------------------------------------
