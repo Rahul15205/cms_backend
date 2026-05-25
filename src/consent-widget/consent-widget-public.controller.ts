@@ -63,6 +63,11 @@ export class ConsentWidgetPublicController {
     
     const logoUrl = widget.logoUrl || `https://res.cloudinary.com/dlfzzfdx0/image/upload/v1777286182/Brand_title_with_tagline-removebg-preview_jpjpet.png`;
     const requiresAadhaar = this.aadhaarService.isAadhaarRequiredForConsent(template);
+    const baseRequiresOtp = !!(
+      template?.requiresOtpVerification ||
+      wizard?.requiresOtpVerification ||
+      template?.mechanism === 'SIGNATURE'
+    );
 
     return `
 (function() {
@@ -93,12 +98,10 @@ export class ConsentWidgetPublicController {
     defaultLanguage: widget.defaultLanguage,
     customCss: widget.customCss,
     separateConsents: !!(template?.separateConsents || wizard?.separateConsents),
-    baseRequiresOtp: ${JSON.stringify(
-      !!(template?.requiresOtpVerification || wizard?.requiresOtpVerification || template?.mechanism === 'SIGNATURE'),
-    )},
-    parentalRequired: ${JSON.stringify(parentalRequired)},
-    ageThreshold: ${ageThreshold},
-    requiresAadhaar: ${JSON.stringify(requiresAadhaar)},
+    baseRequiresOtp,
+    parentalRequired,
+    ageThreshold,
+    requiresAadhaar,
   })};
   var otpVerified = false;
   var aadhaarVerified = false;
