@@ -38,16 +38,32 @@ export class ConsentOtpService {
     return false;
   }
 
-  shouldUseGuardianContact(template: any, minorAge?: number | null): boolean {
-    return (
-      !this.isOtpRequired(template) &&
-      this.consentParentalService.isMinorBelowThreshold(template, minorAge)
-    );
+  /** Minor → guardian email; 18+ → user's own email/phone from the form. */
+  resolveOtpRecipient(
+    template: any,
+    dto: { email?: string; phone?: string; guardianEmail?: string; minorAge?: number | null },
+  ): { email?: string; phone?: string; recipient: 'guardian' | 'self' } {
+    if (this.consentParentalService.isMinorBelowThreshold(template, dto.minorAge)) {
+      const email = dto.guardianEmail?.trim().toLowerCase();
+      if (!email) {
+        throw new BadRequestException(
+          'Guardian email is required for users below the age threshold.',
+        );
+      }
+      return { email, phone: dto.phone?.trim(), recipient: 'guardian' };
+    }
+
+    const email = dto.email?.trim().toLowerCase();
+    const phone = dto.phone?.trim();
+    if (!email && !phone) {
+      throw new BadRequestException('Enter your email or phone to receive the verification OTP.');
+    }
+    return { email, phone, recipient: 'self' };
   }
 
   async sendOtp(
     applicationId: string,
-    payload: { email?: string; phone?: string },
+    payload: { email?: string; phone?: string; recipient?: 'guardian' | 'self' },
   ): Promise<{ success: boolean; channel: ConsentOtpChannel; message: string; devOtp?: string }> {
     const { channel, subject } = this.resolveChannel(payload);
     const subjectKey = this.buildSubjectKey(applicationId, subject);
@@ -70,10 +86,14 @@ export class ConsentOtpService {
       if (!sent) {
         throw new BadRequestException('Unable to send verification OTP email. Please try again.');
       }
+      const message =
+        payload.recipient === 'guardian'
+          ? 'Verification OTP sent to the guardian email address.'
+          : 'Verification OTP sent to your email address.';
       return {
         success: true,
         channel,
-        message: 'Verification OTP sent to your email.',
+        message,
         ...(process.env.NODE_ENV !== 'production' ? { devOtp: otp } : {}),
       };
     }

@@ -144,6 +144,20 @@ export class ConsentWidgetPublicController {
     return normalizeOtpContact({ email: data.email, phone: data.phone });
   }
 
+  function updateOtpHint() {
+    var hint = document.getElementById('proteccio-otp-hint');
+    if (!hint) return;
+    if (config.parentalRequired && isMinorBelowThreshold()) {
+      var gEl = document.getElementById('proteccio-guardian-email');
+      var gAddr = gEl && gEl.value ? gEl.value.trim().toLowerCase() : 'guardian email';
+      hint.textContent = 'OTP will be sent to the guardian email (' + gAddr + ').';
+    } else {
+      var data = getFormData();
+      var addr = data.email || data.phone || 'your contact details';
+      hint.textContent = 'OTP will be sent to ' + addr + '.';
+    }
+  }
+
   function updateParentalVisibility() {
     var parentalSec = document.getElementById('proteccio-parental-section');
     var guardianSec = document.getElementById('proteccio-guardian-section');
@@ -157,6 +171,9 @@ export class ConsentWidgetPublicController {
       otpVerified = false;
       var err = document.getElementById('proteccio-otp-error');
       if (err) err.style.display = 'none';
+    } else {
+      otpVerified = false;
+      updateOtpHint();
     }
     if (below) otpVerified = false;
   }
@@ -551,6 +568,10 @@ export class ConsentWidgetPublicController {
     var minorAgeEl = document.getElementById('proteccio-minor-age');
     if (minorAgeEl) minorAgeEl.addEventListener('input', updateParentalVisibility);
     if (minorAgeEl) minorAgeEl.addEventListener('change', updateParentalVisibility);
+    var emailInputEl = document.getElementById('proteccio-email');
+    var guardianEmailEl = document.getElementById('proteccio-guardian-email');
+    if (emailInputEl) emailInputEl.addEventListener('input', updateOtpHint);
+    if (guardianEmailEl) guardianEmailEl.addEventListener('input', updateOtpHint);
 
     var aadhaarSendBtn = document.getElementById('proteccio-aadhaar-send-btn');
     var aadhaarVerifyBtn = document.getElementById('proteccio-aadhaar-verify-btn');
@@ -850,21 +871,25 @@ export class ConsentWidgetPublicController {
         : 'Enter email or phone before requesting OTP.');
       return;
     }
-    var hint = document.getElementById('proteccio-otp-hint');
-    if (hint && config.parentalRequired && isMinorBelowThreshold()) {
-      hint.textContent = 'Guardian: verify with the OTP sent to your email.';
-    }
+    updateOtpHint();
     var btn = document.getElementById('proteccio-otp-send-btn');
     if (btn) btn.disabled = true;
+    var otpPayload = {
+      minorAge: formData.minorAge,
+      guardianEmail: formData.guardianEmail || undefined,
+      email: formData.email || undefined,
+      phone: formData.phone || undefined
+    };
+    if (config.parentalRequired && isMinorBelowThreshold()) {
+      otpPayload.email = undefined;
+      otpPayload.phone = undefined;
+    } else {
+      otpPayload.guardianEmail = undefined;
+    }
     fetch(config.baseUrl + '/api/v1/public/consent/otp/send/' + config.applicationId, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: contact.email,
-        phone: contact.phone,
-        minorAge: formData.minorAge,
-        guardianEmail: formData.guardianEmail
-      })
+      body: JSON.stringify(otpPayload)
     })
     .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }); })
     .then(function(res) {
@@ -893,16 +918,23 @@ export class ConsentWidgetPublicController {
       return;
     }
     var verifyForm = getFormData();
+    var verifyPayload = {
+      otp: otp,
+      minorAge: verifyForm.minorAge,
+      guardianEmail: verifyForm.guardianEmail || undefined,
+      email: verifyForm.email || undefined,
+      phone: verifyForm.phone || undefined
+    };
+    if (config.parentalRequired && isMinorBelowThreshold()) {
+      verifyPayload.email = undefined;
+      verifyPayload.phone = undefined;
+    } else {
+      verifyPayload.guardianEmail = undefined;
+    }
     fetch(config.baseUrl + '/api/v1/public/consent/otp/verify/' + config.applicationId, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: contact.email,
-        phone: contact.phone,
-        otp: otp,
-        minorAge: verifyForm.minorAge,
-        guardianEmail: verifyForm.guardianEmail
-      })
+      body: JSON.stringify(verifyPayload)
     })
     .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }); })
     .then(function(res) {
@@ -1286,10 +1318,11 @@ export class ConsentWidgetPublicController {
           'OTP verification is not required for your age. You can accept consent without OTP.',
       };
     }
-    const useGuardian = this.consentOtpService.shouldUseGuardianContact(template, dto.minorAge);
+    const recipient = this.consentOtpService.resolveOtpRecipient(template, dto);
     return this.consentOtpService.sendOtp(applicationId, {
-      email: useGuardian ? dto.guardianEmail || dto.email : dto.email,
-      phone: dto.phone,
+      email: recipient.email,
+      phone: recipient.phone,
+      recipient: recipient.recipient,
     });
   }
 
@@ -1306,10 +1339,10 @@ export class ConsentWidgetPublicController {
         message: 'OTP verification is not required for your age.',
       };
     }
-    const useGuardian = this.consentOtpService.shouldUseGuardianContact(template, dto.minorAge);
+    const recipient = this.consentOtpService.resolveOtpRecipient(template, dto);
     return this.consentOtpService.verifyOtp(applicationId, {
-      email: useGuardian ? dto.guardianEmail || dto.email : dto.email,
-      phone: dto.phone,
+      email: recipient.email,
+      phone: recipient.phone,
       otp: dto.otp,
     });
   }

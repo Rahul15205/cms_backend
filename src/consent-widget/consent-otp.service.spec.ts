@@ -50,4 +50,32 @@ describe('ConsentOtpService', () => {
     expect(service.isOtpNeededForSubmission(template, { minorAge: 20 })).toBe(false);
     expect(service.isOtpNeededForSubmission(template, { minorAge: 14 })).toBe(true);
   });
+
+  it('routes OTP to guardian for minors and self for adults', () => {
+    const template = { type: 'EXPLICIT', targetUserCategory: ['MINOR'], ageThreshold: 18 };
+    expect(
+      service.resolveOtpRecipient(template, {
+        minorAge: 12,
+        guardianEmail: 'parent@example.com',
+        email: 'child@example.com',
+      }).recipient,
+    ).toBe('guardian');
+    expect(
+      service.resolveOtpRecipient(template, {
+        minorAge: 12,
+        guardianEmail: 'parent@example.com',
+        email: 'child@example.com',
+      }).email,
+    ).toBe('parent@example.com');
+    expect(
+      service.resolveOtpRecipient(template, {
+        minorAge: 20,
+        email: 'adult@example.com',
+        guardianEmail: 'parent@example.com',
+      }).recipient,
+    ).toBe('self');
+    expect(
+      service.resolveOtpRecipient(template, { minorAge: 20, email: 'adult@example.com' }).email,
+    ).toBe('adult@example.com');
+  });
 });

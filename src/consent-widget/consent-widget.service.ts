@@ -466,16 +466,13 @@ export class ConsentWidgetService {
     const template = widget.template as any;
     const parental = this.consentParentalService.resolveContext(template, dto);
 
-    if (parental.needsGuardianOtp) {
+    if (this.consentOtpService.isOtpNeededForSubmission(template, { minorAge: dto.minorAge })) {
+      const otpRecipient = this.consentOtpService.resolveOtpRecipient(template, dto);
       await this.consentOtpService.assertVerified(
         widget.applicationId,
-        parental.guardianEmail,
-        undefined,
+        otpRecipient.email,
+        otpRecipient.phone,
       );
-    } else if (this.consentOtpService.isOtpRequired(template)) {
-      const otpEmail = dto.email?.trim().toLowerCase() || parental.recordEmail?.trim().toLowerCase();
-      const otpPhone = dto.phone?.trim() || parental.recordPhone?.trim();
-      await this.consentOtpService.assertVerified(widget.applicationId, otpEmail, otpPhone);
     }
 
     if (this.aadhaarService.isAadhaarRequiredForConsent(template)) {
