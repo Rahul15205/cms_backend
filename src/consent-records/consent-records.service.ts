@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { paginate } from '../common/dto/paginated-response.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -10,6 +10,8 @@ import { EncryptionService } from '../encryption/encryption.service';
 
 @Injectable()
 export class ConsentRecordsService {
+  private readonly logger = new Logger(ConsentRecordsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryptionService: EncryptionService,
@@ -69,9 +71,11 @@ export class ConsentRecordsService {
           consentDateTime: record.grantedAt,
           consentStatus: 'ACTIVE',
         }
-      }).catch(err => {
-        console.error('Failed to create automated usage record:', err);
-        // We don't throw here to avoid failing the main consent capture
+      }).catch((err) => {
+        this.logger.error(
+          `Failed to create usage record for consent ${record.id}: ${(err as Error).message}`,
+          (err as Error).stack,
+        );
       });
 
       // Enqueue Consent Receipt Job (DPDP Section 6)

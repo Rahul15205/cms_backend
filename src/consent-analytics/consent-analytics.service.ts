@@ -19,7 +19,12 @@ export class ConsentAnalyticsService {
   }) {
     const where: any = {};
     if (filters.templateId) where.templateId = filters.templateId;
-    if (filters.status) where.consentStatus = filters.status;
+    if (filters.status) {
+      const normalized = String(filters.status).toUpperCase();
+      if (['ACTIVE', 'WITHDRAWN', 'EXPIRED'].includes(normalized)) {
+        where.consentStatus = normalized as ConsentUsageStatus;
+      }
+    }
     if (filters.search) {
       where.OR = [
         { userIdentifier: { contains: filters.search, mode: 'insensitive' } },
@@ -28,7 +33,7 @@ export class ConsentAnalyticsService {
       ];
     }
 
-    const take = filters.limit ? Number(filters.limit) : 50;
+    const take = filters.limit ? Number(filters.limit) : 500;
     const skip = filters.offset ? Number(filters.offset) : 0;
 
     const [total, data] = await Promise.all([

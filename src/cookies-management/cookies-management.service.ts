@@ -15,6 +15,17 @@ import {
 } from '../common/utils/visitor-id.utils';
 import { CookieComplianceReportService } from './cookie-compliance-report.service';
 
+const METRICS_TIMEZONE = 'Asia/Kolkata';
+
+function metricsTrendDayKey(date: Date): string {
+  return date.toLocaleDateString('en-IN', {
+    timeZone: METRICS_TIMEZONE,
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 @Injectable()
 export class CookiesManagementService {
   constructor(
@@ -361,10 +372,16 @@ export class CookiesManagementService {
 
   async recordPublicConsent(websiteId: string, dto: any) {
     const website = await this.prisma.scannedWebsite.findUnique({
-      where: { id: websiteId }
+      where: { id: websiteId },
+      include: { cookieBanners: { take: 1, select: { tenantId: true } } },
     });
 
-    if (!website) return null;
+    if (!website) {
+      throw new NotFoundException('Website not found');
+    }
+
+    const tenantId =
+      website.tenantId ?? website.cookieBanners?.[0]?.tenantId ?? null;
 
     let status: any = 'ACCEPTED';
     const rawStatus = (dto.status || '').toUpperCase();
@@ -373,17 +390,18 @@ export class CookiesManagementService {
 
     const location = await this.getLocation(dto.ipAddress);
     const userId = this.resolveVisitorId(dto.ipAddress, websiteId, dto.userId);
+    const categories = Array.isArray(dto.categories) ? dto.categories : [];
 
     return this.prisma.cookieConsentLog.create({
       data: {
         userId: userId,
         region: location,
-        categories: dto.categories,
+        categories,
         status: status,
         ipAddress: this.maskIp(dto.ipAddress),
         language: dto.language || 'en',
         websiteId: websiteId,
-        tenantId: website.tenantId,
+        tenantId,
       },
     });
   }
@@ -403,11 +421,18 @@ export class CookiesManagementService {
     };
   }
 
-  async getConsentLogs(tenantId: string) {
+  async getConsentLogs(tenantId: string, websiteId?: string) {
+    const where: any = {
+      OR: [{ tenantId }, { website: { tenantId } }],
+    };
+    if (websiteId && websiteId !== 'all') {
+      where.websiteId = websiteId;
+    }
     return this.prisma.cookieConsentLog.findMany({
-      where: { tenantId },
+      where,
       orderBy: { createdAt: 'desc' },
-      take: 500, // Increased limit for better visibility
+      take: 500,
+      include: { website: { select: { id: true, name: true } } },
     });
   }
 
@@ -440,7 +465,9 @@ export class CookiesManagementService {
   }
 
   async getComplianceMetrics(tenantId: string, websiteId?: string) {
-    const whereClause: any = { tenantId };
+    const whereClause: any = {
+      OR: [{ tenantId }, { website: { tenantId } }],
+    };
     if (websiteId && websiteId !== 'all') {
       whereClause.websiteId = websiteId;
     }
@@ -565,15 +592,14 @@ export class CookiesManagementService {
     const trendMap = new Map<string, { accepted: number, withdrawn: number, rejected: number }>();
     
     // Initialize last 7 days
-    for (let i = 0; i < 7; i++) {
+    for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      trendMap.set(dateStr, { accepted: 0, withdrawn: 0, rejected: 0 });
+      trendMap.set(metricsTrendDayKey(d), { accepted: 0, withdrawn: 0, rejected: 0 });
     }
 
     trendLogs.forEach(log => {
-      const dateStr = new Date(log.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const dateStr = metricsTrendDayKey(new Date(log.createdAt));
       const stats = trendMap.get(dateStr);
       if (stats) {
         if (log.status === 'ACCEPTED') stats.accepted++;
@@ -582,9 +608,10 @@ export class CookiesManagementService {
       }
     });
 
-    const trendArray = Array.from(trendMap.entries())
-      .map(([name, stats]) => ({ name, ...stats }))
-      .reverse(); // Chronological order
+    const trendArray = Array.from(trendMap.entries()).map(([name, stats]) => ({
+      name,
+      ...stats,
+    }));
 
     return {
       totalCookies,

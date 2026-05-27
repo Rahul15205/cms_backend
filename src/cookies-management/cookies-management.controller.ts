@@ -193,9 +193,9 @@ export class CookiesManagementController {
   }
 
   @Get('consent-logs')
-  getConsentLogs(@Request() req) {
+  getConsentLogs(@Query('websiteId') websiteId: string | undefined, @Request() req) {
     const tenantId = req.user.tenantId;
-    return this.cookiesManagementService.getConsentLogs(tenantId);
+    return this.cookiesManagementService.getConsentLogs(tenantId, websiteId);
   }
 
   @Get('compliance')

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { CreateConsentWidgetDto } from './dto/create-consent-widget.dto';
@@ -11,6 +11,8 @@ import { AadhaarService } from '../aadhaar/aadhaar.service';
 
 @Injectable()
 export class ConsentWidgetService {
+  private readonly logger = new Logger(ConsentWidgetService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryptionService: EncryptionService,
@@ -536,6 +538,7 @@ export class ConsentWidgetService {
         if (active) {
           recordIds.push(active.id);
           purposeResults.push({ id: purpose.id, name: purpose.name, status: 'GRANTED', recordId: active.id });
+          await this.createUsageRecord(widget, latestVersion, dto, purpose.name);
           continue;
         }
 
@@ -603,20 +606,32 @@ export class ConsentWidgetService {
   }
 
   private async createUsageRecord(widget: any, latestVersion: any, dto: any, purposeMapped: string) {
-    await this.prisma.consentUsageRecord
-      .create({
+    const userIdentifier =
+      dto.email ||
+      dto.phone ||
+      dto.userId ||
+      dto.name ||
+      'anonymous';
+
+    try {
+      await this.prisma.consentUsageRecord.create({
         data: {
-          userIdentifier: dto.email || dto.phone || 'anonymous',
-          ipAddress: dto.ipAddress ? this.maskIp(dto.ipAddress) : '192.168.1.xxx',
+          userIdentifier,
+          ipAddress: dto.ipAddress ? this.maskIp(dto.ipAddress) : undefined,
           templateId: widget.templateId,
-          version: latestVersion.versionNumber.toString(),
+          version: String(latestVersion.versionNumber),
           purposeMapped,
-          systemApp: widget.application?.name || 'Widget',
+          systemApp: widget.application?.name || 'Consent Widget',
           consentDateTime: new Date(),
           consentStatus: 'ACTIVE',
         },
-      })
-      .catch((err) => console.error('Proteccio: Failed to create widget usage record:', err));
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to create usage record for template ${widget.templateId}: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+    }
   }
 
   private maskIp(ip: string): string {
