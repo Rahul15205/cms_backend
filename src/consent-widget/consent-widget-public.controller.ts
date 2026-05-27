@@ -976,7 +976,18 @@ export class ConsentWidgetPublicController {
         userAgent: navigator.userAgent,
       })
     })
-    .then(function(res) { return res.json(); })
+    .then(function(res) {
+      return res.json().then(function(body) {
+        if (!res.ok) {
+          var msg = (body && (body.message || body.error)) || ('Consent recording failed (' + res.status + ')');
+          throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        }
+        if (!body || body.success === false) {
+          throw new Error((body && body.message) || 'Consent was not saved on the server.');
+        }
+        return body;
+      });
+    })
     .then(function(result) {
       // Fire callback
       if (localOnConsentCallback) {
@@ -1015,13 +1026,14 @@ export class ConsentWidgetPublicController {
     })
     .catch(function(err) {
       console.error('Proteccio: Failed to record consent', err);
-      // Still hide and fire callback on error (graceful degradation)
+      showOtpError(err.message || 'Failed to record consent. Please try again.');
+      var btns = document.querySelectorAll('.proteccio-btn');
+      btns.forEach(function(b) { b.disabled = false; b.style.opacity = '1'; });
       if (localOnConsentCallback) {
-        localOnConsentCallback({ status: consentData.status, purposes: data.purposes, error: true });
+        localOnConsentCallback({ status: consentData.status, purposes: data.purposes, error: true, message: err.message });
       } else if (window.ProteccioConsent && window.ProteccioConsent._onConsentCallback) {
-        window.ProteccioConsent._onConsentCallback({ status: consentData.status, purposes: data.purposes, error: true });
+        window.ProteccioConsent._onConsentCallback({ status: consentData.status, purposes: data.purposes, error: true, message: err.message });
       }
-      hideWidget();
     });
   }
 

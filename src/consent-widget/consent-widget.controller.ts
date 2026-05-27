@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Request, UseGuards, Qu
 import { ConsentWidgetService } from './consent-widget.service';
 import { CreateConsentWidgetDto } from './dto/create-consent-widget.dto';
 import { UpdateConsentWidgetDto } from './dto/update-consent-widget.dto';
+import { PublishConsentWidgetDto } from './dto/publish-consent-widget.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Permissions } from '../auth/permissions.decorator';
@@ -48,6 +49,15 @@ export class ConsentWidgetController {
   @ApiOperation({ summary: 'Update a consent widget configuration' })
   update(@Param('id') id: string, @Body() dto: UpdateConsentWidgetDto, @Request() req) {
     return this.widgetService.update(id, dto, req.user.tenantId);
+  }
+
+  @Post(':id/publish')
+  @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'edit' })
+  @ApiOperation({
+    summary: 'Publish & go live — deploys consent version to the app and activates the widget (replaces separate Deployment step)',
+  })
+  publish(@Param('id') id: string, @Body() dto: PublishConsentWidgetDto, @Request() req) {
+    return this.widgetService.publishAndActivate(id, req.user.tenantId, req.user.userId, dto);
   }
 
   @Delete(':id')

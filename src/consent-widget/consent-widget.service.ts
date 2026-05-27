@@ -76,13 +76,178 @@ export class ConsentWidgetService {
   }
 
   async findAll(tenantId: string) {
-    return this.prisma.consentWidgetConfig.findMany({
+    const widgets = await this.prisma.consentWidgetConfig.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
       include: {
         application: { select: { name: true } },
-        template: { select: { title: true, type: true, status: true } },
+        template: {
+          select: {
+            title: true,
+            type: true,
+            status: true,
+            versions: { orderBy: { versionNumber: 'desc' }, take: 1, select: { id: true, versionNumber: true } },
+          },
+        },
       },
+    });
+
+    return Promise.all(
+      widgets.map(async (widget) => {
+        const deployment = await this.prisma.consentDeployment.findFirst({
+          where: {
+            applicationId: widget.applicationId,
+            status: DeploymentStatus.DEPLOYED,
+            isActive: true,
+            version: { templateId: widget.templateId },
+          },
+          orderBy: { deployedAt: 'desc' },
+          include: { version: { select: { id: true, versionNumber: true } } },
+        });
+
+        return {
+          ...widget,
+          latestVersionId: widget.template.versions[0]?.id ?? null,
+          latestVersionNumber: widget.template.versions[0]?.versionNumber ?? null,
+          deployedVersionId: deployment?.version?.id ?? null,
+          deployedVersionNumber: deployment?.version?.versionNumber ?? null,
+          deploymentId: deployment?.id ?? null,
+          deploymentRegion: deployment?.region ?? null,
+          deploymentPlatform: deployment?.platform ?? [],
+        };
+      }),
+    );
+  }
+
+  /**
+   * Single flow: deploy template version to the widget's application + activate widget.
+   */
+  async publishAndActivate(
+    id: string,
+    tenantId: string,
+    deployedBy: string,
+    options?: { versionId?: string; region?: string; platform?: string[] },
+  ) {
+    const widget = await this.prisma.consentWidgetConfig.findUnique({
+      where: { id },
+      include: {
+        template: {
+          include: {
+            versions: { orderBy: { versionNumber: 'desc' }, take: 1 },
+          },
+        },
+        application: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!widget || widget.tenantId !== tenantId) {
+      throw new NotFoundException('Consent Widget not found');
+    }
+
+    let versionId = options?.versionId;
+    if (!versionId) {
+      const latest = widget.template.versions[0];
+      if (!latest) {
+        throw new BadRequestException(
+          'No published version found. Publish the consent template first (Templates tab), then publish the widget.',
+        );
+      }
+      versionId = latest.id;
+    }
+
+    const version = await this.prisma.consentVersion.findUnique({ where: { id: versionId } });
+    if (!version || version.templateId !== widget.templateId) {
+      throw new BadRequestException('Selected version does not belong to this widget\'s template.');
+    }
+
+    const region = options?.region?.trim() || 'India';
+    const platform = options?.platform?.length ? options.platform : ['Web'];
+
+    return this.prisma.$transaction(async (prisma) => {
+      await prisma.consentDeployment.updateMany({
+        where: {
+          applicationId: widget.applicationId,
+          status: DeploymentStatus.DEPLOYED,
+          isActive: true,
+          version: { templateId: widget.templateId },
+          versionId: { not: versionId },
+        },
+        data: { isActive: false },
+      });
+
+      const existing = await prisma.consentDeployment.findUnique({
+        where: {
+          versionId_applicationId: { versionId, applicationId: widget.applicationId },
+        },
+      });
+
+      let deployment;
+      if (existing) {
+        deployment = await prisma.consentDeployment.update({
+          where: { id: existing.id },
+          data: {
+            status: DeploymentStatus.DEPLOYED,
+            isActive: true,
+            region,
+            platform,
+            deployedAt: new Date(),
+          },
+        });
+        await prisma.deploymentLog.create({
+          data: {
+            deploymentId: deployment.id,
+            action: 'Re-deployed via widget publish',
+            performedBy: deployedBy,
+            details: `Version v${version.versionNumber} re-activated for ${widget.application.name}`,
+            status: 'SUCCESS',
+          },
+        });
+      } else {
+        deployment = await prisma.consentDeployment.create({
+          data: {
+            versionId,
+            applicationId: widget.applicationId,
+            region,
+            platform,
+            deployedBy,
+            status: DeploymentStatus.DEPLOYED,
+            isActive: true,
+          },
+        });
+        await prisma.deploymentLog.create({
+          data: {
+            deploymentId: deployment.id,
+            action: 'Deployed via widget publish',
+            performedBy: deployedBy,
+            details: `Version v${version.versionNumber} deployed for ${widget.application.name}`,
+            status: 'SUCCESS',
+          },
+        });
+      }
+
+      const updatedWidget = await prisma.consentWidgetConfig.update({
+        where: { id },
+        data: { status: WidgetStatus.WIDGET_ACTIVE },
+        include: {
+          application: { select: { name: true } },
+          template: { select: { title: true, type: true } },
+        },
+      });
+
+      return {
+        success: true,
+        widget: updatedWidget,
+        deployment: {
+          id: deployment.id,
+          versionId: deployment.versionId,
+          versionNumber: version.versionNumber,
+          region: deployment.region,
+          platform: deployment.platform,
+          status: deployment.status,
+          deployedAt: deployment.deployedAt,
+        },
+        message: `Widget published with version v${version.versionNumber}`,
+      };
     });
   }
 
@@ -138,41 +303,63 @@ export class ConsentWidgetService {
 
   // ─── PUBLIC API (Embeddable Widget) ─────────────────────
 
-  async getPublicWidgetConfig(id: string) {
-    // 1. Try to find the widget config by Widget ID first
-    let widget = await this.prisma.consentWidgetConfig.findFirst({
-      where: {
-        id: id,
-        status: WidgetStatus.WIDGET_ACTIVE,
+  private publicWidgetInclude() {
+    return {
+      template: {
+        include: {
+          purposes: true,
+          dataCategories: true,
+          thirdParties: true,
+        },
       },
-      include: {
-        template: {
-          include: {
-            purposes: true,
-            dataCategories: true,
-            thirdParties: true,
+      application: {
+        select: {
+          name: true,
+          deployments: {
+            where: { status: DeploymentStatus.DEPLOYED, isActive: true },
+            orderBy: { deployedAt: 'desc' as const },
+            take: 1,
+            include: { version: true },
           },
         },
-        application: { 
-          select: { 
-            name: true,
-            deployments: {
-              where: { status: DeploymentStatus.DEPLOYED },
-              orderBy: { deployedAt: 'desc' },
-              take: 1,
-              include: {
-                version: true
-              }
-            }
-          } 
-        },
       },
+    };
+  }
+
+  async getPublicWidgetConfig(idOrApplicationId: string) {
+    const include = this.publicWidgetInclude();
+
+    // Public routes pass applicationId; dashboard may pass widget config id.
+    let widget = await this.prisma.consentWidgetConfig.findFirst({
+      where: { id: idOrApplicationId, status: WidgetStatus.WIDGET_ACTIVE },
+      include,
     });
+
+    if (!widget) {
+      widget = await this.prisma.consentWidgetConfig.findFirst({
+        where: { applicationId: idOrApplicationId, status: WidgetStatus.WIDGET_ACTIVE },
+        orderBy: { updatedAt: 'desc' },
+        include,
+      });
+    }
 
     if (!widget) return null;
 
+    // Prefer deployment for this widget's template (not another template on the same app).
+    const activeDeployment =
+      widget.application?.deployments?.find((d) => d.version?.templateId === widget.templateId) ??
+      (await this.prisma.consentDeployment.findFirst({
+        where: {
+          applicationId: widget.applicationId,
+          status: DeploymentStatus.DEPLOYED,
+          isActive: true,
+          version: { templateId: widget.templateId },
+        },
+        orderBy: { deployedAt: 'desc' },
+        include: { version: true },
+      }));
+
     // 2. Check if there's an active deployment that should override the template data
-    const activeDeployment = widget.application?.deployments?.[0];
     if (activeDeployment && activeDeployment.version) {
       try {
         const versionData = JSON.parse(activeDeployment.version.content);
@@ -187,20 +374,45 @@ export class ConsentWidgetService {
     return widget;
   }
 
-  async recordPublicConsent(id: string, dto: any) {
-    const widget = await this.getPublicWidgetConfig(id);
-    if (!widget) return null;
+  /** Prefer the version deployed to this widget's app (matches widget UI), then highest ACTIVE. */
+  private async resolveConsentVersion(widget: {
+    templateId: string;
+    application?: {
+      deployments?: Array<{ version: { id: string; versionNumber: number } }>;
+    } | null;
+  }) {
+    const deployedVersion = widget.application?.deployments?.[0]?.version;
+    if (deployedVersion?.id) {
+      return deployedVersion;
+    }
 
-    const latestVersion = await this.prisma.consentVersion.findFirst({
+    const activeVersion = await this.prisma.consentVersion.findFirst({
       where: { templateId: widget.templateId, status: 'ACTIVE' },
       orderBy: { versionNumber: 'desc' },
     });
+    if (activeVersion) return activeVersion;
 
+    const latestVersion = await this.prisma.consentVersion.findFirst({
+      where: { templateId: widget.templateId, status: { not: 'ARCHIVED' } },
+      orderBy: { versionNumber: 'desc' },
+    });
     if (!latestVersion) {
       throw new BadRequestException(
-        'No active consent version found for this template. Please publish a version first.',
+        'No consent version found for this template. Please publish and deploy a version first.',
       );
     }
+    return latestVersion;
+  }
+
+  async recordPublicConsent(id: string, dto: any) {
+    const widget = await this.getPublicWidgetConfig(id);
+    if (!widget) {
+      throw new NotFoundException(
+        'No active consent widget found for this application. Check that a widget is linked and active.',
+      );
+    }
+
+    const latestVersion = await this.resolveConsentVersion(widget);
 
     const template = widget.template as any;
     const parental = this.consentParentalService.resolveContext(template, dto);
@@ -483,7 +695,13 @@ export class ConsentWidgetService {
       },
     });
 
-    await this.createUsageRecord(widget, latestVersion, dto, (dto.purposes || []).join(', ') || 'General');
+    await this.createUsageRecord(
+      widget,
+      latestVersion,
+      dto,
+      (dto.purposes || []).join(', ') || 'General',
+      record.grantedAt,
+    );
 
     return {
       success: true,
@@ -538,7 +756,8 @@ export class ConsentWidgetService {
         if (active) {
           recordIds.push(active.id);
           purposeResults.push({ id: purpose.id, name: purpose.name, status: 'GRANTED', recordId: active.id });
-          await this.createUsageRecord(widget, latestVersion, dto, purpose.name);
+          // Log a fresh usage row with the currently deployed version (not the old consent row version).
+          await this.createUsageRecord(widget, latestVersion, dto, purpose.name, new Date());
           continue;
         }
 
@@ -573,7 +792,7 @@ export class ConsentWidgetService {
 
         recordIds.push(record.id);
         purposeResults.push({ id: purpose.id, name: purpose.name, status: 'GRANTED', recordId: record.id });
-        await this.createUsageRecord(widget, latestVersion, dto, purpose.name);
+        await this.createUsageRecord(widget, latestVersion, dto, purpose.name, record.grantedAt);
       } else if (userWhere) {
         const revoked = await this.prisma.consentRecord.updateMany({
           where: {
@@ -605,7 +824,18 @@ export class ConsentWidgetService {
     };
   }
 
-  private async createUsageRecord(widget: any, latestVersion: any, dto: any, purposeMapped: string) {
+  private async createUsageRecord(
+    widget: any,
+    version: { versionNumber: number },
+    dto: any,
+    purposeMapped: string,
+    consentDateTime?: Date,
+  ) {
+    if (!version?.versionNumber) {
+      this.logger.warn(`Skipping usage record: missing version for template ${widget.templateId}`);
+      return;
+    }
+
     const userIdentifier =
       dto.email ||
       dto.phone ||
@@ -613,16 +843,18 @@ export class ConsentWidgetService {
       dto.name ||
       'anonymous';
 
+    const when = consentDateTime ?? new Date();
+
     try {
       await this.prisma.consentUsageRecord.create({
         data: {
           userIdentifier,
           ipAddress: dto.ipAddress ? this.maskIp(dto.ipAddress) : undefined,
           templateId: widget.templateId,
-          version: String(latestVersion.versionNumber),
+          version: String(version.versionNumber),
           purposeMapped,
           systemApp: widget.application?.name || 'Consent Widget',
-          consentDateTime: new Date(),
+          consentDateTime: when,
           consentStatus: 'ACTIVE',
         },
       });

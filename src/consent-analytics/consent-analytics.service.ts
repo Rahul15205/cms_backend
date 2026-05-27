@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { paginate } from '../common/dto/paginated-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
-import { ConsentUsageStatus } from '@prisma/client';
+import { ConsentStatus, ConsentUsageStatus } from '@prisma/client';
 
 @Injectable()
 export class ConsentAnalyticsService {
@@ -48,6 +48,73 @@ export class ConsentAnalyticsService {
     ]);
 
     return paginate(data, total, Math.floor(skip / take) + 1, take);
+  }
+
+  /**
+   * Backfill Usage tab rows from ConsentRecord rows that never got a usage entry
+   * (e.g. widget lookup failed or createUsageRecord errored silently).
+   */
+  async syncUsageFromConsentRecords(options?: { since?: string; templateId?: string }) {
+    const since = options?.since ? new Date(options.since) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const records = await this.prisma.consentRecord.findMany({
+      where: {
+        status: ConsentStatus.GRANTED,
+        grantedAt: { gte: since },
+        ...(options?.templateId ? { version: { templateId: options.templateId } } : {}),
+      },
+      include: {
+        version: true,
+        application: { select: { name: true } },
+      },
+      orderBy: { grantedAt: 'desc' },
+    });
+
+    let created = 0;
+    let skipped = 0;
+
+    for (const record of records) {
+      const meta = (record.metadata as Record<string, unknown>) || {};
+      const purposeMapped =
+        (typeof meta.purposeName === 'string' && meta.purposeName) ||
+        (Array.isArray(meta.purposes) ? (meta.purposes as string[]).join(', ') : '') ||
+        'General';
+      const userIdentifier =
+        record.endUserEmail || record.endUserPhone || record.userId || 'anonymous';
+
+      const windowStart = new Date(record.grantedAt.getTime() - 2 * 60 * 1000);
+      const windowEnd = new Date(record.grantedAt.getTime() + 2 * 60 * 1000);
+
+      const existing = await this.prisma.consentUsageRecord.findFirst({
+        where: {
+          templateId: record.version.templateId,
+          userIdentifier,
+          purposeMapped,
+          consentDateTime: { gte: windowStart, lte: windowEnd },
+        },
+      });
+
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      await this.prisma.consentUsageRecord.create({
+        data: {
+          userIdentifier,
+          ipAddress: record.endUserIp || undefined,
+          templateId: record.version.templateId,
+          version: String(record.version.versionNumber),
+          purposeMapped,
+          systemApp: record.application.name,
+          consentDateTime: record.grantedAt,
+          consentStatus: ConsentUsageStatus.ACTIVE,
+        },
+      });
+      created++;
+    }
+
+    return { scanned: records.length, created, skipped, since: since.toISOString() };
   }
 
   /**

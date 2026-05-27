@@ -31,6 +31,18 @@ export class ConsentAnalyticsController {
     return this.consentAnalyticsService.getUsageRecords({ templateId, status, search, limit, offset });
   }
 
+  @Post('usage-records/sync')
+  @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'create' })
+  @ApiOperation({ summary: 'Backfill usage records from consent records missing in Usage tab' })
+  @ApiQuery({ name: 'since', required: false, description: 'ISO date — default last 7 days' })
+  @ApiQuery({ name: 'templateId', required: false })
+  syncUsageFromConsents(
+    @Query('since') since?: string,
+    @Query('templateId') templateId?: string,
+  ) {
+    return this.consentAnalyticsService.syncUsageFromConsentRecords({ since, templateId });
+  }
+
   @Get('cross-app-usage')
   @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'view' })
   @ApiOperation({ summary: 'List cross-application consent usage' })
