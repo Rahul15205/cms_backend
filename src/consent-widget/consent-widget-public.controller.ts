@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Header, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Header, Request, NotFoundException } from '@nestjs/common';
 import { ConsentWidgetService } from './consent-widget.service';
 import { ConsentOtpService } from './consent-otp.service';
 import { AadhaarService } from '../aadhaar/aadhaar.service';
@@ -10,6 +10,15 @@ export class ConsentWidgetPublicController {
     private readonly consentOtpService: ConsentOtpService,
     private readonly aadhaarService: AadhaarService,
   ) {}
+
+  /** Route param may be widget id or application id; OTP/cache always uses canonical applicationId. */
+  private async resolveWidget(routeId: string) {
+    const widget = await this.widgetService.getPublicWidgetConfig(routeId);
+    if (!widget) {
+      throw new NotFoundException('No active consent widget found for this application.');
+    }
+    return { widget, applicationId: widget.applicationId };
+  }
 
   /**
    * Returns the widget configuration as JSON (for API-based integrations).
@@ -120,13 +129,19 @@ export class ConsentWidgetPublicController {
     return config.parentalRequired && isMinorBelowThreshold();
   }
 
+  function normalizeOtpContact(contact) {
+    if (contact.email) contact.email = contact.email.trim().toLowerCase();
+    if (contact.phone) contact.phone = contact.phone.trim();
+    return contact;
+  }
+
   function getOtpContact() {
     if (config.parentalRequired && isMinorBelowThreshold()) {
       var gEmail = document.getElementById('proteccio-guardian-email');
-      return { email: gEmail ? gEmail.value.trim() : null, phone: null };
+      return normalizeOtpContact({ email: gEmail ? gEmail.value : null, phone: null });
     }
     var data = getFormData();
-    return { email: data.email, phone: data.phone };
+    return normalizeOtpContact({ email: data.email, phone: data.phone });
   }
 
   function updateParentalVisibility() {
@@ -137,9 +152,10 @@ export class ConsentWidgetPublicController {
     var below = isMinorBelowThreshold();
     if (guardianSec) guardianSec.style.display = below ? 'block' : 'none';
     if (otpSec) otpSec.style.display = needsOtpVerification() ? 'block' : 'none';
-    if (!below) otpVerified = false;
+    if (below) otpVerified = false;
   }
-  config.applicationId = '${applicationId}';
+  config.widgetId = '${widget.id}';
+  config.applicationId = '${widget.applicationId}';
   config.baseUrl = '${baseUrl}';
   var purposes = ${JSON.stringify((purposes || []).map(p => ({
     id: p.id,
@@ -781,7 +797,7 @@ export class ConsentWidgetPublicController {
     if (nameEl) data.name = nameEl.value.trim();
 
     var emailEl = document.getElementById('proteccio-email');
-    if (emailEl) data.email = emailEl.value.trim();
+    if (emailEl) data.email = emailEl.value.trim().toLowerCase();
 
     var phoneEl = document.getElementById('proteccio-phone');
     if (phoneEl) data.phone = phoneEl.value.trim();
@@ -792,7 +808,7 @@ export class ConsentWidgetPublicController {
     var gName = document.getElementById('proteccio-guardian-name');
     if (gName) data.guardianName = gName.value.trim();
     var gEmail = document.getElementById('proteccio-guardian-email');
-    if (gEmail) data.guardianEmail = gEmail.value.trim();
+    if (gEmail) data.guardianEmail = gEmail.value.trim().toLowerCase();
     var gRel = document.getElementById('proteccio-guardian-relationship');
     if (gRel) data.guardianRelationship = gRel.value.trim();
 
@@ -864,6 +880,17 @@ export class ConsentWidgetPublicController {
       if (!res.ok) throw new Error(res.j.message || 'Invalid OTP');
       otpVerified = true;
       showOtpSuccess();
+      var otpSec = document.getElementById('proteccio-otp-section');
+      var hint = document.getElementById('proteccio-otp-hint');
+      if (hint) hint.textContent = 'OTP verified. You can now accept consent below.';
+      if (otpSec) {
+        var otpInput = document.getElementById('proteccio-otp-input');
+        var sendBtn = document.getElementById('proteccio-otp-send-btn');
+        var verifyBtn = document.getElementById('proteccio-otp-verify-btn');
+        if (otpInput) otpInput.disabled = true;
+        if (sendBtn) sendBtn.disabled = true;
+        if (verifyBtn) verifyBtn.disabled = true;
+      }
     })
     .catch(function(e) {
       otpVerified = false;
@@ -1193,11 +1220,10 @@ export class ConsentWidgetPublicController {
 
   @Post('aadhaar/initiate/:applicationId')
   async initiateAadhaarConsent(
-    @Param('applicationId') applicationId: string,
+    @Param('applicationId') routeId: string,
     @Body() dto: { aadhaarNumber: string },
   ) {
-    const widget = await this.widgetService.getPublicWidgetConfig(applicationId);
-    if (!widget) return { success: false, message: 'Widget not found' };
+    const { widget, applicationId } = await this.resolveWidget(routeId);
     if (!this.aadhaarService.isAadhaarRequiredForConsent(widget.template)) {
       return { success: false, message: 'Aadhaar verification is not required for this template' };
     }
@@ -1210,23 +1236,19 @@ export class ConsentWidgetPublicController {
 
   @Post('aadhaar/verify/:applicationId')
   async verifyAadhaarConsent(
-    @Param('applicationId') applicationId: string,
+    @Param('applicationId') routeId: string,
     @Body() dto: { transactionId: string; otp: string },
   ) {
-    const widget = await this.widgetService.getPublicWidgetConfig(applicationId);
-    if (!widget) return { success: false, message: 'Widget not found' };
+    const { applicationId } = await this.resolveWidget(routeId);
     return this.aadhaarService.verifyConsentOtp(applicationId, dto.transactionId, dto.otp);
   }
 
   @Post('otp/send/:applicationId')
   async sendConsentOtp(
-    @Param('applicationId') applicationId: string,
+    @Param('applicationId') routeId: string,
     @Body() dto: { email?: string; phone?: string; guardianEmail?: string },
   ) {
-    const widget = await this.widgetService.getPublicWidgetConfig(applicationId);
-    if (!widget) {
-      return { success: false, message: 'Widget not found' };
-    }
+    const { widget, applicationId } = await this.resolveWidget(routeId);
     const template = widget.template as any;
     const parentalMinor =
       dto.guardianEmail &&
@@ -1243,14 +1265,15 @@ export class ConsentWidgetPublicController {
 
   @Post('otp/verify/:applicationId')
   async verifyConsentOtp(
-    @Param('applicationId') applicationId: string,
-    @Body() dto: { email?: string; phone?: string; otp: string },
+    @Param('applicationId') routeId: string,
+    @Body() dto: { email?: string; phone?: string; guardianEmail?: string; otp: string },
   ) {
-    const widget = await this.widgetService.getPublicWidgetConfig(applicationId);
-    if (!widget) {
-      return { success: false, message: 'Widget not found' };
-    }
-    return this.consentOtpService.verifyOtp(applicationId, dto);
+    const { applicationId } = await this.resolveWidget(routeId);
+    return this.consentOtpService.verifyOtp(applicationId, {
+      email: dto.guardianEmail || dto.email,
+      phone: dto.phone,
+      otp: dto.otp,
+    });
   }
 
   /**

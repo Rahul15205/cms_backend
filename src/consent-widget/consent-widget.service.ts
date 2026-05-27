@@ -424,7 +424,9 @@ export class ConsentWidgetService {
         undefined,
       );
     } else if (this.consentOtpService.isOtpRequired(template)) {
-      await this.consentOtpService.assertVerified(widget.applicationId, dto.email, dto.phone);
+      const otpEmail = dto.email?.trim().toLowerCase() || parental.recordEmail?.trim().toLowerCase();
+      const otpPhone = dto.phone?.trim() || parental.recordPhone?.trim();
+      await this.consentOtpService.assertVerified(widget.applicationId, otpEmail, otpPhone);
     }
 
     if (this.aadhaarService.isAadhaarRequiredForConsent(template)) {
