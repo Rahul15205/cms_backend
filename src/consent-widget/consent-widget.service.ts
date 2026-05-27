@@ -301,6 +301,44 @@ export class ConsentWidgetService {
     });
   }
 
+  /** Temporarily hide consent form on the website without unpublishing. */
+  async setEnabled(id: string, enabled: boolean, tenantId: string) {
+    const widget = await this.prisma.consentWidgetConfig.findUnique({ where: { id } });
+    if (!widget || widget.tenantId !== tenantId) {
+      throw new NotFoundException('Consent Widget not found');
+    }
+
+    if (enabled) {
+      if (widget.status === WidgetStatus.WIDGET_ARCHIVED) {
+        throw new BadRequestException('Archived widgets cannot be re-enabled. Create a new widget instead.');
+      }
+      if (widget.status === WidgetStatus.WIDGET_DRAFT) {
+        throw new BadRequestException('Publish the widget first before enabling it on your website.');
+      }
+      return this.prisma.consentWidgetConfig.update({
+        where: { id },
+        data: { status: WidgetStatus.WIDGET_ACTIVE },
+        include: {
+          application: { select: { name: true } },
+          template: { select: { title: true, type: true } },
+        },
+      });
+    }
+
+    if (widget.status !== WidgetStatus.WIDGET_ACTIVE) {
+      throw new BadRequestException('Only live widgets can be disabled.');
+    }
+
+    return this.prisma.consentWidgetConfig.update({
+      where: { id },
+      data: { status: WidgetStatus.WIDGET_DISABLED },
+      include: {
+        application: { select: { name: true } },
+        template: { select: { title: true, type: true } },
+      },
+    });
+  }
+
   // ─── PUBLIC API (Embeddable Widget) ─────────────────────
 
   private publicWidgetInclude() {
@@ -324,6 +362,17 @@ export class ConsentWidgetService {
         },
       },
     };
+  }
+
+  /** Check if a widget exists but is temporarily disabled (for embed script messaging). */
+  async findDisabledWidget(idOrApplicationId: string) {
+    return this.prisma.consentWidgetConfig.findFirst({
+      where: {
+        status: WidgetStatus.WIDGET_DISABLED,
+        OR: [{ id: idOrApplicationId }, { applicationId: idOrApplicationId }],
+      },
+      select: { id: true, name: true },
+    });
   }
 
   async getPublicWidgetConfig(idOrApplicationId: string) {

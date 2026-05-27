@@ -1,4 +1,5 @@
 import { ConsentOtpService } from './consent-otp.service';
+import { ConsentParentalService } from './consent-parental.service';
 import { BadRequestException } from '@nestjs/common';
 
 describe('ConsentOtpService', () => {
@@ -22,7 +23,7 @@ describe('ConsentOtpService', () => {
   beforeEach(() => {
     cache.clear();
     jest.clearAllMocks();
-    service = new ConsentOtpService(mockCache as any, notifications as any);
+    service = new ConsentOtpService(mockCache as any, notifications as any, new ConsentParentalService());
   });
 
   it('requires OTP when mechanism is SIGNATURE', () => {
@@ -42,5 +43,11 @@ describe('ConsentOtpService', () => {
     await expect(
       service.verifyOtp('app-1', { email: 'user@example.com', otp: '000000' }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('does not require OTP for adults on parental-age templates', () => {
+    const template = { type: 'EXPLICIT', targetUserCategory: ['MINOR'], ageThreshold: 18 };
+    expect(service.isOtpNeededForSubmission(template, { minorAge: 20 })).toBe(false);
+    expect(service.isOtpNeededForSubmission(template, { minorAge: 14 })).toBe(true);
   });
 });

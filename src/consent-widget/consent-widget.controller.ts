@@ -60,6 +60,20 @@ export class ConsentWidgetController {
     return this.widgetService.publishAndActivate(id, req.user.tenantId, req.user.userId, dto);
   }
 
+  @Post(':id/enable')
+  @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'edit' })
+  @ApiOperation({ summary: 'Show consent form on the website again (re-enable a disabled widget)' })
+  enable(@Param('id') id: string, @Request() req) {
+    return this.widgetService.setEnabled(id, true, req.user.tenantId);
+  }
+
+  @Post(':id/disable')
+  @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'edit' })
+  @ApiOperation({ summary: 'Hide consent form on the website without archiving configuration' })
+  disable(@Param('id') id: string, @Request() req) {
+    return this.widgetService.setEnabled(id, false, req.user.tenantId);
+  }
+
   @Delete(':id')
   @Permissions({ module: ModuleName.CONSENT_MANAGEMENT, action: 'edit' })
   @ApiOperation({ summary: 'Archive a consent widget configuration' })

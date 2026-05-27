@@ -12,6 +12,14 @@ export interface ParentalConsentContext {
 
 @Injectable()
 export class ConsentParentalService {
+  isMinorBelowThreshold(template: any, minorAge?: number | null): boolean {
+    if (!this.isParentalFlow(template)) return false;
+    const age = Number(minorAge);
+    if (Number.isNaN(age) || age < 0) return false;
+    const threshold = Number(template?.ageThreshold ?? template?.wizardFields?.ageThreshold ?? 18);
+    return age < threshold;
+  }
+
   isParentalFlow(template: any): boolean {
     if ((template?.type || '').toString().toUpperCase() === 'PARENTAL') {
       return true;

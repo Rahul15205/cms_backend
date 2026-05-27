@@ -1781,6 +1781,7 @@ enum WidgetTrigger {
 
 enum WidgetStatus {
   WIDGET_ACTIVE
+  WIDGET_DISABLED
   WIDGET_DRAFT
   WIDGET_ARCHIVED
 }

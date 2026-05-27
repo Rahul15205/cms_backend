@@ -36,11 +36,15 @@ export class ConsentWidgetPublicController {
   @Header('Content-Type', 'application/javascript')
   @Header('Cross-Origin-Resource-Policy', 'cross-origin')
   @Header('Access-Control-Allow-Origin', '*')
-  async getWidgetScript(@Param('applicationId') applicationId: string, @Request() req) {
-    const widget = await this.widgetService.getPublicWidgetConfig(applicationId);
+  async getWidgetScript(@Param('applicationId') routeId: string, @Request() req) {
+    const widget = await this.widgetService.getPublicWidgetConfig(routeId);
 
     if (!widget) {
-      return `console.warn('Proteccio: No active consent widget found for application ${applicationId}');`;
+      const disabled = await this.widgetService.findDisabledWidget(routeId);
+      if (disabled) {
+        return `console.info('Proteccio: Consent form is temporarily disabled for this application.');`;
+      }
+      return `console.warn('Proteccio: No active consent widget found for application ${routeId}');`;
     }
 
     const host = req.get('host');
@@ -72,11 +76,7 @@ export class ConsentWidgetPublicController {
     
     const logoUrl = widget.logoUrl || `https://res.cloudinary.com/dlfzzfdx0/image/upload/v1777286182/Brand_title_with_tagline-removebg-preview_jpjpet.png`;
     const requiresAadhaar = this.aadhaarService.isAadhaarRequiredForConsent(template);
-    const baseRequiresOtp = !!(
-      template?.requiresOtpVerification ||
-      wizard?.requiresOtpVerification ||
-      template?.mechanism === 'SIGNATURE'
-    );
+    const baseRequiresOtp = this.consentOtpService.isOtpRequired(template);
 
     return `
 (function() {
@@ -151,7 +151,13 @@ export class ConsentWidgetPublicController {
     if (config.parentalRequired && parentalSec) parentalSec.style.display = 'block';
     var below = isMinorBelowThreshold();
     if (guardianSec) guardianSec.style.display = below ? 'block' : 'none';
-    if (otpSec) otpSec.style.display = needsOtpVerification() ? 'block' : 'none';
+    var otpNeeded = needsOtpVerification();
+    if (otpSec) otpSec.style.display = otpNeeded ? 'block' : 'none';
+    if (!otpNeeded) {
+      otpVerified = false;
+      var err = document.getElementById('proteccio-otp-error');
+      if (err) err.style.display = 'none';
+    }
     if (below) otpVerified = false;
   }
   config.widgetId = '${widget.id}';
@@ -832,6 +838,11 @@ export class ConsentWidgetPublicController {
   }
 
   function sendConsentOtp() {
+    if (!needsOtpVerification()) {
+      showOtpError('OTP is not required for your age. You can accept consent directly.');
+      return;
+    }
+    var formData = getFormData();
     var contact = getOtpContact();
     if (!contact.email && !contact.phone) {
       showOtpError(config.parentalRequired && isMinorBelowThreshold()
@@ -848,15 +859,26 @@ export class ConsentWidgetPublicController {
     fetch(config.baseUrl + '/api/v1/public/consent/otp/send/' + config.applicationId, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: contact.email, phone: contact.phone })
+      body: JSON.stringify({
+        email: contact.email,
+        phone: contact.phone,
+        minorAge: formData.minorAge,
+        guardianEmail: formData.guardianEmail
+      })
     })
     .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }); })
     .then(function(res) {
-      if (!res.ok) throw new Error(res.j.message || 'Failed to send OTP');
+      if (!res.ok || res.j.success === false) {
+        throw new Error(res.j.message || 'Failed to send OTP');
+      }
       otpVerified = false;
-      showOtpError(res.j.message || 'OTP sent.');
+      showOtpSuccess();
       var err = document.getElementById('proteccio-otp-error');
-      if (err) err.style.color = '';
+      if (err) {
+        err.textContent = res.j.message || 'OTP sent. Check your email.';
+        err.style.display = 'block';
+        err.style.color = 'var(--proteccio-success, #059669)';
+      }
     })
     .catch(function(e) { showOtpError(e.message || 'Failed to send OTP'); })
     .finally(function() { if (btn) btn.disabled = false; });
@@ -870,10 +892,17 @@ export class ConsentWidgetPublicController {
       showOtpError('Enter the 6-digit OTP.');
       return;
     }
+    var verifyForm = getFormData();
     fetch(config.baseUrl + '/api/v1/public/consent/otp/verify/' + config.applicationId, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: contact.email, phone: contact.phone, otp: otp })
+      body: JSON.stringify({
+        email: contact.email,
+        phone: contact.phone,
+        otp: otp,
+        minorAge: verifyForm.minorAge,
+        guardianEmail: verifyForm.guardianEmail
+      })
     })
     .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }); })
     .then(function(res) {
@@ -1246,19 +1275,20 @@ export class ConsentWidgetPublicController {
   @Post('otp/send/:applicationId')
   async sendConsentOtp(
     @Param('applicationId') routeId: string,
-    @Body() dto: { email?: string; phone?: string; guardianEmail?: string },
+    @Body() dto: { email?: string; phone?: string; guardianEmail?: string; minorAge?: number },
   ) {
     const { widget, applicationId } = await this.resolveWidget(routeId);
     const template = widget.template as any;
-    const parentalMinor =
-      dto.guardianEmail &&
-      (template?.type === 'PARENTAL' ||
-        (template?.targetUserCategory || []).some((c: string) => String(c).toUpperCase() === 'MINOR'));
-    if (!this.consentOtpService.isOtpRequired(template) && !parentalMinor && !dto.guardianEmail) {
-      return { success: false, message: 'OTP verification is not required for this template' };
+    if (!this.consentOtpService.isOtpNeededForSubmission(template, { minorAge: dto.minorAge })) {
+      return {
+        success: false,
+        message:
+          'OTP verification is not required for your age. You can accept consent without OTP.',
+      };
     }
+    const useGuardian = this.consentOtpService.shouldUseGuardianContact(template, dto.minorAge);
     return this.consentOtpService.sendOtp(applicationId, {
-      email: dto.guardianEmail || dto.email,
+      email: useGuardian ? dto.guardianEmail || dto.email : dto.email,
       phone: dto.phone,
     });
   }
@@ -1266,11 +1296,19 @@ export class ConsentWidgetPublicController {
   @Post('otp/verify/:applicationId')
   async verifyConsentOtp(
     @Param('applicationId') routeId: string,
-    @Body() dto: { email?: string; phone?: string; guardianEmail?: string; otp: string },
+    @Body() dto: { email?: string; phone?: string; guardianEmail?: string; minorAge?: number; otp: string },
   ) {
-    const { applicationId } = await this.resolveWidget(routeId);
+    const { widget, applicationId } = await this.resolveWidget(routeId);
+    const template = widget.template as any;
+    if (!this.consentOtpService.isOtpNeededForSubmission(template, { minorAge: dto.minorAge })) {
+      return {
+        verified: false,
+        message: 'OTP verification is not required for your age.',
+      };
+    }
+    const useGuardian = this.consentOtpService.shouldUseGuardianContact(template, dto.minorAge);
     return this.consentOtpService.verifyOtp(applicationId, {
-      email: dto.guardianEmail || dto.email,
+      email: useGuardian ? dto.guardianEmail || dto.email : dto.email,
       phone: dto.phone,
       otp: dto.otp,
     });

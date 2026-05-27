@@ -3,6 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import * as crypto from 'crypto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ConsentParentalService } from './consent-parental.service';
 
 const CONSENT_OTP_TTL_MS = 10 * 60 * 1000;
 const CONSENT_OTP_VERIFIED_TTL_MS = 30 * 60 * 1000;
@@ -17,6 +18,7 @@ export class ConsentOtpService {
   constructor(
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
     private readonly notifications: NotificationsService,
+    private readonly consentParentalService: ConsentParentalService,
   ) {}
 
   isOtpRequired(template: any): boolean {
@@ -25,6 +27,22 @@ export class ConsentOtpService {
     if (wizard?.requiresOtpVerification === true) return true;
     const mechanism = (template?.mechanism || wizard?.mechanism || '').toString().toUpperCase();
     return mechanism === 'SIGNATURE';
+  }
+
+  /** Template OTP flag OR guardian OTP when user age is below threshold. */
+  isOtpNeededForSubmission(template: any, context?: { minorAge?: number | null }): boolean {
+    if (this.isOtpRequired(template)) return true;
+    if (context?.minorAge !== undefined && context?.minorAge !== null) {
+      return this.consentParentalService.isMinorBelowThreshold(template, context.minorAge);
+    }
+    return false;
+  }
+
+  shouldUseGuardianContact(template: any, minorAge?: number | null): boolean {
+    return (
+      !this.isOtpRequired(template) &&
+      this.consentParentalService.isMinorBelowThreshold(template, minorAge)
+    );
   }
 
   async sendOtp(

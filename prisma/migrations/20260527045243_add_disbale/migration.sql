@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "WidgetStatus" ADD VALUE 'WIDGET_DISABLED';
