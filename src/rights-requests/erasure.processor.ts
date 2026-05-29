@@ -94,7 +94,7 @@ export class ErasureProcessor extends WorkerHost {
         this.prisma.rightsRequest.update({
           where: { id: requestId },
           data: {
-            status: RightsRequestStatus.CLOSED,
+            status: RightsRequestStatus.COMPLETED, // PHASE 1 CHANGE — CLOSED→COMPLETED
             closedAt: new Date()
           }
         })

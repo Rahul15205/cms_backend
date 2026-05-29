@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { ServeStaticModule } from '@nestjs/serve-static'; // PHASE 6 CHANGE
+import { join } from 'path'; // PHASE 6 CHANGE
+import { PublicModule } from './public/public.module'; // PHASE 6 CHANGE
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-proxy.guard';
@@ -144,6 +147,12 @@ import { ScheduleModule } from '@nestjs/schedule';
     StorageModule,
     AadhaarModule,
     ConsentWidgetModule,
+    // PHASE 6 CHANGE
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
+      serveRoot: '/',
+    }),
+    PublicModule, // PHASE 6 CHANGE
   ],
   controllers: [AppController],
   providers: [

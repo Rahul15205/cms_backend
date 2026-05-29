@@ -34,7 +34,7 @@ export class DashboardService {
       this.prisma.rightsRequest.count({
         where: {
           ...tenantFilter,
-          status: { notIn: ['CLOSED', 'REJECTED'] },
+          status: { notIn: ['COMPLETED', 'REJECTED'] }, // PHASE 1 CHANGE — CLOSED→COMPLETED
         },
       }),
       // Open grievances (not RESOLVED)
@@ -55,7 +55,7 @@ export class DashboardService {
         where: {
           ...tenantFilter,
           dueDate: { lt: new Date() },
-          status: { notIn: ['CLOSED', 'REJECTED'] },
+          status: { notIn: ['COMPLETED', 'REJECTED'] }, // PHASE 1 CHANGE — CLOSED→COMPLETED
         },
       }),
       // Active notices
@@ -284,7 +284,7 @@ export class DashboardService {
         where: {
           ...tenantFilter,
           dueDate: { lt: new Date() },
-          status: { notIn: ['CLOSED', 'REJECTED'] },
+          status: { notIn: ['COMPLETED', 'REJECTED'] }, // PHASE 1 CHANGE — CLOSED→COMPLETED
         },
         take: 10,
         orderBy: { dueDate: 'asc' },

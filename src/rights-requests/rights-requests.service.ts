@@ -11,42 +11,31 @@ import { AssignRequestDto } from './dto/assign-request.dto';
 import { CreateCaseNoteDto } from './dto/create-case-note.dto';
 import { CreateCaseAttachmentDto } from './dto/create-case-attachment.dto';
 import { CreateEvidenceItemDto } from './dto/create-evidence-item.dto';
-import { RightsRequestStatus } from '@prisma/client';
+import { RightsRequestStatus, RejectionReason, RightsRequest, ReportType } from '@prisma/client';
+import { WorkflowTemplateService } from './workflow-template.service'; // PHASE 2 CHANGE
+import { RejectRequestDto, EscalateRequestDto, RequestMoreInfoDto, PartialFulfilmentDto } from './dto/quick-actions.dto'; // PHASE 3 CHANGE
+import { SlaRuleService } from './sla-rule.service'; // PHASE 4 CHANGE
 
-// Default workflow steps per flow spec (Section 4 — 7 steps)
-const DEFAULT_WORKFLOW_STEPS = [
-  { name: 'Received', order: 1, slaHours: null },
-  { name: 'Identity Verified', order: 2, slaHours: 24 },
-  { name: 'Acknowledged', order: 3, slaHours: 48 },
-  { name: 'In Review', order: 4, slaHours: 72 },
-  { name: 'Action Taken', order: 5, slaHours: 168 },
-  { name: 'Response Sent', order: 6, slaHours: 24 },
-  { name: 'Closed', order: 7, slaHours: null },
-];
-
-// Valid status transitions (state machine)
+// PHASE 1 CHANGE — Valid status transitions (new 9-state machine)
 const STATUS_TRANSITIONS: Record<RightsRequestStatus, RightsRequestStatus[]> = {
-  RECEIVED: [RightsRequestStatus.IDENTITY_VERIFIED, RightsRequestStatus.REJECTED, RightsRequestStatus.ON_HOLD],
-  IDENTITY_VERIFIED: [RightsRequestStatus.ACKNOWLEDGED, RightsRequestStatus.REJECTED],
-  ACKNOWLEDGED: [RightsRequestStatus.IN_REVIEW],
-  IN_REVIEW: [RightsRequestStatus.ACTION_TAKEN, RightsRequestStatus.ESCALATED, RightsRequestStatus.ON_HOLD],
-  ACTION_TAKEN: [RightsRequestStatus.RESPONSE_SENT],
-  RESPONSE_SENT: [RightsRequestStatus.CLOSED],
-  ESCALATED: [RightsRequestStatus.IN_REVIEW, RightsRequestStatus.CLOSED],
-  ON_HOLD: [RightsRequestStatus.IN_REVIEW, RightsRequestStatus.RECEIVED],
-  CLOSED: [],
-  REJECTED: [],
+  [RightsRequestStatus.RECEIVED]:           [RightsRequestStatus.IN_VERIFICATION, RightsRequestStatus.REJECTED],   // PHASE 1 CHANGE
+  [RightsRequestStatus.IN_VERIFICATION]:    [RightsRequestStatus.IN_REVIEW, RightsRequestStatus.REJECTED],         // PHASE 1 CHANGE
+  [RightsRequestStatus.IN_REVIEW]:          [RightsRequestStatus.ACTION_TAKEN, RightsRequestStatus.ON_HOLD, RightsRequestStatus.REJECTED, RightsRequestStatus.ESCALATED], // PHASE 1 CHANGE
+  [RightsRequestStatus.ON_HOLD]:            [RightsRequestStatus.IN_REVIEW, RightsRequestStatus.REJECTED],         // PHASE 1 CHANGE
+  [RightsRequestStatus.ACTION_TAKEN]:       [RightsRequestStatus.COMPLETED, RightsRequestStatus.PARTIAL_FULFILMENT, RightsRequestStatus.IN_REVIEW], // PHASE 1 CHANGE
+  [RightsRequestStatus.PARTIAL_FULFILMENT]: [RightsRequestStatus.COMPLETED, RightsRequestStatus.IN_REVIEW],        // PHASE 1 CHANGE
+  [RightsRequestStatus.ESCALATED]:          [RightsRequestStatus.IN_REVIEW, RightsRequestStatus.ACTION_TAKEN, RightsRequestStatus.REJECTED], // PHASE 1 CHANGE
+  [RightsRequestStatus.COMPLETED]:          [],                                                                     // PHASE 1 CHANGE
+  [RightsRequestStatus.REJECTED]:           [],                                                                     // PHASE 1 CHANGE
 };
 
-// Map status to workflow step name for auto-progression
+// PHASE 1 CHANGE — Map status to workflow step name for auto-progression
 const STATUS_TO_STEP: Partial<Record<RightsRequestStatus, string>> = {
   RECEIVED: 'Received',
-  IDENTITY_VERIFIED: 'Identity Verified',
-  ACKNOWLEDGED: 'Acknowledged',
+  IN_VERIFICATION: 'In Verification',   // PHASE 1 CHANGE
   IN_REVIEW: 'In Review',
   ACTION_TAKEN: 'Action Taken',
-  RESPONSE_SENT: 'Response Sent',
-  CLOSED: 'Closed',
+  COMPLETED: 'Completed',              // PHASE 1 CHANGE
 };
 
 import { StorageService } from '../common/storage/storage.service';
@@ -54,7 +43,6 @@ import { EncryptionService } from '../encryption/encryption.service';
 
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReportsService } from '../reports/reports.service';
-import { ReportType } from '@prisma/client';
 
 @Injectable()
 export class RightsRequestsService implements OnModuleInit {
@@ -65,14 +53,16 @@ export class RightsRequestsService implements OnModuleInit {
     private notificationsService: NotificationsService,
     private reportsService: ReportsService,
     @InjectQueue('sla-monitor') private slaQueue: Queue,
-    @InjectQueue('erasure') private erasureQueue: Queue
+    @InjectQueue('erasure') private erasureQueue: Queue,
+    private readonly workflowTemplateService: WorkflowTemplateService, // PHASE 2 CHANGE
+    private readonly slaRuleService: SlaRuleService // PHASE 4 CHANGE
   ) {}
 
   async onModuleInit() {
-    // Schedule the SLA monitoring job to run every hour
+    // Schedule the SLA monitoring job to run every 15 minutes (PHASE 4 CHANGE)
     await this.slaQueue.add('check-sla', {}, {
       repeat: {
-        pattern: '0 * * * *', // Every hour at minute 0
+        pattern: '*/15 * * * *', // PHASE 4 CHANGE
       },
       removeOnComplete: true,
       jobId: 'hourly-sla-check'
@@ -85,6 +75,15 @@ export class RightsRequestsService implements OnModuleInit {
 
   async create(dto: CreateRightsRequestDto, userId: string) {
     const { dueDate, tenantId, ...rest } = dto;
+
+    // PHASE 4 CHANGE — Resolve SLA Rule and calculate due date dynamically
+    const slaRule = await this.slaRuleService.getRule(
+      dto.regulation,
+      dto.type,
+      tenantId || ''
+    );
+    const resolvedDueDate = dueDate ? new Date(dueDate) : this.slaRuleService.calculateDueDate(new Date(), slaRule.slaDays);
+    const resolvedPriority = slaRule.priority;
 
     // Generate case number: RR-{YEAR}-{PADDED_SEQ}
     const year = new Date().getFullYear();
@@ -121,19 +120,38 @@ export class RightsRequestsService implements OnModuleInit {
           dataCategories: rest.dataCategories || [],
           relatedConsents: rest.relatedConsents || [],
           relatedApplications: rest.relatedApplications || [],
-          dueDate: dueDate ? new Date(dueDate) : undefined,
+          dueDate: resolvedDueDate,
+          priority: resolvedPriority,
           tenantId,
           currentStep: 'Received',
         },
       });
 
-      // Auto-create 7 default workflow steps
+      // PHASE 2 CHANGE — Fetch dynamic steps based on type and regulation
+      const templateSteps = await this.workflowTemplateService.getTemplate(
+        rest.type,
+        rest.regulation,
+        tenantId || ''
+      );
+
+      const steps = templateSteps.map(step => ({
+        name:        step.name,
+        order:       step.order,
+        assignedRole: step.assignedRole,
+        slaHours:    step.slaHours,
+        templateStepId: step.id ?? null,
+        status:      'WF_NOT_STARTED',
+      }));
+
+      // Auto-create workflow steps
       await prisma.workflowStep.createMany({
-        data: DEFAULT_WORKFLOW_STEPS.map((step) => ({
+        data: steps.map((step) => ({
           requestId: request.id,
           name: step.name,
           order: step.order,
+          assignedRole: step.assignedRole,
           slaHours: step.slaHours,
+          templateStepId: step.templateStepId,
           status: step.order === 1 ? 'WF_IN_PROGRESS' as const : 'WF_PENDING' as const,
         })),
       });
@@ -257,6 +275,22 @@ export class RightsRequestsService implements OnModuleInit {
     const currentStatus = request.status as RightsRequestStatus;
     const newStatus = dto.status;
 
+    // PHASE 3 CHANGE — SLA resume on ON_HOLD → IN_REVIEW
+    if (
+      request.status === RightsRequestStatus.ON_HOLD &&
+      newStatus === RightsRequestStatus.IN_REVIEW &&
+      request.slaPausedAt
+    ) {
+      const pausedDuration = new Date().getTime() - request.slaPausedAt.getTime();
+      const newDueDate = new Date(request.dueDate.getTime() + pausedDuration);
+      await this.prisma.rightsRequest.update({
+        where: { id },
+        data: { dueDate: newDueDate, slaPausedAt: null }
+      });
+      request.dueDate = newDueDate;
+      request.slaPausedAt = null;
+    }
+
     // Validate transition
     const allowed = STATUS_TRANSITIONS[currentStatus];
     if (!allowed || !allowed.includes(newStatus)) {
@@ -269,11 +303,12 @@ export class RightsRequestsService implements OnModuleInit {
       // Update request status
       const updateData: any = { status: newStatus, currentStep: STATUS_TO_STEP[newStatus] || newStatus };
 
-      if (newStatus === RightsRequestStatus.ACKNOWLEDGED) {
+      if (newStatus === RightsRequestStatus.IN_REVIEW) { // PHASE 1 CHANGE — was ACKNOWLEDGED
         updateData.acknowledgedAt = new Date();
       }
-      if (newStatus === RightsRequestStatus.CLOSED || newStatus === RightsRequestStatus.REJECTED) {
+      if (newStatus === RightsRequestStatus.COMPLETED || newStatus === RightsRequestStatus.REJECTED) { // PHASE 1 CHANGE — CLOSED→COMPLETED
         updateData.closedAt = new Date();
+        updateData.completedAt = new Date(); // PHASE 1 CHANGE
       }
 
       const updated = await prisma.rightsRequest.update({
@@ -593,12 +628,12 @@ export class RightsRequestsService implements OnModuleInit {
       this.prisma.rightsRequest.count({
         where: {
           dueDate: { lt: new Date() },
-          status: { notIn: [RightsRequestStatus.CLOSED, RightsRequestStatus.REJECTED] },
+          status: { notIn: [RightsRequestStatus.COMPLETED, RightsRequestStatus.REJECTED] }, // PHASE 1 CHANGE — CLOSED→COMPLETED
         },
       }),
       this.prisma.rightsRequest.findMany({
         where: {
-          status: RightsRequestStatus.CLOSED,
+          status: RightsRequestStatus.COMPLETED, // PHASE 1 CHANGE — CLOSED→COMPLETED
           closedAt: { not: null },
         },
         select: { submittedAt: true, closedAt: true },
@@ -635,13 +670,13 @@ export class RightsRequestsService implements OnModuleInit {
       total,
       newToday,
       newThisWeek,
-      pending: total - (statusMap[RightsRequestStatus.CLOSED] || 0) - (statusMap[RightsRequestStatus.REJECTED] || 0),
-      completed: statusMap[RightsRequestStatus.CLOSED] || 0,
+      pending: total - (statusMap[RightsRequestStatus.COMPLETED] || 0) - (statusMap[RightsRequestStatus.REJECTED] || 0), // PHASE 1 CHANGE — CLOSED→COMPLETED
+      completed: statusMap[RightsRequestStatus.COMPLETED] || 0, // PHASE 1 CHANGE — CLOSED→COMPLETED
       rejected: statusMap[RightsRequestStatus.REJECTED] || 0,
       slaCompliance: total > 0 ? Math.round(((total - slaBreached) / total) * 100) : 100,
       slaBreaches: slaBreached,
       avgResolutionDays,
-      fulfilmentRate: total > 0 ? Math.round(((statusMap[RightsRequestStatus.CLOSED] || 0) / total) * 100) : 100,
+      fulfilmentRate: total > 0 ? Math.round(((statusMap[RightsRequestStatus.COMPLETED] || 0) / total) * 100) : 100, // PHASE 1 CHANGE — CLOSED→COMPLETED
       repeatRequests: repeats.length,
     };
 
@@ -721,12 +756,13 @@ export class RightsRequestsService implements OnModuleInit {
     }));
 
     // Workflow Status
+    // PHASE 1 CHANGE — updated status references
     const workflowStatus = [
       { stage: "Received", count: statusMap[RightsRequestStatus.RECEIVED] || 0, color: "bg-muted-foreground" },
-      { stage: "Verified", count: statusMap[RightsRequestStatus.IDENTITY_VERIFIED] || 0, color: "bg-info" },
+      { stage: "Verification", count: statusMap[RightsRequestStatus.IN_VERIFICATION] || 0, color: "bg-info" },      // PHASE 1 CHANGE
       { stage: "In Review", count: statusMap[RightsRequestStatus.IN_REVIEW] || 0, color: "bg-warning" },
       { stage: "Action Taken", count: statusMap[RightsRequestStatus.ACTION_TAKEN] || 0, color: "bg-primary" },
-      { stage: "Completed", count: statusMap[RightsRequestStatus.CLOSED] || 0, color: "bg-success" },
+      { stage: "Completed", count: statusMap[RightsRequestStatus.COMPLETED] || 0, color: "bg-success" },             // PHASE 1 CHANGE
     ];
 
     // SLA by Priority
@@ -737,7 +773,7 @@ export class RightsRequestsService implements OnModuleInit {
         where: { 
           priority: p as any,
           dueDate: { lt: new Date() },
-          status: { notIn: [RightsRequestStatus.CLOSED, RightsRequestStatus.REJECTED] }
+          status: { notIn: [RightsRequestStatus.COMPLETED, RightsRequestStatus.REJECTED] } // PHASE 1 CHANGE — CLOSED→COMPLETED
         } 
       });
       const percentage = count > 0 ? Math.round(((count - breached) / count) * 100) : 100;
@@ -900,10 +936,373 @@ export class RightsRequestsService implements OnModuleInit {
       const due = new Date(request.dueDate);
       const diffMs = due.getTime() - now.getTime();
       daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-      slaBreached = diffMs < 0 && !['CLOSED', 'REJECTED'].includes(request.status);
+      slaBreached = diffMs < 0 && !['COMPLETED', 'REJECTED'].includes(request.status); // PHASE 1 CHANGE — CLOSED→COMPLETED
     }
 
     return { ...request, slaBreached, daysRemaining };
+  }
+
+  // ==========================================
+  // PHASE 3: Quick Actions — PHASE 3 CHANGE
+  // ==========================================
+
+  // PHASE 3 CHANGE
+  async approve(id: string, userId: string): Promise<RightsRequest> {
+    const request = await this.findOne(id);
+    const currentStatus = request.status as RightsRequestStatus;
+
+    const allowed = STATUS_TRANSITIONS[currentStatus];
+    if (!allowed || !allowed.includes(RightsRequestStatus.ACTION_TAKEN)) {
+      throw new BadRequestException(`Invalid status transition: ${currentStatus} → ACTION_TAKEN`);
+    }
+
+    return this.prisma.$transaction(async (prisma) => {
+      const updateData: any = {
+        status: RightsRequestStatus.ACTION_TAKEN,
+        currentStep: STATUS_TO_STEP[RightsRequestStatus.ACTION_TAKEN] || 'Action Taken',
+      };
+      if (!request.completedAt) {
+        updateData.completedAt = new Date();
+      }
+
+      const updated = await prisma.rightsRequest.update({
+        where: { id },
+        data: updateData,
+      });
+
+      const currentStepName = STATUS_TO_STEP[currentStatus];
+      if (currentStepName) {
+        await prisma.workflowStep.updateMany({
+          where: { requestId: id, name: currentStepName },
+          data: { status: 'WF_COMPLETED', completedAt: new Date(), completedBy: userId },
+        });
+      }
+
+      const nextStepName = STATUS_TO_STEP[RightsRequestStatus.ACTION_TAKEN];
+      if (nextStepName) {
+        await prisma.workflowStep.updateMany({
+          where: { requestId: id, name: nextStepName },
+          data: { status: 'WF_IN_PROGRESS' },
+        });
+      }
+
+      await prisma.rightsAuditEntry.create({
+        data: {
+          requestId: id,
+          caseNumber: request.caseNumber,
+          action: 'Request approved',
+          performedBy: userId,
+          performedAt: new Date(),
+          severity: 'INFO',
+          details: 'Status changed to ACTION_TAKEN',
+        },
+      });
+
+      try {
+        this.notificationsService.sendRightsRequestStatusUpdate(
+          request.requesterEmail!,
+          request.requesterName,
+          request.caseNumber,
+          request.type,
+          RightsRequestStatus.ACTION_TAKEN
+        );
+      } catch (e) {
+        // failed notification must NOT roll back the status update
+      }
+
+      if (request.type === 'ERASURE') {
+        try {
+          await this.erasureQueue.add('process-erasure', { requestId: id });
+        } catch (e) {}
+      }
+
+      if (['ACCESS', 'PORTABILITY'].includes(request.type as string)) {
+        try {
+          await this.reportsService.create({
+            name: `DSAR Data Pack: ${request.caseNumber}`,
+            reportType: ReportType.DSAR_EXPORT,
+            format: 'JSON',
+            parameters: {
+              email: request.requesterEmail,
+              phone: request.requesterPhone,
+              requestId: id,
+            },
+            tenantId: request.tenantId,
+          }, userId);
+        } catch (e) {}
+      }
+
+      return updated;
+    });
+  }
+
+  // PHASE 3 CHANGE
+  async reject(id: string, dto: RejectRequestDto, userId: string): Promise<RightsRequest> {
+    const request = await this.findOne(id);
+    const currentStatus = request.status as RightsRequestStatus;
+
+    if (!dto.reason) {
+      throw new BadRequestException('Rejection reason is required');
+    }
+
+    const allowed = STATUS_TRANSITIONS[currentStatus];
+    if (!allowed || !allowed.includes(RightsRequestStatus.REJECTED)) {
+      throw new BadRequestException(`Invalid status transition: ${currentStatus} → REJECTED`);
+    }
+
+    return this.prisma.$transaction(async (prisma) => {
+      const updated = await prisma.rightsRequest.update({
+        where: { id },
+        data: {
+          status: RightsRequestStatus.REJECTED,
+          rejectionReason: dto.reason,
+          rejectionComment: dto.comment || null,
+          closedAt: new Date(),
+        },
+      });
+
+      const currentStepName = STATUS_TO_STEP[currentStatus];
+      if (currentStepName) {
+        await prisma.workflowStep.updateMany({
+          where: { requestId: id, name: currentStepName },
+          data: { status: 'WF_COMPLETED', completedAt: new Date(), completedBy: userId },
+        });
+      }
+
+      await prisma.rightsAuditEntry.create({
+        data: {
+          requestId: id,
+          caseNumber: request.caseNumber,
+          action: `Request rejected — ${dto.reason}`,
+          performedBy: userId,
+          performedAt: new Date(),
+          severity: 'WARNING',
+          details: dto.comment || `Request rejected. Reason: ${dto.reason}`,
+        },
+      });
+
+      try {
+        this.notificationsService.sendRightsRequestStatusUpdate(
+          request.requesterEmail!,
+          request.requesterName,
+          request.caseNumber,
+          request.type,
+          RightsRequestStatus.REJECTED,
+          dto.comment
+        );
+      } catch (e) {}
+
+      return updated;
+    });
+  }
+
+  // PHASE 3 CHANGE
+  async escalate(id: string, dto: EscalateRequestDto, userId: string): Promise<RightsRequest> {
+    const request = await this.findOne(id);
+    const currentStatus = request.status as RightsRequestStatus;
+
+    const allowed = STATUS_TRANSITIONS[currentStatus];
+    if (!allowed || !allowed.includes(RightsRequestStatus.ESCALATED)) {
+      throw new BadRequestException(`Invalid status transition: ${currentStatus} → ESCALATED`);
+    }
+
+    return this.prisma.$transaction(async (prisma) => {
+      const updated = await prisma.rightsRequest.update({
+        where: { id },
+        data: {
+          status: RightsRequestStatus.ESCALATED,
+          escalatedTo: dto.target,
+          escalationReason: dto.rationale,
+        },
+      });
+
+      const currentStepName = STATUS_TO_STEP[currentStatus];
+      if (currentStepName) {
+        await prisma.workflowStep.updateMany({
+          where: { requestId: id, name: currentStepName },
+          data: { status: 'WF_COMPLETED', completedAt: new Date(), completedBy: userId },
+        });
+      }
+
+      await prisma.rightsAuditEntry.create({
+        data: {
+          requestId: id,
+          caseNumber: request.caseNumber,
+          action: `Case escalated to ${dto.target}`,
+          performedBy: userId,
+          performedAt: new Date(),
+          severity: 'WARNING',
+          details: dto.rationale,
+        },
+      });
+
+      try {
+        const escalationEmail = process.env.DPO_EMAIL || 'admin@example.com';
+        this.notificationsService.sendNewRightsRequestAlert(escalationEmail, {
+          caseNumber: request.caseNumber,
+          requesterName: request.requesterName,
+          requestType: request.type,
+          regulation: request.regulation,
+          priority: request.priority,
+        });
+      } catch (e) {}
+
+      return updated;
+    });
+  }
+
+  // PHASE 3 CHANGE
+  async requestMoreInfo(id: string, dto: RequestMoreInfoDto, userId: string): Promise<RightsRequest> {
+    const request = await this.findOne(id);
+    const currentStatus = request.status as RightsRequestStatus;
+
+    const allowed = STATUS_TRANSITIONS[currentStatus];
+    if (!allowed || !allowed.includes(RightsRequestStatus.ON_HOLD)) {
+      throw new BadRequestException(`Invalid status transition: ${currentStatus} → ON_HOLD`);
+    }
+
+    // PHASE 4 CHANGE
+    const slaRule = await this.slaRuleService.getRule(
+      request.regulation,
+      request.type,
+      request.tenantId || ''
+    );
+    const shouldPause = slaRule.clockPauseOnHold;
+
+    return this.prisma.$transaction(async (prisma) => {
+      const updateData: any = {
+        status: RightsRequestStatus.ON_HOLD,
+      };
+      if (shouldPause) {
+        updateData.slaPausedAt = new Date();
+      }
+
+      const updated = await prisma.rightsRequest.update({
+        where: { id },
+        data: updateData,
+      });
+
+      await prisma.caseNote.create({
+        data: {
+          requestId: id,
+          content: dto.message,
+          createdBy: userId,
+          type: 'NOTE_EXTERNAL',
+        },
+      });
+
+      await prisma.rightsAuditEntry.create({
+        data: {
+          requestId: id,
+          caseNumber: request.caseNumber,
+          action: 'Request More Info sent',
+          performedBy: userId,
+          performedAt: new Date(),
+          severity: 'INFO',
+          details: `SLA ${shouldPause ? 'paused' : 'continues'} — regulation: ${request.regulation}`,
+        },
+      });
+
+      try {
+        this.notificationsService.sendRightsRequestStatusUpdate(
+          request.requesterEmail!,
+          request.requesterName,
+          request.caseNumber,
+          request.type,
+          RightsRequestStatus.ON_HOLD,
+          dto.message
+        );
+      } catch (e) {}
+
+      return updated;
+    });
+  }
+
+  // PHASE 3 CHANGE
+  async partialFulfil(id: string, dto: PartialFulfilmentDto, userId: string): Promise<RightsRequest> {
+    const request = await this.findOne(id);
+    const currentStatus = request.status as RightsRequestStatus;
+
+    const allowed = STATUS_TRANSITIONS[currentStatus];
+    if (!allowed || !allowed.includes(RightsRequestStatus.PARTIAL_FULFILMENT)) {
+      throw new BadRequestException(`Invalid status transition: ${currentStatus} → PARTIAL_FULFILMENT`);
+    }
+
+    return this.prisma.$transaction(async (prisma) => {
+      const partialFulfilmentJson = {
+        fulfilled: dto.fulfilled,
+        withheld: dto.withheld,
+        justification: dto.legalJustification,
+        recordedBy: userId,
+        recordedAt: new Date().toISOString(),
+      };
+
+      const updated = await prisma.rightsRequest.update({
+        where: { id },
+        data: {
+          status: RightsRequestStatus.PARTIAL_FULFILMENT,
+          partialFulfilment: partialFulfilmentJson,
+        },
+      });
+
+      const currentStepName = STATUS_TO_STEP[currentStatus];
+      if (currentStepName) {
+        await prisma.workflowStep.updateMany({
+          where: { requestId: id, name: currentStepName },
+          data: { status: 'WF_COMPLETED', completedAt: new Date(), completedBy: userId },
+        });
+      }
+
+      await prisma.rightsAuditEntry.create({
+        data: {
+          requestId: id,
+          caseNumber: request.caseNumber,
+          action: 'Partial fulfilment recorded',
+          performedBy: userId,
+          performedAt: new Date(),
+          severity: 'INFO',
+          details: `Fulfilled: ${dto.fulfilled}, Withheld: ${dto.withheld}. Justification: ${dto.legalJustification}`,
+        },
+      });
+
+      try {
+        this.notificationsService.sendRightsRequestStatusUpdate(
+          request.requesterEmail!,
+          request.requesterName,
+          request.caseNumber,
+          request.type,
+          RightsRequestStatus.PARTIAL_FULFILMENT,
+          `Partial Fulfilment recorded. Justification: ${dto.legalJustification}`
+        );
+      } catch (e) {}
+
+      return updated;
+    });
+  }
+
+  // PHASE 3 CHANGE
+  async generateExtract(id: string, userId: string): Promise<{ jobId: string }> {
+    const request = await this.findOne(id);
+
+    if (!['ACCESS', 'PORTABILITY', 'ERASURE'].includes(request.type as string)) {
+      throw new BadRequestException('Request type must be ACCESS, PORTABILITY, or ERASURE to generate extract');
+    }
+
+    const job = await this.erasureQueue.add('generate-dsar-extract', { requestId: id, requestedBy: userId });
+
+    await this.prisma.rightsAuditEntry.create({
+      data: {
+        requestId: id,
+        caseNumber: request.caseNumber,
+        action: 'Data extract job triggered',
+        performedBy: userId,
+        performedAt: new Date(),
+        severity: 'INFO',
+        details: `Triggered extract job. Job ID: ${job.id}`,
+      },
+    });
+
+    return { jobId: job.id! };
   }
 
   private decryptRequest(request: any) {

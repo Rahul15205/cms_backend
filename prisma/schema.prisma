@@ -54,6 +54,7 @@ model Tenant {
   workflowConfigs  WorkflowConfig[]
   generatedReports GeneratedReport[]
   consentWidgetConfigs ConsentWidgetConfig[]
+  workflowTemplates WorkflowTemplate[] // PHASE 2 CHANGE
 }
 
 enum UserStatus {
@@ -773,15 +774,14 @@ enum RightsRequestType {
 
 enum RightsRequestStatus {
   RECEIVED
-  IDENTITY_VERIFIED
-  ACKNOWLEDGED
-  IN_REVIEW
-  ACTION_TAKEN
-  RESPONSE_SENT
-  CLOSED
-  REJECTED
-  ESCALATED
+  IN_VERIFICATION       // PHASE 1 CHANGE — replaces IDENTITY_VERIFIED
+  IN_REVIEW             // PHASE 1 CHANGE — absorbs ACKNOWLEDGED
   ON_HOLD
+  ACTION_TAKEN
+  PARTIAL_FULFILMENT    // PHASE 1 CHANGE — new
+  ESCALATED
+  COMPLETED             // PHASE 1 CHANGE — replaces CLOSED
+  REJECTED
 }
 
 enum RightsRequestPriority {
@@ -814,6 +814,15 @@ enum SubmissionChannel {
   EMAIL_CHANNEL
   PHONE
   IN_PERSON
+}
+
+// PHASE 1 CHANGE — new enum for rejection tracking
+enum RejectionReason {
+  INSUFFICIENT_ID
+  DUPLICATE
+  OUT_OF_SCOPE
+  FRAUDULENT
+  OTHER
 }
 
 enum WorkflowStepStatus {
@@ -879,10 +888,25 @@ model RightsRequest {
 
   // SLA
   dueDate DateTime? // slaBreached & daysRemaining computed at query time
+  slaBreached         Boolean               @default(false)   // PHASE 1 CHANGE
+  slaBreachedAt       DateTime?                                // PHASE 1 CHANGE
+  slaPausedAt         DateTime?                                // PHASE 1 CHANGE
   
   // Alert Status
   nearBreachAlertSent Boolean @default(false)
   slaAlertSent        Boolean @default(false)
+
+  // Escalation — PHASE 1 CHANGE
+  escalatedTo         String?
+  escalationReason    String?
+
+  // Rejection — PHASE 1 CHANGE
+  rejectionReason     RejectionReason?
+  rejectionComment    String?
+
+  // Fulfilment — PHASE 1 CHANGE
+  partialFulfilment   Json?
+  completedAt         DateTime?
 
   // Assignment
   assignedTo   String? // FK → User (not enforced to allow external IDs)
@@ -921,8 +945,34 @@ model WorkflowStep {
   completedAt  DateTime?
   completedBy  String?
   notes        String?
+  templateStepId String? // PHASE 2 CHANGE — reference to which template step this was created from
 
   @@unique([requestId, order])
+}
+
+// PHASE 2 CHANGE
+model WorkflowTemplate {
+  id         String                 @id @default(uuid())
+  tenantId   String
+  type       RightsRequestType
+  regulation Regulation
+  isDefault  Boolean                @default(false)
+  createdAt  DateTime               @default(now())
+  steps      WorkflowTemplateStep[]
+  tenant     Tenant                 @relation(fields: [tenantId], references: [id])
+
+  @@unique([type, regulation, tenantId])
+}
+
+// PHASE 2 CHANGE
+model WorkflowTemplateStep {
+  id           String           @id @default(uuid())
+  templateId   String
+  name         String
+  order        Int
+  assignedRole String?
+  slaHours     Int?
+  template     WorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 }
 
 model CaseNote {
@@ -1265,14 +1315,16 @@ enum SLARuleStatus {
   SLA_ARCHIVED
 }
 
+// PHASE 4 CHANGE
 model SlaRule {
   id              String          @id @default(uuid())
-  name            String
-  regulation      Regulation?     // Reuses existing enum
+  name            String?
+  regulation      Regulation
   rightType       RightsRequestType? // Only when scope = RIGHTS
+  requestType     RightsRequestType? // null = applies to all types for this regulation
   category        String?         // Grievance category or custom label
-  priority        String?         // e.g., "LOW", "NORMAL", "URGENT", "CRITICAL"
-  duration        Int
+  priority        RightsRequestPriority @default(NORMAL)
+  duration        Int?
   durationUnit    SLADurationUnit @default(DAYS)
   dayType         SLADayType      @default(CALENDAR)
   scope           SLAScope        @default(RIGHTS)
@@ -1282,11 +1334,18 @@ model SlaRule {
   status          SLARuleStatus   @default(SLA_ACTIVE)
   version         Int             @default(1)
 
-  tenantId String?
-  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+  slaDays           Int
+  extensionDays     Int                    @default(0)
+  clockPauseOnHold  Boolean                @default(false)
+  isActive          Boolean                @default(true)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([regulation, requestType, tenantId])
 }
 
 // --- Notification Rules ---
@@ -1536,20 +1595,17 @@ model IntegrationSyncLog {
 // ADVANCED CONFIG MODULE — Phase 5
 // ==========================================
 
+// PHASE 6 CHANGE
 model ApiKey {
-  id        String    @id @default(uuid())
-  name      String
-  key       String    @unique
-  scopes    String[]  // ["read:consent", "write:consent", etc.]
-  expiresAt DateTime?
-  lastUsed  DateTime?
-  status    ConfigRuleStatus @default(CFG_ACTIVE)
-
-  tenantId String?
-  tenant   Tenant? @relation(fields: [tenantId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id @default(uuid())
+  tenantId    String
+  keyHash     String    @unique   // SHA-256 hash of the actual key — never store plaintext
+  label       String              // human-readable name e.g. "Production Widget"
+  isActive    Boolean   @default(true)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?           // null = never expires
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
 }
 
 model EncryptionConfig {

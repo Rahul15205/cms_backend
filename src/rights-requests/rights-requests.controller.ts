@@ -8,6 +8,7 @@ import { AssignRequestDto } from './dto/assign-request.dto';
 import { CreateCaseNoteDto } from './dto/create-case-note.dto';
 import { CreateCaseAttachmentDto } from './dto/create-case-attachment.dto';
 import { CreateEvidenceItemDto } from './dto/create-evidence-item.dto';
+import { RejectRequestDto, EscalateRequestDto, RequestMoreInfoDto, PartialFulfilmentDto } from './dto/quick-actions.dto'; // PHASE 3 CHANGE
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Permissions } from '../auth/permissions.decorator';
@@ -93,6 +94,68 @@ export class RightsRequestsController {
   @ApiOperation({ summary: 'Get workflow steps for a request' })
   getWorkflow(@Param('id') id: string) {
     return this.rightsRequestsService.getWorkflow(id);
+  }
+
+  // ==========================================
+  // PHASE 3 CHANGE: Quick Actions (6 endpoints)
+  // ==========================================
+
+  @Post('requests/:id/approve')
+  @Permissions({ module: ModuleName.RIGHTS_MANAGEMENT, action: 'edit' })
+  @ApiOperation({ summary: 'Approve request and transition to ACTION_TAKEN (PHASE 3 CHANGE)' })
+  async approve(@Param('id') id: string, @Request() req: any) {
+    return this.rightsRequestsService.approve(id, req.user.userId);
+  }
+
+  @Post('requests/:id/reject')
+  @Permissions({ module: ModuleName.RIGHTS_MANAGEMENT, action: 'edit' })
+  @ApiOperation({ summary: 'Reject request and transition to REJECTED (PHASE 3 CHANGE)' })
+  async reject(
+    @Param('id') id: string,
+    @Body() dto: RejectRequestDto,
+    @Request() req: any,
+  ) {
+    return this.rightsRequestsService.reject(id, dto, req.user.userId);
+  }
+
+  @Post('requests/:id/escalate')
+  @Permissions({ module: ModuleName.RIGHTS_MANAGEMENT, action: 'edit' })
+  @ApiOperation({ summary: 'Escalate request to target role and transition to ESCALATED (PHASE 3 CHANGE)' })
+  async escalate(
+    @Param('id') id: string,
+    @Body() dto: EscalateRequestDto,
+    @Request() req: any,
+  ) {
+    return this.rightsRequestsService.escalate(id, dto, req.user.userId);
+  }
+
+  @Post('requests/:id/request-info')
+  @Permissions({ module: ModuleName.RIGHTS_MANAGEMENT, action: 'edit' })
+  @ApiOperation({ summary: 'Request more info from user and transition to ON_HOLD (PHASE 3 CHANGE)' })
+  async requestMoreInfo(
+    @Param('id') id: string,
+    @Body() dto: RequestMoreInfoDto,
+    @Request() req: any,
+  ) {
+    return this.rightsRequestsService.requestMoreInfo(id, dto, req.user.userId);
+  }
+
+  @Post('requests/:id/partial-fulfil')
+  @Permissions({ module: ModuleName.RIGHTS_MANAGEMENT, action: 'edit' })
+  @ApiOperation({ summary: 'Partially fulfil request and transition to PARTIAL_FULFILMENT (PHASE 3 CHANGE)' })
+  async partialFulfil(
+    @Param('id') id: string,
+    @Body() dto: PartialFulfilmentDto,
+    @Request() req: any,
+  ) {
+    return this.rightsRequestsService.partialFulfil(id, dto, req.user.userId);
+  }
+
+  @Post('requests/:id/generate-extract')
+  @Permissions({ module: ModuleName.RIGHTS_MANAGEMENT, action: 'edit' })
+  @ApiOperation({ summary: 'Trigger automated data extraction job (PHASE 3 CHANGE)' })
+  async generateExtract(@Param('id') id: string, @Request() req: any) {
+    return this.rightsRequestsService.generateExtract(id, req.user.userId);
   }
 
   // ==========================================

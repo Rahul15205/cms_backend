@@ -1,11 +1,11 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
-import { PrismaService } from '../prisma/prisma.service';
-import { NotificationsService } from '../notifications/notifications.service';
-import { RightsRequestStatus, GrievanceStatus } from '@prisma/client';
+import { Processor, WorkerHost } from '@nestjs/bullmq'; // PHASE 4 CHANGE
+import { Logger } from '@nestjs/common'; // PHASE 4 CHANGE
+import { Job } from 'bullmq'; // PHASE 4 CHANGE
+import { PrismaService } from '../prisma/prisma.service'; // PHASE 4 CHANGE
+import { NotificationsService } from '../notifications/notifications.service'; // PHASE 4 CHANGE
+import { RightsRequestStatus } from '@prisma/client'; // PHASE 4 CHANGE
 
-@Processor('sla-monitor')
+@Processor('sla-monitor') // PHASE 4 CHANGE
 export class SlaMonitorProcessor extends WorkerHost {
   private readonly logger = new Logger(SlaMonitorProcessor.name);
 
@@ -29,32 +29,41 @@ export class SlaMonitorProcessor extends WorkerHost {
 
   private async monitorRightsRequests() {
     const now = new Date();
-    const nearBreachThreshold = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
+    // PHASE 4 CHANGE — 3 business days = 72 hours
+    const nearBreachThreshold = new Date(now.getTime() + 72 * 60 * 60 * 1000);
 
     // 1. Check for Pending/In-Review requests that are past due
     const breached = await this.prisma.rightsRequest.findMany({
       where: {
-        status: { notIn: [RightsRequestStatus.CLOSED, RightsRequestStatus.REJECTED] },
+        status: { notIn: [RightsRequestStatus.COMPLETED, RightsRequestStatus.REJECTED] }, // PHASE 4 CHANGE
         dueDate: { lte: now },
         slaAlertSent: false,
+        slaPausedAt: null, // PHASE 4 CHANGE — skip paused cases
       },
     });
 
     for (const req of breached) {
       this.logger.warn(`SLA Breached for Rights Request: ${req.caseNumber}`);
       await this.sendAlert(req, false);
+      
+      // PHASE 4 CHANGE — set slaBreached flag atomically
       await this.prisma.rightsRequest.update({
         where: { id: req.id },
-        data: { slaAlertSent: true },
+        data: {
+          slaAlertSent: true,
+          slaBreached: true,
+          slaBreachedAt: new Date(),
+        },
       });
     }
 
-    // 2. Check for requests nearing breach (within 24h)
+    // 2. Check for requests nearing breach (within 72h)
     const nearBreach = await this.prisma.rightsRequest.findMany({
       where: {
-        status: { notIn: [RightsRequestStatus.CLOSED, RightsRequestStatus.REJECTED] },
+        status: { notIn: [RightsRequestStatus.COMPLETED, RightsRequestStatus.REJECTED] }, // PHASE 4 CHANGE
         dueDate: { gt: now, lte: nearBreachThreshold },
         nearBreachAlertSent: false,
+        slaPausedAt: null, // PHASE 4 CHANGE — skip paused cases
       },
     });
 
@@ -69,10 +78,7 @@ export class SlaMonitorProcessor extends WorkerHost {
   }
 
   private async monitorGrievances() {
-    // Currently Grievance model doesn't have a dueDate field in schema, 
-    // but the alert flags were added. If we decide to use a fixed SLA 
-    // (e.g. 7 days from creation), we can implement it here.
-    // For now, we'll keep it as a placeholder as requested.
+    // Placeholder for grievance SLA monitoring
   }
 
   private async sendAlert(request: any, isNearBreach: boolean) {
